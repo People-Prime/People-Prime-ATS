@@ -1,0 +1,238 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Grid,
+  Typography,
+  Card,
+  Button,
+  useTheme
+} from '@mui/material';
+import {
+  Building,
+  Wrench,
+  Plus
+} from 'lucide-react';
+import { useAppSelector } from '../../redux/store';
+import { PipelineKPIs } from './PipelineKPIs';
+import { DashboardCalendar, todayStr } from './DashboardCalendar';
+
+export const AssociateDashboard: React.FC = () => {
+  const theme = useTheme();
+  const navigate = useNavigate();
+
+  const { user: currentUser } = useAppSelector(state => state.auth);
+  const { applications } = useAppSelector(state => state.applications);
+
+  const myApplications = applications.filter(app => app.assigned_employee?.email === currentUser?.email);
+
+  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
+  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+
+  const getJobCandidates = (selectedApp: any) => {
+    const matches = applications.filter(app =>
+      app.candidate_name &&
+      app.position?.toLowerCase() === selectedApp.position?.toLowerCase() &&
+      app.client_name?.toLowerCase() === selectedApp.client_name?.toLowerCase() &&
+      app.technology?.toLowerCase() === selectedApp.technology?.toLowerCase()
+    );
+    const seen = new Set<string>();
+    return matches.filter(app => {
+      const email = app.candidate_email?.toLowerCase() || '';
+      if (!email || seen.has(email)) return false;
+      seen.add(email);
+      return true;
+    });
+  };
+
+  // Filter by updated_at date when a date is selected
+  const dateFilteredApps = selectedDate
+    ? myApplications.filter(app => {
+      const d = app.updated_at || app.created_at || '';
+      return d.slice(0, 10) === selectedDate;
+    })
+    : myApplications;
+
+  const uniqueJobOpenings = React.useMemo(() => {
+    const seen = new Set<string>();
+    const unique: typeof dateFilteredApps = [];
+    dateFilteredApps.forEach(app => {
+      const key = `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}|${app.experience}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        // Find the record with candidate_name if it exists, otherwise use this one
+        const matches = dateFilteredApps.filter(m => 
+          m.client_name?.toLowerCase() === app.client_name?.toLowerCase() &&
+          m.position?.toLowerCase() === app.position?.toLowerCase() &&
+          m.technology?.toLowerCase() === app.technology?.toLowerCase() &&
+          Number(m.experience) === Number(app.experience)
+        );
+        const withCandidate = matches.find(m => m.candidate_name);
+        unique.push(withCandidate || app);
+      }
+    });
+    return unique;
+  }, [dateFilteredApps]);
+
+  // Status Chip helper
+  const getStatusChip = (status: string) => {
+    return (
+      <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+        {status}
+      </Typography>
+    );
+  };
+
+  return (
+    <Box>
+
+      {/* Pipeline KPIs - driven by date-filtered applications or all-time */}
+      <PipelineKPIs applications={showAllTimeKPIs ? myApplications : dateFilteredApps} />
+
+
+      {/* Assigned Job Requirement Openings for the analyst */}
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <Card>
+            <Box sx={{ p: 2.5, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight={750}>
+                  My Assigned Job Openings & Candidate Sourcing
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  These requirements are assigned to you by your Team Lead. Select a requirement to add a candidate, submit details, or check active candidates.
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Button
+                  variant={showAllTimeKPIs ? "contained" : "outlined"}
+                  size="small"
+                  onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
+                  sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.5, fontWeight: 700 }}
+                >
+                  {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
+                </Button>
+                <DashboardCalendar
+                  selectedDate={selectedDate}
+                  onChange={setSelectedDate}
+                  totalCount={dateFilteredApps.length}
+                  allCount={myApplications.length}
+                />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<Plus size={18} />}
+                  sx={{ borderRadius: '8px', fontWeight: 700 }}
+                  onClick={() => {
+                    navigate('/candidates/create');
+                  }}
+                >
+                  Add Candidate
+                </Button>
+              </Box>
+            </Box>
+
+            <Box sx={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                    <tr style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Client</th>
+                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Position</th>
+                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Requirements</th>
+                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
+                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Candidates</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uniqueJobOpenings.map((app) => (
+                      <React.Fragment key={app.id}>
+                        <tr style={{ borderBottom: expandedRow === app.id ? 'none' : `1px solid ${theme.palette.divider}` }}>
+                          <td style={{ padding: '4px 8px' }}>
+                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600, fontSize: '0.75rem' }}>
+                              <Building size={12} /> {app.client_name}
+                            </Typography>
+                          </td>
+                          <td style={{ padding: '4px 8px' }}>
+                            <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.75rem' }}>{app.position}</Typography>
+                          </td>
+                          <td style={{ padding: '4px 8px' }}>
+                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
+                              <Wrench size={10} /> {app.technology}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Experience: {app.experience} years</Typography>
+                          </td>
+                          <td style={{ padding: '4px 8px' }}>
+                            {getStatusChip(app.status)}
+                          </td>
+                          <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                            <Button
+                              variant={expandedRow === app.id ? "contained" : "outlined"}
+                              size="small"
+                              sx={{ borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, py: 0.25 }}
+                              onClick={() => setExpandedRow(expandedRow === app.id ? null : app.id)}
+                            >
+                              {expandedRow === app.id ? 'Hide Candidates' : 'View Candidates'}
+                            </Button>
+                          </td>
+                        </tr>
+                        {expandedRow === app.id && (
+                          <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                            <td colSpan={5} style={{ padding: '8px 12px' }}>
+                              <Box sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.paper' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Candidate Name</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Contact Info</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {getJobCandidates(app).map(candidate => (
+                                      <tr key={candidate.id} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+                                        <td style={{ padding: '4px 8px' }}>
+                                          <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{candidate.candidate_name}</Typography>
+                                        </td>
+                                        <td style={{ padding: '4px 8px' }}>
+                                          <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{candidate.candidate_email}</Typography>
+                                          <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{candidate.candidate_phone}</Typography>
+                                        </td>
+                                        <td style={{ padding: '4px 8px' }}>
+                                          <Typography variant="body2" fontWeight={600} color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                            {candidate.status}
+                                          </Typography>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    {getJobCandidates(app).length === 0 && (
+                                      <tr>
+                                        <td colSpan={3} style={{ padding: '8px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+                                          No candidates uploaded for this position yet.
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </tbody>
+                                </table>
+                              </Box>
+                            </td>
+                          </tr>
+                        )}
+                    </React.Fragment>
+                  ))}
+                  {myApplications.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
+                        No active job requirements assigned to you.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </Box>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};

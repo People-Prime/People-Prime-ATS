@@ -1,0 +1,330 @@
+import csv
+from django.http import HttpResponse
+from rest_framework import viewsets, status, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.db.models import Count, Q
+from applications.models import Application, Note
+from applications.serializers import ApplicationSerializer, ApplicationCreateSerializer, NoteSerializer
+from users.models import User, Role
+from teams.models import Team
+
+class ApplicationViewSet(viewsets.ModelViewSet):
+    serializer_class = ApplicationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        
+        # 1. Admin, CEO, and Senior Manager can see all requirements and candidates
+        if user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER]:
+            return Application.objects.all().order_by('-created_at')
+        
+        # 2. Junior Manager can see applications of teams/members reporting to them
+        if user.role == Role.JUNIOR_MANAGER:
+            # Get members who report to this manager
+            reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
+            return Application.objects.filter(assigned_employee__in=reporters).order_by('-created_at')
+
+        # 3. Team Lead & Sub Lead can see applications assigned to members of their team
+        if user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+            if user.team:
+                team_members = User.objects.filter(team=user.team)
+                return Application.objects.filter(assigned_employee__in=team_members).order_by('-created_at')
+            return Application.objects.none()
+
+        # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them
+        if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
+            return Application.objects.filter(assigned_employee=user).order_by('-created_at')
+
+        return Application.objects.none()
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return ApplicationCreateSerializer
+        return ApplicationSerializer
+
+    def perform_create(self, serializer):
+        # Auto-set recruiter to the user creating it if not provided
+        serializer.save()
+
+    # Append a coordinator review note to the application
+    @action(detail=True, methods=['post'], url_path='add-note')
+    def add_note(self, request, pk=None):
+        application = self.get_object()
+        serializer = NoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        note = serializer.save(
+            application=application,
+            author=request.user
+        )
+        
+        # Auto-update application timestamp on new note
+        application.save()
+        
+        return Response(NoteSerializer(note).data, status=status.HTTP_201_CREATED)
+
+    # Export filtered candidate listings to CSV
+    @action(detail=False, methods=['get'], url_path='export-csv')
+    def export_csv(self, request):
+        queryset = self.get_queryset()
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="ats_applications.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'ID', 'Candidate Name', 'Candidate Email', 'Candidate Phone',
+            'Client Name', 'Position', 'Technology', 'Experience Required',
+            'Recruiter', 'Assigned Associate', 'Status', 'Updated At'
+        ])
+        
+        for app in queryset:
+            writer.writerow([
+                app.id,
+                app.candidate_name or 'N/A',
+                app.candidate_email or 'N/A',
+                app.candidate_phone or 'N/A',
+                app.client_name,
+                app.position,
+                app.technology,
+                app.experience,
+                app.recruiter or 'N/A',
+                app.assigned_employee.full_name if app.assigned_employee else 'Unassigned',
+                app.status,
+                app.updated_at.strftime('%Y-%m-%d %H:%M:%S')
+            ])
+            
+        return response
+
+    @action(detail=False, methods=['post'], url_path='parse-resume')
+    def parse_resume(self, request):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        name = file_obj.name.lower()
+        text = ""
+        
+        try:
+            if name.endswith('.pdf'):
+                import pypdf
+                reader = pypdf.PdfReader(file_obj)
+                pages_text = []
+                for page in reader.pages:
+                    t = page.extract_text()
+                    if t:
+                        pages_text.append(t)
+                text = "\n".join(pages_text)
+            elif name.endswith('.docx'):
+                import docx2txt
+                text = docx2txt.process(file_obj)
+            elif name.endswith('.txt'):
+                text = file_obj.read().decode('utf-8', errors='ignore')
+            else:
+                return Response({'error': 'Unsupported file format. Please upload PDF, DOCX or TXT'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': f'Failed to read file contents: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Regex heuristics to parse details from raw text
+        import re
+        
+        # 1. Extract email
+        email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+        emails = re.findall(email_pattern, text)
+        email = emails[0] if emails else ""
+
+        # 2. Extract phone
+        phone_pattern = r'(?:\+?\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}'
+        phones = re.findall(phone_pattern, text)
+        phone = phones[0] if phones else ""
+
+        # 3. Extract name (look at the first 8 non-empty lines that don't match email, phone, or standard headers)
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        candidate_name = ""
+        for line in lines[:8]:
+            # Skip if contains email, phone, or starts with common resume headers
+            if "@" in line or any(p in line.lower() for p in ["phone", "resume", "cv", "page", "profile"]) or re.search(r'\d{4,}', line):
+                continue
+            # Words count should be between 2 and 4 (standard name)
+            words = line.split()
+            if 2 <= len(words) <= 4:
+                candidate_name = line
+                break
+        
+        # Fallback to filename if name not found in text
+        if not candidate_name:
+            filename_clean = re.sub(r'[-_]', ' ', file_obj.name.split('.')[0])
+            filename_words = [w for w in filename_clean.split() if w.lower() not in ['resume', 'cv', 'latest', 'updated']]
+            if filename_words:
+                candidate_name = " ".join(filename_words).title()
+            else:
+                candidate_name = "Candidate Profile"
+
+        # 4. Extract experience (removed as requested, keeping field blank)
+        experience = ""
+
+        # 5. Extract degree (exact higher qualification line, prioritizing Education section)
+        degree = ""
+        degree_ranks = [
+            (r'\b(?:ph\.?d|doctorate|doctor of philosophy)\b', 5, 'PhD'),
+            (r'\b(?:master|m\.?s\b|m\.?tech|m\.?c\.?a|m\.?b\.?a|m\.?e|m\.?phil|post\s*graduate)\b', 4, 'Masters'),
+            (r'\b(?:bachelor|b\.?s\b|b\.?tech|b\.?e\b|b\.?c\.?a|b\.?b\.?a|b\.?sc|undergraduate)\b', 3, 'Bachelors'),
+            (r'\b(?:diploma|associate)\b', 2, 'Diploma')
+        ]
+        
+        lines_list = [line.strip() for line in text.split('\n') if line.strip()]
+        best_rank = 0
+        best_val = ""
+        in_education = False
+        
+        edu_headers = r'^(?:education|educational|academics?|academic background|qualifications?)\b'
+        other_headers = r'^(?:experience|employment|work|history|professional|projects?|skills?|summary|profile|about|certifications?)\b'
+        
+        for line in lines_list:
+            # Check for section boundaries
+            if re.search(edu_headers, line, re.IGNORECASE):
+                in_education = True
+                continue
+            elif re.search(other_headers, line, re.IGNORECASE):
+                in_education = False
+                
+            for pattern, rank, label in degree_ranks:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    # Boost rank significantly if found inside the Education section
+                    actual_rank = rank + 10 if in_education else rank
+                    if actual_rank > best_rank:
+                        best_rank = actual_rank
+                        matched_text = match.group(0)
+                        
+                        # Find the most specific degree phrase in that line
+                        detailed_patterns = [
+                            r'\b(?:master of science|master of technology|master of computer applications|master of business administration|master of engineering)\b',
+                            r'\b(?:bachelor of technology|bachelor of science|bachelor of engineering|bachelor of computer applications|bachelor of business administration)\b',
+                            r'\b(?:m\.?s\b|m\.?tech|m\.?c\.?a|m\.?b\.?a|b\.?s\b|b\.?tech|b\.?e\b|b\.?c\.?a|ph\.?d|diploma)\b',
+                            r'\b(?:masters?|bachelors?|doctorate|diploma)\b'
+                        ]
+                        for dp in detailed_patterns:
+                            m_det = re.search(dp, line, re.IGNORECASE)
+                            if m_det:
+                                matched_text = m_det.group(0)
+                                break
+                        
+                        # Normalize punctuation (e.g. M.Tech -> M.Tech)
+                        normalized = matched_text.strip()
+                        # Capitalize nicely
+                        best_val = normalized.title() if len(normalized) > 4 else normalized.upper()
+        
+        degree = best_val if best_val else "Bachelors Degree"
+
+        # 6. Extract skills
+        common_skills = [
+            "React", "Angular", "Vue", "JavaScript", "TypeScript", "Node", "Express",
+            "Python", "Django", "Flask", "FastAPI", "Java", "Spring Boot", "Spring",
+            "Hibernate", "C#", ".NET", "C++", "Golang", "PHP", "Laravel", "Ruby",
+            "Rails", "SQL", "MySQL", "PostgreSQL", "MongoDB", "Redis", "Elasticsearch",
+            "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform", "Jenkins",
+            "Git", "HTML", "CSS", "Sass", "Redux", "GraphQL", "REST API", "Microservices"
+        ]
+        matched_skills = []
+        for skill in common_skills:
+            if re.search(r'\b' + re.escape(skill) + r'\b', text, re.IGNORECASE):
+                matched_skills.append(skill)
+        
+        skills_str = ", ".join(matched_skills[:8]) if matched_skills else "React, TypeScript, JavaScript"
+
+        # Split candidate_name into first/last name
+        name_parts = candidate_name.split()
+        first_name = name_parts[0] if name_parts else "Jane"
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else "Smith"
+
+        return Response({
+            'firstName': first_name,
+            'lastName': last_name,
+            'email': email,
+            'phone': phone,
+            'skills': skills_str,
+            'experience': experience,
+            'degree': degree,
+            'fileName': file_obj.name
+        }, status=status.HTTP_200_OK)
+
+
+    # Dynamic metrics loader for role dashboards
+    @action(detail=False, methods=['get'], url_path='dashboard-stats')
+    def dashboard_stats(self, request):
+        user = request.user
+        
+        # A. ADMIN / CEO STATS
+        if user.is_superuser or user.role in [Role.ADMIN, Role.CEO]:
+            total_staff = User.objects.count()
+            active_staff = User.objects.filter(is_active=True).count()
+            inactive_staff = total_staff - active_staff
+            
+            # Role breakups
+            role_breakups = User.objects.values('role').annotate(count=Count('role'))
+            role_data = {item['role']: item['count'] for item in role_breakups}
+            
+            # Team breakups
+            team_breakups = User.objects.values('team__name').annotate(count=Count('email'))
+            team_data = {item['team__name'] or 'Unassigned': item['count'] for item in team_breakups}
+
+            return Response({
+                'dashboard_type': 'ADMIN',
+                'total_employees': total_staff,
+                'active_employees': active_staff,
+                'inactive_employees': inactive_staff,
+                'role_distribution': role_data,
+                'team_distribution': team_data
+            }, status=status.HTTP_200_OK)
+
+        # B. MANAGER / LEADER STATS
+        elif user.role in [Role.SENIOR_MANAGER, Role.JUNIOR_MANAGER, Role.TEAM_LEAD, Role.SUB_LEAD]:
+            team_id = user.team.id if user.team else None
+            team_name = user.team.name if user.team else 'General'
+            
+            # Resolve team roster
+            if user.role == Role.SENIOR_MANAGER:
+                team_members = User.objects.filter(role=Role.ASSOCIATE_ANALYST)
+            elif user.team:
+                team_members = User.objects.filter(team=user.team, role=Role.ASSOCIATE_ANALYST)
+            else:
+                team_members = User.objects.none()
+
+            team_applications = Application.objects.filter(assigned_employee__in=team_members)
+            
+            open_reqs = team_applications.filter(status='New').count()
+            active_pipes = team_applications.exclude(status__in=['New', 'Selected', 'Rejected', 'Closed']).count()
+            total_hires = team_applications.filter(status='Selected').count()
+
+            return Response({
+                'dashboard_type': 'LEAD',
+                'team_name': team_name,
+                'team_associates_count': team_members.count(),
+                'open_requirements': open_reqs,
+                'active_pipeline': active_pipes,
+                'total_hires': total_hires,
+                'selection_rate': round((total_hires / team_applications.count() * 100), 1) if team_applications.exists() else 0.0
+            }, status=status.HTTP_200_OK)
+
+        # C. ASSOCIATE ANALYST STATS
+        elif user.role == Role.ASSOCIATE_ANALYST:
+            my_apps = Application.objects.filter(assigned_employee=user)
+            
+            my_new = my_apps.filter(status='New').count()
+            my_active = my_apps.exclude(status__in=['New', 'Selected', 'Rejected', 'Closed']).count()
+            my_hires = my_apps.filter(status='Selected').count()
+
+            return Response({
+                'dashboard_type': 'ASSOCIATE',
+                'my_total_positions': my_apps.count(),
+                'pending_sourcing': my_new,
+                'active_pipeline': my_active,
+                'placed_candidates': my_hires,
+                'sourced_rate': round(((my_apps.count() - my_new) / my_apps.count() * 100), 1) if my_apps.exists() else 0.0
+            }, status=status.HTTP_200_OK)
+
+        return Response({"error": "Stats not resolved for role."}, status=status.HTTP_400_BAD_REQUEST)

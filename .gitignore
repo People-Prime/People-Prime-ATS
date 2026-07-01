@@ -1,0 +1,25 @@
+# Python environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+db.sqlite3
+
+# Node dependencies
+node_modules/
+dist/
+build/
+.eslintcache
+
+# Sensitive local configurations
+.env
+ats_db_backup.sql
+
+# IDEs and OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+.gemini/

@@ -1,0 +1,309 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { useTheme } from '@mui/material/styles';
+import {
+  Box,
+  Card,
+  Typography,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  InputAdornment
+} from '@mui/material';
+import { Search } from 'lucide-react';
+import { useAppSelector, useAppDispatch } from '../redux/store';
+import { setApplications } from '../redux/applicationsSlice';
+import { api } from '../services/api';
+
+export const Placements: React.FC = () => {
+  const theme = useTheme();
+  const dispatch = useAppDispatch();
+  const { applications } = useAppSelector(state => state.applications);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Load applications from API
+  useEffect(() => {
+    setLoading(true);
+    api.get('applications/')
+      .then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [dispatch]);
+
+  // Helper to extract fields from remarks
+  const getRemarkField = (remarks: string, fieldName: string): string => {
+    if (!remarks) return 'N/A';
+    const regex = new RegExp(`${fieldName}:\\s*(.*)`);
+    const match = remarks.match(regex);
+    if (!match) return 'N/A';
+    return match[1].trim() || 'N/A';
+  };
+
+  // Helper to extract numeric profit based on rates
+  const getProfitAmount = (remarks: string) => {
+    const grossStr = getRemarkField(remarks, 'Client Bill Rate');
+    const invStr = getRemarkField(remarks, 'Pay Rate');
+    const extractNumber = (s: string) => {
+      const cleaned = s.replace(/[^0-9]/g, '');
+      return cleaned ? parseFloat(cleaned) : NaN;
+    };
+    const grossNum = extractNumber(grossStr);
+    const invNum = extractNumber(invStr);
+    if (!isNaN(grossNum) && !isNaN(invNum)) {
+      const diff = grossNum - invNum;
+      const currency = grossStr.includes('LPA') ? ' LPA' : (grossStr.includes('$') ? '$' : '');
+      if (currency === ' LPA') {
+        return `${diff}${currency}`;
+      } else if (currency === '$') {
+        return `$${diff}`;
+      }
+      return `${diff}`;
+    }
+    return 'N/A';
+  };
+
+  // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
+  const placedCandidates = useMemo(() => {
+    const placed = applications.filter(app => app.status === 'Selected');
+    
+    // Sort by created_at ascending
+    const sorted = [...placed].sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+    // Map each to include auto-generated placement code
+    return sorted.map((app, idx) => {
+      const plcNumber = String(idx + 1).padStart(4, '0');
+      const placementCode = `PLC-${plcNumber}`;
+      return {
+        ...app,
+        placementCode
+      };
+    });
+  }, [applications]);
+
+  // Filter based on search term
+  const filteredCandidates = useMemo(() => {
+    return placedCandidates.filter(app => {
+      const searchLower = searchTerm.toLowerCase();
+      const name = (app.candidate_name || '').toLowerCase();
+      const email = (app.candidate_email || '').toLowerCase();
+      const pos = (app.position || '').toLowerCase();
+      const client = (app.client_name || '').toLowerCase();
+      const tech = (app.technology || '').toLowerCase();
+      const plcCode = app.placementCode.toLowerCase();
+      const jobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase();
+
+      return (
+        name.includes(searchLower) ||
+        email.includes(searchLower) ||
+        pos.includes(searchLower) ||
+        client.includes(searchLower) ||
+        tech.includes(searchLower) ||
+        plcCode.includes(searchLower) ||
+        jobCode.includes(searchLower)
+      );
+    });
+  }, [placedCandidates, searchTerm]);
+
+  return (
+    <Box sx={{ pb: 5 }}>
+      {/* Header section */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>
+            Placements Registry
+          </Typography>
+          <Typography variant="body2" color="text.secondary" fontWeight={500}>
+            List of all successfully placed candidates and assignment details
+          </Typography>
+        </Box>
+      </Box>
+
+
+
+      {/* Filter and Search controls */}
+      <Card sx={{ borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, mb: 4, p: 2.5 }}>
+        <TextField
+          placeholder="Search by candidate name, client, position, technology, placement code, or job code..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          size="small"
+          fullWidth
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search size={18} style={{ color: theme.palette.text.secondary }} />
+              </InputAdornment>
+            ),
+            style: { borderRadius: '8px' }
+          }}
+        />
+      </Card>
+
+      {/* Main Placements Table */}
+      <TableContainer
+        component={Paper}
+        sx={{
+          borderRadius: '12px',
+          border: `1px solid ${theme.palette.divider}`,
+          boxShadow: 'none',
+          bgcolor: theme.palette.mode === 'light' ? '#fff' : '#0f172a',
+          overflow: 'hidden'
+        }}
+      >
+        <Box sx={{ overflowX: 'auto' }}>
+          <Table 
+            sx={{ 
+              minWidth: 2000,
+              '& .MuiTableCell-root': {
+                padding: '4px 8px',
+                fontSize: '0.75rem',
+                whiteSpace: 'nowrap'
+              },
+              '& .MuiTableCell-head': {
+                padding: '6px 8px',
+                fontSize: '0.7rem',
+                whiteSpace: 'nowrap'
+              },
+              '& .MuiTypography-root': {
+                fontSize: '0.75rem'
+              },
+              '& .MuiTypography-caption': {
+                fontSize: '0.65rem'
+              }
+            }} 
+            size="small"
+          >
+            <TableHead>
+              <TableRow
+                style={{
+                  borderBottom: `2px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b'
+                }}
+              >
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Placement Code</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant Name</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Code</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Title</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Business Unit</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Gross Revenue</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Invoice Amount</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Profit Amount</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created By</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created On</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Tentative Start Date</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Actual Start Date</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Actual End Date</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Placement Status</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Recruiter</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>City/State</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={18} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                    Loading placements data...
+                  </TableCell>
+                </TableRow>
+              ) : filteredCandidates.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={18} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                    No placed candidates found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredCandidates.map((app) => (
+                  <TableRow
+                    key={app.id}
+                    sx={{
+                      borderBottom: `1px solid ${theme.palette.divider}`,
+                      '&:hover': {
+                        bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b50'
+                      }
+                    }}
+                  >
+                    <TableCell>
+                      {app.placementCode}
+                    </TableCell>
+                    <TableCell>
+                      {app.candidate_name || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {getRemarkField(app.remarks, 'Job Code')}
+                    </TableCell>
+                    <TableCell>
+                      {app.position || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {app.client_name || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {getRemarkField(app.remarks, 'Business Unit')}
+                    </TableCell>
+                    <TableCell sx={{ textAlign: 'right' }}>
+                      {getRemarkField(app.remarks, 'Client Bill Rate')}
+                    </TableCell>
+                    <TableCell sx={{ textAlign: 'right' }}>
+                      {getRemarkField(app.remarks, 'Pay Rate')}
+                    </TableCell>
+                    <TableCell sx={{ textAlign: 'right' }}>
+                      {getProfitAmount(app.remarks)}
+                    </TableCell>
+                    <TableCell>
+                      {app.recruiter || app.assigned_employee?.full_name || 'System'}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(app.created_at).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      {getRemarkField(app.remarks, 'Start Date')}
+                    </TableCell>
+                    <TableCell>
+                      {getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A' 
+                        ? getRemarkField(app.remarks, 'Actual Start Date') 
+                        : getRemarkField(app.remarks, 'Start Date')}
+                    </TableCell>
+                    <TableCell>
+                      {getRemarkField(app.remarks, 'End Date')}
+                    </TableCell>
+                    <TableCell>
+                      {app.status}
+                    </TableCell>
+                    <TableCell>
+                      {app.recruiter || app.assigned_employee?.full_name || 'System'}
+                    </TableCell>
+                    <TableCell>
+                      {getRemarkField(app.remarks, 'Manager')}
+                    </TableCell>
+                    <TableCell>
+                      {app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || 'N/A'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </Box>
+      </TableContainer>
+    </Box>
+  );
+};
