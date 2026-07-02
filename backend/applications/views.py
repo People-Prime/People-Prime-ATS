@@ -10,11 +10,92 @@ from applications.serializers import ApplicationSerializer, ApplicationCreateSer
 from users.models import User, Role
 from teams.models import Team
 
+
+def check_and_send_assignment_email(application, request_user, is_new=False, old_assignee_id=None):
+    if not application.candidate_name and application.assigned_employee:
+        if is_new or old_assignee_id != application.assigned_employee.id:
+            remarks = application.remarks or ''
+            
+            def extract_field(field_name):
+                import re
+                match = re.search(field_name + r':\s*(.*)', remarks)
+                return match.group(1).strip() if match else 'N/A'
+
+            job_code = extract_field('Job Code')
+            if job_code == 'N/A' or not job_code or 'Auto Generated' in job_code:
+                job_code = f"PPW - {application.id:04d}"
+            
+            start_date_str = extract_field('Start Date')
+            end_date_str = extract_field('End Date')
+            duration = "N/A"
+            if start_date_str != 'N/A' and end_date_str != 'N/A':
+                try:
+                    import datetime
+                    s_dt = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+                    e_dt = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                    diff = e_dt - s_dt
+                    days = diff.days
+                    if days <= 0:
+                        duration = "End of Day"
+                    else:
+                        months = days // 30
+                        rem_days = days % 30
+                        if months > 0:
+                            duration = f"{months} month(s) {rem_days} day(s)"
+                        else:
+                            duration = f"{days} day(s)"
+                except Exception:
+                    duration = "N/A"
+
+            job_details = {
+                'job_code': job_code,
+                'job_title': application.position or 'N/A',
+                'client_job_id': extract_field('Client Job ID'),
+                'location': extract_field('Location'),
+                'duration': duration,
+                'priority': extract_field('Priority') or 'N/A',
+                'primary_skills': application.technology or 'N/A',
+                'positions': extract_field('# Of Positions') or '1',
+                'description': extract_field('Description')
+            }
+
+            from users.tasks import send_job_assignment_email_task
+            send_job_assignment_email_task.delay(
+                associate_email=application.assigned_employee.email,
+                associate_name=application.assigned_employee.full_name or application.assigned_employee.email,
+                lead_email=request_user.email,
+                lead_name=request_user.full_name or request_user.email,
+                job_details=job_details
+            )
+
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Auto-close expired job requirements where End Date is past today
+        import datetime
+        import re
+        try:
+            today = datetime.date.today()
+            # Find active requirements (no candidate assigned yet)
+            active_jobs = Application.objects.filter(candidate_name='', remarks__icontains='Job Status: Active')
+            for job in active_jobs:
+                remarks = job.remarks or ''
+                end_date_match = re.search(r'End Date:\s*(\d{4}-\d{2}-\d{2})', remarks)
+                if end_date_match:
+                    end_date_str = end_date_match.group(1)
+                    try:
+                        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                        if today > end_date:
+                            new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
+                            job.remarks = new_remarks
+                            job.save(update_fields=['remarks'])
+                    except ValueError:
+                        pass
+        except Exception:
+            pass
+
         user = self.request.user
         
         # 1. Admin, CEO, and Senior Manager can see all requirements and candidates
@@ -46,8 +127,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return ApplicationSerializer
 
     def perform_create(self, serializer):
-        # Auto-set recruiter to the user creating it if not provided
-        serializer.save()
+        application = serializer.save()
+        check_and_send_assignment_email(application, self.request.user, is_new=True)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        old_assignee_id = instance.assigned_employee.id if instance.assigned_employee else None
+        application = serializer.save()
+        check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_id=old_assignee_id)
 
     # Append a coordinator review note to the application
     @action(detail=True, methods=['post'], url_path='add-note')
