@@ -116,11 +116,20 @@ export const LeadDashboard: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          gap: 2,
+          mb: 3.5 
+        }}
+      >
         <Typography variant="h5" sx={{ fontWeight: 800 }}>
           Team Management: <span style={{ color: theme.palette.primary.main }}>{myTeamName}</span>
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
           <Button
             variant={showAllTimeKPIs ? "contained" : "outlined"}
             size="small"
@@ -140,7 +149,7 @@ export const LeadDashboard: React.FC = () => {
             color="primary"
             startIcon={<Plus size={18} />}
             onClick={handleOpenAddReq}
-            sx={{ borderRadius: '8px' }}
+            sx={{ borderRadius: '8px', fontSize: '0.8rem', py: 0.5 }}
           >
             Add Job Opening
           </Button>
@@ -149,7 +158,7 @@ export const LeadDashboard: React.FC = () => {
             color="primary"
             startIcon={<Plus size={18} />}
             onClick={() => navigate('/candidates/create')}
-            sx={{ borderRadius: '8px', fontWeight: 700 }}
+            sx={{ borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', py: 0.5 }}
           >
             Add Candidate
           </Button>

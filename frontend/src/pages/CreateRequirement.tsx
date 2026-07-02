@@ -86,9 +86,12 @@ export const CreateRequirement: React.FC = () => {
 
   useEffect(() => {
     if (!applicationId) {
+      const today = new Date().toISOString().split('T')[0];
       setFormData(prev => ({
         ...prev,
-        jobCode: 'PPW - [Auto Generated]'
+        jobCode: 'PPW - [Auto Generated]',
+        startDate: today,
+        endDate: today
       }));
     }
   }, [applicationId]);
@@ -318,7 +321,10 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
       <Card sx={{ borderRadius: '16px', boxShadow: theme.shadows[3] }}>
         <CardContent sx={{ p: 4 }}>
           <form onSubmit={handleSaveRequirement}>
-            
+            <Alert severity="info" sx={{ mb: 3.5, borderRadius: '8px', fontWeight: 600 }}>
+              ℹ️ Note: This job opening is set to become inactive by the end of today.
+            </Alert>
+
             {/* SECTION 1: JOB DETAILS */}
             <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               💼 Job Details
@@ -370,8 +376,16 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   label="Job Start Date"
                   type="date"
                   fullWidth
+                  inputProps={{ max: new Date().toISOString().split('T')[0] }}
                   value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    const today = new Date().toISOString().split('T')[0];
+                    if (val && val > today) {
+                      val = today;
+                    }
+                    setFormData(prev => ({ ...prev, startDate: val, endDate: val }));
+                  }}
                   InputLabelProps={{ shrink: true }}
                   size="small"
                 />
@@ -380,11 +394,12 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 <TextField
                   label="Job End Date"
                   type="date"
+                  disabled
                   fullWidth
                   value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                   InputLabelProps={{ shrink: true }}
                   size="small"
+                  helperText="Automatically matches Start Date"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

@@ -121,35 +121,90 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
-        <Toolbar sx={{ px: { xs: 2, sm: 4 }, minHeight: { xs: '68px', sm: '80px' }, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          {/* Left Side: Clickable Brand Logo Icon (Second Image) */}
-          <IconButton
-            onClick={() => navigate('/')}
-            sx={{
-              p: 0,
-              borderRadius: '10px',
-              transition: 'transform 0.2s ease',
-              '&:hover': {
-                transform: 'scale(1.05)',
-                backgroundColor: 'transparent'
-              }
+        <Toolbar 
+          sx={{ 
+            px: { xs: 2, sm: 4 }, 
+            minHeight: { xs: 'auto', md: '80px' }, 
+            py: { xs: 1.5, md: 0 },
+            display: 'flex', 
+            flexDirection: { xs: 'column', md: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            gap: { xs: 1.5, md: 0 }
+          }}
+        >
+          {/* Top Row on Mobile, Left Side on Desktop */}
+          <Box sx={{ display: 'flex', width: { xs: '100%', md: 'auto' }, justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Clickable Brand Logo Icon */}
+            <IconButton
+              onClick={() => navigate('/')}
+              sx={{
+                p: 0,
+                borderRadius: '10px',
+                transition: 'transform 0.2s ease',
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                  backgroundColor: 'transparent'
+                }
+              }}
+            >
+              <Box
+                component="img"
+                src="/logo.png"
+                alt="People Prime Worldwide"
+                sx={{
+                  height: { xs: 32, sm: 42 },
+                  width: 'auto',
+                  display: 'block',
+                  objectFit: 'contain'
+                }}
+              />
+            </IconButton>
+
+            {/* Mobile Actions (Logout & Theme Toggle) */}
+            <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+              <IconButton
+                onClick={toggleTheme}
+                sx={{
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  borderRadius: '10px',
+                  p: 0.75,
+                  color: 'white'
+                }}
+              >
+                {themeMode === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+              </IconButton>
+              <IconButton
+                onClick={handleLogoutClick}
+                title="Logout"
+                sx={{
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  borderRadius: '10px',
+                  p: 0.75,
+                  color: '#EF4444'
+                }}
+              >
+                <LogOut size={16} />
+              </IconButton>
+            </Box>
+          </Box>
+
+          {/* Center: Navigation Options (Scrolls horizontally on mobile) */}
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1, 
+              overflowX: 'auto', 
+              px: { xs: 0, md: 2 }, 
+              width: { xs: '100%', md: 'auto' },
+              flexGrow: 1, 
+              justifyContent: { xs: 'flex-start', md: 'center' },
+              '::-webkit-scrollbar': { display: 'none' },
+              '-ms-overflow-style': 'none',
+              'scrollbar-width': 'none'
             }}
           >
-            <Box
-              component="img"
-              src="/logo.png"
-              alt="People Prime Worldwide"
-              sx={{
-                height: { xs: 36, sm: 46 },
-                width: 'auto',
-                display: 'block',
-                objectFit: 'contain'
-              }}
-            />
-          </IconButton>
-
-          {/* Center: Navigation Options */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, overflowX: 'auto', px: 2, flexGrow: 1, '::-webkit-scrollbar': { display: 'none' } }}>
             {menuItems.map((item) => {
               const isSelected = location.pathname === item.path;
               return (
@@ -180,22 +235,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
             })}
           </Box>
 
-          {/* Action Tools: User info, Theme toggle, Hamburger menu */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2.5 } }}>
-            {/* User Info (Left of Theme Option) */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5
-              }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 650, color: 'rgba(255, 255, 255, 0.9)', fontSize: { xs: '0.75rem', sm: '0.8rem' }, letterSpacing: 0.2 }}>
+          {/* Desktop Actions Only */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="body2" sx={{ fontWeight: 650, color: 'rgba(255, 255, 255, 0.9)', fontSize: '0.8rem', letterSpacing: 0.2 }}>
                 {user?.full_name?.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} - {user?.role === 'CEO' ? 'CEO' : user?.role?.replace('_', ' ').toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
               </Typography>
             </Box>
-
-            {/* Logout Button */}
             <IconButton
               onClick={handleLogoutClick}
               title="Logout"
@@ -212,8 +258,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
             >
               <LogOut size={20} />
             </IconButton>
-
-            {/* Light/Dark Toggle */}
             <IconButton
               onClick={toggleTheme}
               sx={{
@@ -231,7 +275,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           </Box>
         </Toolbar>
       </Box>
-
+ 
       {/* Main Panel Viewport */}
       <Box
         component="main"
@@ -241,7 +285,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           width: '100%',
           ml: 0,
           minHeight: '100vh',
-          pt: { xs: '84px', sm: '96px' },
+          pt: { xs: '124px', md: '106px' },
           backgroundColor: 'background.default',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}

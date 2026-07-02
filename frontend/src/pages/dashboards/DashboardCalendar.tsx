@@ -37,7 +37,15 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         type="date"
         ref={inputRef}
         value={selectedDate}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value || todayStr())}
+        max={todayStr()}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+          const val = e.target.value;
+          if (val && val > todayStr()) {
+            onChange(todayStr());
+          } else {
+            onChange(val || todayStr());
+          }
+        }}
         style={{
           position: 'absolute',
           top: 0,
