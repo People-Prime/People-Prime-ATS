@@ -116,10 +116,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             user_teams = user.teams.all()
             all_teams = (led_teams | user_teams).distinct()
             
+            # Find users who report directly to this team lead
+            direct_reports = User.objects.filter(reporting_to=user)
+            
             if all_teams.exists():
                 team_members = User.objects.filter(teams__in=all_teams).distinct()
-                return Application.objects.filter(assigned_employee__in=team_members).order_by('-created_at')
-            return Application.objects.none()
+                all_accessible_users = (team_members | direct_reports).distinct()
+            else:
+                all_accessible_users = direct_reports.distinct()
+                
+            return Application.objects.filter(assigned_employee__in=all_accessible_users).order_by('-created_at')
 
         # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them
         if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
