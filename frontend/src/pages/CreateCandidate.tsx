@@ -641,48 +641,6 @@ Recruiter Remarks: ${formData.remarks}`;
         <CardContent sx={{ p: 4 }}>
           <form onSubmit={handleSubmit}>
 
-            {/* Job Requirement Selection */}
-            {!applicationId ? (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  💼 Job Requirement Selection
-                </Typography>
-                <FormControl fullWidth size="small" required>
-                  <InputLabel>Select Job Requirement</InputLabel>
-                  <Select
-                    value={selectedApp?.id || ''}
-                    label="Select Job Requirement"
-                    onChange={(e) => {
-                      const app = activeRequirements.find(a => String(a.id) === String(e.target.value));
-                      if (app) {
-                        setSelectedApp(app);
-                      }
-                    }}
-                  >
-                    {activeRequirements.map((app) => {
-                      const match = app.remarks?.match(/Job Code:\s*(.+)/);
-                      const code = match ? match[1].trim() : `ID: ${app.id}`;
-                      return (
-                        <MenuItem key={app.id} value={app.id}>
-                          {app.position} - {app.client_name} ({code})
-                        </MenuItem>
-                      );
-                    })}
-                  </Select>
-                </FormControl>
-                <Divider sx={{ my: 3 }} />
-              </Box>
-            ) : (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  💼 Assigned Job Requirement
-                </Typography>
-                <Typography variant="body1" sx={{ fontWeight: 700, pl: 1 }}>
-                  {selectedApp ? `${selectedApp.position} at ${selectedApp.client_name}` : 'Loading job details...'}
-                </Typography>
-                <Divider sx={{ my: 3 }} />
-              </Box>
-            )}
 
             {/* SECTION 1: CANDIDATE INFO */}
             <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>

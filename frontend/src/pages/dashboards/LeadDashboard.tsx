@@ -164,15 +164,6 @@ export const LeadDashboard: React.FC = () => {
           >
             Add Job Opening
           </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<Plus size={18} />}
-            onClick={() => navigate('/candidates/create')}
-            sx={{ borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', py: 0.5 }}
-          >
-            Add Candidate
-          </Button>
         </Box>
       </Box>
 
