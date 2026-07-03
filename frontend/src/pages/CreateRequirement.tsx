@@ -243,6 +243,8 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
 
         setSuccess(`✅ Job requirement for "${formData.jobTitle}" updated successfully!`);
         setTimeout(() => navigate('/job-postings'), 1800);
+
+      } else {
         // Create mode!
         let generatedJobCode = '';
         for (const id of assigneeIds) {
