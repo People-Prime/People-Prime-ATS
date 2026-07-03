@@ -14,17 +14,18 @@ export interface User {
   full_name: string;
   role: UserRole;
   reporting_to?: {
-    id: string;
+    id?: string;
     full_name: string;
     email: string;
     role: UserRole;
   } | null;
   reporting_to_list?: Array<{
-    id: string;
+    id?: string;
     full_name: string;
     email: string;
     role: UserRole;
   }> | null;
+
   team?: {
     id: string;
     name: string;

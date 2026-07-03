@@ -53,10 +53,6 @@ export const ManagerDashboard: React.FC = () => {
           myTeams.push(t);
         }
       });
-    } else if (lead.team && lead.team.id) {
-      if (!myTeams.some(item => String(item.id) === String(lead.team!.id))) {
-        myTeams.push(lead.team);
-      }
     }
   });
 

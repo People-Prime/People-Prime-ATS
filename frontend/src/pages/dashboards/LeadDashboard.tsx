@@ -35,12 +35,18 @@ export const LeadDashboard: React.FC = () => {
   const { applications } = useAppSelector(state => state.applications);
 
   const dbCurrentUser = users.find(u => u.email === currentUser?.email);
-  const myTeamId = dbCurrentUser?.team?.id || currentUser?.team?.id || '';
-  const myTeamName = dbCurrentUser?.team?.name || currentUser?.team?.name || 'My Team';
-  const teamMembers = users.filter(u => 
-    (u.team && String(u.team.id) === String(myTeamId)) ||
-    (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
-  );
+  // Get all teams the lead is associated with (via M2M)
+  const myTeamIds = (dbCurrentUser?.teams || currentUser?.teams || []).map((t: any) => String(t.id));
+  const myTeamName = (dbCurrentUser?.teams || currentUser?.teams || [])[0]?.name || 'My Team';
+  const teamMembers = users.filter(u => {
+    // Member belongs to one of this lead's teams
+    const inTeam = u.teams && u.teams.some(t => myTeamIds.includes(String(t.id)));
+    // OR member directly reports to this lead (reporting_to_list is the full array)
+    const reportsToMe = u.reporting_to_list && u.reporting_to_list.some(
+      (r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()
+    );
+    return inTeam || reportsToMe;
+  });
 
   // Applications assigned to team members
   const teamApplications = applications.filter(app =>
