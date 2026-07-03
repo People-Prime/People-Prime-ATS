@@ -48,12 +48,6 @@ export const LeadDashboard: React.FC = () => {
     return inTeam || reportsToMe;
   });
 
-  // DEBUG: Remove after fix confirmed
-  console.log('[LeadDashboard] currentUser email:', currentUser?.email);
-  console.log('[LeadDashboard] myTeamIds:', myTeamIds);
-  console.log('[LeadDashboard] total users:', users.length);
-  console.log('[LeadDashboard] teamMembers found:', teamMembers.length, teamMembers.map(m => m.full_name));
-  console.log('[LeadDashboard] sample user reporting_to_list:', users[0]?.reporting_to_list);
 
 
   // Applications assigned to team members
