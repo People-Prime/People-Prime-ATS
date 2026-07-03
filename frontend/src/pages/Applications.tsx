@@ -117,8 +117,11 @@ export const Applications: React.FC = () => {
   const filteredApps = applications.filter((app) => {
     // 1. Role-based restrictions
     if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
-      // Associates only see items assigned to them
-      if (app.assigned_employee?.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) return false;
+      // Associates see items assigned to them OR recruited by them
+      const isAssignee = app.assigned_employee?.email?.toLowerCase() === currentUser?.email?.toLowerCase();
+      const isRecruiterName = app.recruiter?.toLowerCase() === currentUser?.full_name?.toLowerCase();
+      const isRecruiterEmail = app.recruiter?.toLowerCase() === currentUser?.email?.toLowerCase();
+      if (!isAssignee && !isRecruiterName && !isRecruiterEmail) return false;
     }
 
     // 2. Status Filter
