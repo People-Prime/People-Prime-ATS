@@ -136,7 +136,7 @@ export const CreateCandidate: React.FC = () => {
 
   const isDuplicateEmail = useMemo(() => {
     if (!formData.email) return false;
-    const targetApp = selectedApp || availableApplications.find(a => String(a.id) === applicationId);
+    const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
     return applications.some(app => 
       app.id !== targetApp?.id && 
       app.candidate_email && 
@@ -148,7 +148,7 @@ export const CreateCandidate: React.FC = () => {
     if (!formData.phone) return false;
     const cleanPhone = formData.phone.replace(/\D/g, '');
     if (!cleanPhone) return false;
-    const targetApp = selectedApp || availableApplications.find(a => a.id === applicationId);
+    const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
     return applications.some(app => {
       if (app.id === targetApp?.id || !app.candidate_phone) return false;
       const appCleanPhone = app.candidate_phone.replace(/\D/g, '');
@@ -239,7 +239,7 @@ export const CreateCandidate: React.FC = () => {
     setError('');
     setSuccess('');
 
-    const targetApp = selectedApp || availableApplications.find(a => String(a.id) === applicationId);
+    const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
 
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.city || !formData.state || !formData.degree) {
       setError('Please fill in all candidate contact details, city, state, and qualification.');
