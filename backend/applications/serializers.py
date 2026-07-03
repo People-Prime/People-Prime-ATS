@@ -13,8 +13,9 @@ class NoteSerializer(serializers.ModelSerializer):
 
 class ApplicationSerializer(serializers.ModelSerializer):
     assigned_employee = UserMinimalSerializer(read_only=True)
-    assigned_employee_id = serializers.PrimaryKeyRelatedField(
+    assigned_employee_id = serializers.SlugRelatedField(
         queryset=User.objects.filter(is_active=True),
+        slug_field='email',
         source='assigned_employee',
         write_only=True,
         required=False,
