@@ -141,9 +141,18 @@ export const CreateCandidate: React.FC = () => {
 
   const availableApplications = myApplications.length > 0 ? myApplications : applications;
 
-
+  const activeRequirements = useMemo(() => {
+    return availableApplications.filter(app => !app.candidate_name);
+  }, [availableApplications]);
 
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+
+  // Auto-select first requirement if creating candidate without URL ID
+  useEffect(() => {
+    if (!applicationId && activeRequirements.length > 0 && !selectedApp) {
+      setSelectedApp(activeRequirements[0]);
+    }
+  }, [applicationId, activeRequirements, selectedApp]);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -298,16 +307,12 @@ export const CreateCandidate: React.FC = () => {
     setError('');
     setSuccess('');
 
-    const targetApp: any = selectedApp || availableApplications.find(a => String(a.id) === applicationId) || {
-      id: '',
-      client_name: 'General Pool',
-      position: 'Candidate Pool',
-      experience: parseFloat(formData.experience) || 0,
-      technology: formData.skills,
-      recruiter: currentUser?.full_name || '',
-      assigned_employee: null,
-      candidate_name: ''
-    };
+    const targetApp = selectedApp || availableApplications.find(a => String(a.id) === applicationId);
+
+    if (!targetApp || !targetApp.id) {
+      setError('Please select a valid active Job Requirement from the dropdown list before saving.');
+      return;
+    }
 
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.city || !formData.state || !formData.degree) {
       setError('Please fill in all candidate contact details, city, state, and qualification.');
@@ -635,6 +640,49 @@ Recruiter Remarks: ${formData.remarks}`;
       <Card sx={{ borderRadius: '16px', boxShadow: theme.shadows[3] }}>
         <CardContent sx={{ p: 4 }}>
           <form onSubmit={handleSubmit}>
+
+            {/* Job Requirement Selection */}
+            {!applicationId ? (
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  💼 Job Requirement Selection
+                </Typography>
+                <FormControl fullWidth size="small" required>
+                  <InputLabel>Select Job Requirement</InputLabel>
+                  <Select
+                    value={selectedApp?.id || ''}
+                    label="Select Job Requirement"
+                    onChange={(e) => {
+                      const app = activeRequirements.find(a => String(a.id) === String(e.target.value));
+                      if (app) {
+                        setSelectedApp(app);
+                      }
+                    }}
+                  >
+                    {activeRequirements.map((app) => {
+                      const match = app.remarks?.match(/Job Code:\s*(.+)/);
+                      const code = match ? match[1].trim() : `ID: ${app.id}`;
+                      return (
+                        <MenuItem key={app.id} value={app.id}>
+                          {app.position} - {app.client_name} ({code})
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+                <Divider sx={{ my: 3 }} />
+              </Box>
+            ) : (
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  💼 Assigned Job Requirement
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 700, pl: 1 }}>
+                  {selectedApp ? `${selectedApp.position} at ${selectedApp.client_name}` : 'Loading job details...'}
+                </Typography>
+                <Divider sx={{ my: 3 }} />
+              </Box>
+            )}
 
             {/* SECTION 1: CANDIDATE INFO */}
             <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
