@@ -35,6 +35,13 @@ import { PipelineKPIs } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
+const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
+  if (!remarks) return 'N/A';
+  const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
+  const value = match ? match[1].trim() : 'N/A';
+  return value && value !== '' ? value : 'N/A';
+};
+
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
 
 export const AdminDashboard: React.FC = () => {
@@ -96,19 +103,18 @@ export const AdminDashboard: React.FC = () => {
       if (!applicantsSearch) return true;
       const term = applicantsSearch.toLowerCase();
       return (
-        app.candidate_name?.toLowerCase().includes(term) ||
-        app.candidate_email?.toLowerCase().includes(term) ||
-        app.client_name?.toLowerCase().includes(term) ||
-        app.position?.toLowerCase().includes(term) ||
-        app.technology?.toLowerCase().includes(term) ||
+        (app.candidate_name || '').toLowerCase().includes(term) ||
+        (app.candidate_email || '').toLowerCase().includes(term) ||
+        (app.client_name || '').toLowerCase().includes(term) ||
+        (app.position || '').toLowerCase().includes(term) ||
+        (app.technology || '').toLowerCase().includes(term) ||
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
 
-    // Group by email/name
     const groups: Record<string, typeof filtered> = {};
     filtered.forEach(app => {
-      const key = app.candidate_email?.toLowerCase() || app.candidate_name?.toLowerCase() || `unknown_${app.id}`;
+      const key = (app.candidate_email || '').toLowerCase() || (app.candidate_name || '').toLowerCase() || `unknown_${app.id}`;
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -133,10 +139,9 @@ export const AdminDashboard: React.FC = () => {
       return !app.candidate_name || hasJobCode;
     });
 
-    // Group by position + client_name to prevent duplicates
     const groups: Record<string, typeof reqs> = {};
     reqs.forEach(app => {
-      const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
+      const key = `${(app.position || '').toLowerCase().trim()}|${(app.client_name || '').toLowerCase().trim()}`;
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -167,9 +172,9 @@ export const AdminDashboard: React.FC = () => {
       if (!jobsSearch) return true;
       const term = jobsSearch.toLowerCase();
       return (
-        app.position?.toLowerCase().includes(term) ||
-        app.client_name?.toLowerCase().includes(term) ||
-        app.technology?.toLowerCase().includes(term) ||
+        (app.position || '').toLowerCase().includes(term) ||
+        (app.client_name || '').toLowerCase().includes(term) ||
+        (app.technology || '').toLowerCase().includes(term) ||
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
@@ -200,23 +205,18 @@ export const AdminDashboard: React.FC = () => {
       if (!placementsSearch) return true;
       const term = placementsSearch.toLowerCase();
       return (
-        app.candidate_name?.toLowerCase().includes(term) ||
-        app.candidate_email?.toLowerCase().includes(term) ||
-        app.position?.toLowerCase().includes(term) ||
-        app.client_name?.toLowerCase().includes(term) ||
-        app.placementCode.toLowerCase().includes(term) ||
+        (app.candidate_name || '').toLowerCase().includes(term) ||
+        (app.candidate_email || '').toLowerCase().includes(term) ||
+        (app.position || '').toLowerCase().includes(term) ||
+        (app.client_name || '').toLowerCase().includes(term) ||
+        (app.placementCode || '').toLowerCase().includes(term) ||
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
   }, [applications, placementsSearch]);
 
 
-  const getRemarkField = (remarks: string | undefined, fieldName: string): string => {
-    if (!remarks) return 'N/A';
-    const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
-    const value = match ? match[1].trim() : 'N/A';
-    return value && value !== '' ? value : 'N/A';
-  };
+
 
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
     const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
