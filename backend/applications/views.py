@@ -110,9 +110,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         # 3. Team Lead & Sub Lead can see applications assigned to members of their team
         if user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+            from teams.models import Team
+            # Query all teams where user is either the team lead or a member
+            led_teams = Team.objects.filter(team_lead=user)
             user_teams = user.teams.all()
-            if user_teams.exists():
-                team_members = User.objects.filter(teams__in=user_teams).distinct()
+            all_teams = (led_teams | user_teams).distinct()
+            
+            if all_teams.exists():
+                team_members = User.objects.filter(teams__in=all_teams).distinct()
                 return Application.objects.filter(assigned_employee__in=team_members).order_by('-created_at')
             return Application.objects.none()
 
