@@ -46,6 +46,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
       dispatch(fetchUsersStart());
       api.get('users/').then(res => {
         const data = res.data?.results ?? res.data ?? [];
+        // DEBUG: Check raw API response
+        if (data.length > 0) {
+          console.log('[MainLayout] RAW API user sample:', JSON.stringify({
+            email: data[0].email,
+            reporting_to: data[0].reporting_to,
+            teams: data[0].teams
+          }));
+        }
         const mappedUsers = data.map((u: any) => ({
           id: u.email,
           email: u.email,
