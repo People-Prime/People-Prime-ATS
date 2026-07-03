@@ -55,10 +55,9 @@ export const Applications: React.FC = () => {
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
-    const lines = remarks.split('\n');
-    const line = lines.find(l => l.startsWith(`${fieldName}:`));
-    if (!line) return 'N/A';
-    return line.replace(`${fieldName}:`, '').trim();
+    const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
+    const value = match ? match[1].trim() : 'N/A';
+    return value && value !== '' ? value : 'N/A';
   };
 
   // Deletion confirmation state

@@ -78,13 +78,9 @@ export const LeadDashboard: React.FC = () => {
 
   const getRemarkField = (remarks: string | undefined, fieldName: string): string => {
     if (!remarks) return 'N/A';
-    const lines = remarks.split('\n');
-    for (const line of lines) {
-      if (line.toLowerCase().startsWith(fieldName.toLowerCase() + ':')) {
-        return line.slice(fieldName.length + 1).trim();
-      }
-    }
-    return 'N/A';
+    const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
+    const value = match ? match[1].trim() : 'N/A';
+    return value && value !== '' ? value : 'N/A';
   };
 
   const handleMetricClick = (searchName: string, status: string) => {
