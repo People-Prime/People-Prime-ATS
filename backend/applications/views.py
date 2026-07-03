@@ -59,13 +59,38 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
                 'description': extract_field('Description')
             }
 
+            # Gather ALL recruiters assigned to this same job (same job code, no candidate yet)
+            sibling_apps = Application.objects.filter(
+                candidate_name='',
+                remarks__icontains=f'Job Code: {job_code}'
+            ).exclude(assigned_employee=None).select_related('assigned_employee')
+
+            recipients = []
+            seen_emails = set()
+            for app in sibling_apps:
+                emp = app.assigned_employee
+                if emp and emp.email not in seen_emails:
+                    seen_emails.add(emp.email)
+                    recipients.append({
+                        'email': emp.email,
+                        'name': emp.full_name or emp.email,
+                    })
+
+            # Fallback: at minimum include the current application's assignee
+            if not recipients:
+                recipients = [{
+                    'email': application.assigned_employee.email,
+                    'name': application.assigned_employee.full_name or application.assigned_employee.email,
+                }]
+
             from users.tasks import send_job_assignment_email_task
             send_job_assignment_email_task.delay(
-                associate_email=application.assigned_employee.email,
-                associate_name=application.assigned_employee.full_name or application.assigned_employee.email,
+                associate_email=recipients[0]['email'],
+                associate_name=recipients[0]['name'],
                 lead_email=request_user.email,
                 lead_name=request_user.full_name or request_user.email,
-                job_details=job_details
+                job_details=job_details,
+                associate_emails=recipients
             )
 
 class ApplicationViewSet(viewsets.ModelViewSet):

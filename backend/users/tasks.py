@@ -79,8 +79,22 @@ def send_welcome_email_task(email, full_name, password):
 
 
 @shared_task
-def send_job_assignment_email_task(associate_email, associate_name, lead_email, lead_name, job_details):
-    logger.info(f"[CELERY] Sending job assignment email to {associate_email} from {lead_name}")
+def send_job_assignment_email_task(associate_email, associate_name, lead_email, lead_name, job_details, associate_emails=None):
+    """
+    Send a job assignment notification email.
+    
+    associate_emails: list of dicts [{'email': ..., 'name': ...}, ...] for bulk send.
+                      If provided, overrides associate_email/associate_name.
+    associate_email:  single email (legacy / fallback).
+    """
+    # Build recipient list
+    if associate_emails:
+        recipients = associate_emails  # list of {'email': ..., 'name': ...}
+    else:
+        recipients = [{'email': associate_email, 'name': associate_name}]
+
+    to_emails = [r['email'] for r in recipients]
+    logger.info(f"[CELERY] Sending job assignment email to {to_emails} from {lead_name}")
     try:
         html_content = f"""
         <html>
@@ -172,15 +186,15 @@ Team Lead, People Prime Worldwide
             subject=f"New Job Assignment: {job_details.get('job_code', 'N/A')} - {job_details.get('job_title', 'Job Opening')}",
             body=text_content,
             from_email=from_email_header,
-            to=[associate_email],
+            to=to_emails,
             reply_to=[lead_email]
         )
         email_msg.attach_alternative(html_content, "text/html")
         email_msg.send(fail_silently=False)
         
-        logger.info(f"[CELERY] Job assignment email sent successfully to {associate_email}")
+        logger.info(f"[CELERY] Job assignment email sent successfully to {to_emails}")
         return True
     except Exception as e:
-        logger.error(f"[CELERY] Failed to send job assignment email to {associate_email}: {e}")
+        logger.error(f"[CELERY] Failed to send job assignment email to {to_emails}: {e}")
         raise e
 
