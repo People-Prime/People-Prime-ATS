@@ -33,7 +33,8 @@ import {
   BookOpen, 
   Check, 
   MessageSquare,
-  Building
+  Building,
+  RefreshCw
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
@@ -75,6 +76,41 @@ export const JobPostings: React.FC = () => {
   const [jobStatusUpdateApp, setJobStatusUpdateApp] = useState<any | null>(null);
   const [jobStatusUpdateValue, setJobStatusUpdateValue] = useState<string>('Active');
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
+
+  // Candidate status update modal states
+  const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
+  const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
+  const [statusUpdateComment, setStatusUpdateComment] = useState('');
+
+  const handleUpdateStatusSubmit = async () => {
+    if (!statusUpdateApp) return;
+    try {
+      await api.patch(`applications/${statusUpdateApp.id}/`, { status: statusUpdateValue });
+
+      const commentMsg = statusUpdateComment ? `\nComment: ${statusUpdateComment}` : '';
+      await api.post(`applications/${statusUpdateApp.id}/add-note/`, {
+        content: `Status updated to ${statusUpdateValue}.${commentMsg}`
+      });
+
+      dispatch(changeApplicationStatus({ id: statusUpdateApp.id, status: statusUpdateValue }));
+
+      dispatch(addApplicationNote({
+        id: `note_status_${Date.now()}`,
+        application_id: statusUpdateApp.id,
+        author: {
+          id: currentUser?.id || 'sys',
+          full_name: currentUser?.full_name || 'System',
+          role: activeRole
+        },
+        content: `Status updated to ${statusUpdateValue}.${commentMsg}`,
+        created_at: new Date().toISOString()
+      }));
+
+      setStatusUpdateApp(null);
+    } catch (err) {
+      alert("Failed to update status.");
+    }
+  };
 
 
 
@@ -729,7 +765,20 @@ Remarks: ${candidateForm.remarks}`;
                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{getRemarkField(applicant.remarks, 'Job Code')}</td>
                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.city || 'N/A'}</td>
                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.state || 'N/A'}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>{applicant.status}</td>
+                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setStatusUpdateApp(applicant);
+                                      setStatusUpdateValue(applicant.status as ApplicationStatus);
+                                      setStatusUpdateComment('');
+                                    }}
+                                  >
+                                    {applicant.status}
+                                  </Typography>
+                                </td>
                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.position}</td>
                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</td>
                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
@@ -1301,6 +1350,93 @@ Remarks: ${candidateForm.remarks}`;
             sx={{ borderRadius: '8px', fontWeight: 700 }}
           >
             Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* UPDATE PIPELINE STATUS DIALOG */}
+      <Dialog
+        open={statusUpdateApp !== null}
+        onClose={() => setStatusUpdateApp(null)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: `1px solid ${theme.palette.divider}`, mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <RefreshCw size={20} style={{ color: theme.palette.text.primary }} />
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>Update Status</Typography>
+          </Box>
+          <Chip
+            label={statusUpdateApp?.status || 'Unknown'}
+            color="primary"
+            variant="outlined"
+            size="small"
+            sx={{ fontWeight: 700 }}
+          />
+        </DialogTitle>
+        <DialogContent>
+          {statusUpdateApp && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary' }}>
+                {statusUpdateApp.candidate_name || 'No Candidate Assigned'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {statusUpdateApp.position} @ {statusUpdateApp.client_name}
+              </Typography>
+
+              <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 1 }}>
+                STATUS
+              </Typography>
+              <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+                <Select
+                  value={statusUpdateValue}
+                  onChange={(e) => setStatusUpdateValue(e.target.value as ApplicationStatus)}
+                  sx={{ borderRadius: '8px' }}
+                >
+                  <MenuItem value="New">New</MenuItem>
+                  <MenuItem value="Submitted">Submitted</MenuItem>
+                  <MenuItem value="Under Review">Under Review</MenuItem>
+                  <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
+                  <MenuItem value="Interview Completed">Interview Completed</MenuItem>
+                  <MenuItem value="Selected">Selected</MenuItem>
+                  <MenuItem value="Rejected">Rejected</MenuItem>
+                  <MenuItem value="On Hold">On Hold</MenuItem>
+                  <MenuItem value="Closed">Closed</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 1 }}>
+                COMMENTS
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                placeholder="Optional comments..."
+                value={statusUpdateComment}
+                onChange={(e) => setStatusUpdateComment(e.target.value)}
+                InputProps={{ sx: { borderRadius: '8px' } }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-start' }}>
+          <Button
+            onClick={handleUpdateStatusSubmit}
+            color="primary"
+            variant="contained"
+            startIcon={<Check size={16} />}
+            sx={{ borderRadius: '8px', fontWeight: 700, px: 3 }}
+          >
+            Update
+          </Button>
+          <Button
+            onClick={() => setStatusUpdateApp(null)}
+            variant="outlined"
+            sx={{ borderRadius: '8px', fontWeight: 600, px: 3, color: 'text.secondary', borderColor: 'divider' }}
+          >
+            Cancel
           </Button>
         </DialogActions>
       </Dialog>

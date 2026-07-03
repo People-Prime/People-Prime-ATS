@@ -17,10 +17,19 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton
+  IconButton,
+  FormControl,
+  Select,
+  MenuItem,
+  TextField,
+  DialogActions,
+  Chip
 } from '@mui/material';
-import { Plus, X, Building } from 'lucide-react';
-import { useAppSelector } from '../../redux/store';
+import { Plus, X, Building, Check, RefreshCw } from 'lucide-react';
+import { useAppSelector, useAppDispatch } from '../../redux/store';
+import { changeApplicationStatus, addApplicationNote } from '../../redux/applicationsSlice';
+import { api } from '../../services/api';
+import { ApplicationStatus } from '../../types';
 import { PipelineKPIs } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 
@@ -57,6 +66,40 @@ export const LeadDashboard: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+  const dispatch = useAppDispatch();
+  const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
+  const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
+  const [statusUpdateComment, setStatusUpdateComment] = useState('');
+
+  const handleUpdateStatusSubmit = async () => {
+    if (!statusUpdateApp) return;
+    try {
+      await api.patch(`applications/${statusUpdateApp.id}/`, { status: statusUpdateValue });
+
+      const commentMsg = statusUpdateComment ? `\nComment: ${statusUpdateComment}` : '';
+      await api.post(`applications/${statusUpdateApp.id}/add-note/`, {
+        content: `Status updated to ${statusUpdateValue}.${commentMsg}`
+      });
+
+      dispatch(changeApplicationStatus({ id: statusUpdateApp.id, status: statusUpdateValue }));
+
+      dispatch(addApplicationNote({
+        id: `note_status_${Date.now()}`,
+        application_id: statusUpdateApp.id,
+        author: {
+          id: currentUser?.id || 'sys',
+          full_name: currentUser?.full_name || 'System',
+          role: currentUser?.role || 'TEAM_LEAD'
+        },
+        content: `Status updated to ${statusUpdateValue}.${commentMsg}`,
+        created_at: new Date().toISOString()
+      }));
+
+      setStatusUpdateApp(null);
+    } catch (err) {
+      alert("Failed to update status.");
+    }
+  };
 
   // Filter team applications by selected date (KPIs + table)
   const dateFilteredTeamApps = selectedDate
@@ -86,7 +129,23 @@ export const LeadDashboard: React.FC = () => {
   const handleMetricClick = (searchName: string, status: string) => {
     let filtered = dateFilteredTeamApps;
     if (searchName) {
-       filtered = filtered.filter(a => a.assigned_employee?.full_name === searchName);
+       filtered = filtered.filter(a => {
+         const member = users.find(u => u.full_name === searchName || u.email === searchName);
+         if (!member) return a.assigned_employee?.full_name === searchName;
+         
+         const isAssigned = String(a.assigned_employee?.id) === String(member.id) || 
+                           (a.assigned_employee?.email && member.email && a.assigned_employee.email.toLowerCase() === member.email.toLowerCase());
+         
+         const isRecruiter = a.recruiter && (
+           (member.full_name && a.recruiter.toLowerCase() === member.full_name.toLowerCase()) ||
+           (member.email && a.recruiter.toLowerCase() === member.email.toLowerCase())
+         );
+         
+         if (status === 'ALL') {
+           return isAssigned;
+         }
+         return isRecruiter || (!a.recruiter && isAssigned);
+       });
     }
     if (status !== 'ALL') {
        if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
@@ -229,20 +288,32 @@ export const LeadDashboard: React.FC = () => {
                     let totalPlaced = 0;
 
                     const memberStats = teamMembers.map(member => {
-                      const appsToCount = dateFilteredTeamApps.filter(a => 
+                      // Filter items associated with this member
+                      const assignedApps = dateFilteredTeamApps.filter(a => 
                         String(a.assigned_employee?.id) === String(member.id) || 
                         (a.assigned_employee?.email && member.email && a.assigned_employee.email.toLowerCase() === member.email.toLowerCase())
                       );
+
+                      const sourcedApps = dateFilteredTeamApps.filter(a => {
+                        const isRecruiter = a.recruiter && (
+                          (member.full_name && a.recruiter.toLowerCase() === member.full_name.toLowerCase()) ||
+                          (member.email && a.recruiter.toLowerCase() === member.email.toLowerCase())
+                        );
+                        const isAssigned = String(a.assigned_employee?.id) === String(member.id) || 
+                                          (a.assigned_employee?.email && member.email && a.assigned_employee.email.toLowerCase() === member.email.toLowerCase());
+                        
+                        return a.candidate_name && (isRecruiter || (!a.recruiter && isAssigned));
+                      });
                       
-                      const assigned = appsToCount.length;
-                      const subs = appsToCount.filter(a => a.candidate_name).length;
-                      const pending = appsToCount.filter(a => a.status === 'Under Review').length;
-                      const clientSubs = appsToCount.filter(a => a.status === 'Submitted').length;
-                      const ints = appsToCount.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
-                      const rejections = appsToCount.filter(a => a.status === 'Rejected').length;
-                      const offers = appsToCount.filter(a => a.status === 'On Hold').length;
-                      const offerAcc = appsToCount.filter(a => a.status === 'Selected').length;
-                      const placed = appsToCount.filter(a => a.status === 'Selected').length;
+                      const assigned = assignedApps.length;
+                      const subs = sourcedApps.length;
+                      const pending = sourcedApps.filter(a => a.status === 'Under Review').length;
+                      const clientSubs = sourcedApps.filter(a => a.status === 'Submitted').length;
+                      const ints = sourcedApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
+                      const rejections = sourcedApps.filter(a => a.status === 'Rejected').length;
+                      const offers = sourcedApps.filter(a => a.status === 'On Hold').length;
+                      const offerAcc = sourcedApps.filter(a => a.status === 'Selected').length;
+                      const placed = sourcedApps.filter(a => a.status === 'Selected').length;
 
                       totalAssigned += assigned;
                       totalSubmissions += subs;
@@ -489,7 +560,17 @@ export const LeadDashboard: React.FC = () => {
                                           <TableCell sx={{ fontSize: '0.7rem' }}>{getRemarkField(applicant.remarks, 'Job Code')}</TableCell>
                                           <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.city || 'N/A'}</TableCell>
                                           <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.state || 'N/A'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>{applicant.status}</TableCell>
+                                          <TableCell 
+                                            sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setStatusUpdateApp(applicant);
+                                              setStatusUpdateValue(applicant.status as ApplicationStatus);
+                                              setStatusUpdateComment('');
+                                            }}
+                                          >
+                                            {applicant.status}
+                                          </TableCell>
                                           <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.position}</TableCell>
                                           <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
                                           <TableCell sx={{ fontSize: '0.7rem', textAlign: 'center' }}>
@@ -526,6 +607,93 @@ export const LeadDashboard: React.FC = () => {
             </Table>
           </TableContainer>
         </DialogContent>
+      </Dialog>
+
+      {/* UPDATE STATUS DIALOG */}
+      <Dialog
+        open={statusUpdateApp !== null}
+        onClose={() => setStatusUpdateApp(null)}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}
+      >
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, borderBottom: `1px solid ${theme.palette.divider}`, mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <RefreshCw size={20} style={{ color: theme.palette.text.primary }} />
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>Update Status</Typography>
+          </Box>
+          <Chip
+            label={statusUpdateApp?.status || 'Unknown'}
+            color="primary"
+            variant="outlined"
+            size="small"
+            sx={{ fontWeight: 700 }}
+          />
+        </DialogTitle>
+        <DialogContent>
+          {statusUpdateApp && (
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'text.primary' }}>
+                {statusUpdateApp.candidate_name || 'No Candidate Assigned'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {statusUpdateApp.position} @ {statusUpdateApp.client_name}
+              </Typography>
+
+              <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 1 }}>
+                STATUS
+              </Typography>
+              <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+                <Select
+                  value={statusUpdateValue}
+                  onChange={(e) => setStatusUpdateValue(e.target.value as ApplicationStatus)}
+                  sx={{ borderRadius: '8px' }}
+                >
+                  <MenuItem value="New">New</MenuItem>
+                  <MenuItem value="Submitted">Submitted</MenuItem>
+                  <MenuItem value="Under Review">Under Review</MenuItem>
+                  <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
+                  <MenuItem value="Interview Completed">Interview Completed</MenuItem>
+                  <MenuItem value="Selected">Selected</MenuItem>
+                  <MenuItem value="Rejected">Rejected</MenuItem>
+                  <MenuItem value="On Hold">On Hold</MenuItem>
+                  <MenuItem value="Closed">Closed</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 1 }}>
+                COMMENTS
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                placeholder="Optional comments..."
+                value={statusUpdateComment}
+                onChange={(e) => setStatusUpdateComment(e.target.value)}
+                InputProps={{ sx: { borderRadius: '8px' } }}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, justifyContent: 'flex-start' }}>
+          <Button
+            onClick={handleUpdateStatusSubmit}
+            color="primary"
+            variant="contained"
+            startIcon={<Check size={16} />}
+            sx={{ borderRadius: '8px', fontWeight: 700, px: 3 }}
+          >
+            Update
+          </Button>
+          <Button
+            onClick={() => setStatusUpdateApp(null)}
+            variant="outlined"
+            sx={{ borderRadius: '8px', fontWeight: 600, px: 3, color: 'text.secondary', borderColor: 'divider' }}
+          >
+            Cancel
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );
