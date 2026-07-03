@@ -34,7 +34,7 @@ export const Placements: React.FC = () => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [dispatch]);
 
@@ -74,7 +74,7 @@ export const Placements: React.FC = () => {
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
     const placed = applications.filter(app => app.status === 'Selected');
-    
+
     // Sort by created_at ascending
     const sorted = [...placed].sort((a, b) => {
       const timeA = new Date(a.created_at || 0).getTime();
@@ -165,8 +165,8 @@ export const Placements: React.FC = () => {
         }}
       >
         <Box sx={{ overflowX: 'auto' }}>
-          <Table 
-            sx={{ 
+          <Table
+            sx={{
               minWidth: 2000,
               '& .MuiTableCell-root': {
                 padding: '4px 8px',
@@ -184,7 +184,7 @@ export const Placements: React.FC = () => {
               '& .MuiTypography-caption': {
                 fontSize: '0.65rem'
               }
-            }} 
+            }}
             size="small"
           >
             <TableHead>
@@ -279,8 +279,8 @@ export const Placements: React.FC = () => {
                       {getRemarkField(app.remarks, 'Start Date')}
                     </TableCell>
                     <TableCell>
-                      {getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A' 
-                        ? getRemarkField(app.remarks, 'Actual Start Date') 
+                      {getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A'
+                        ? getRemarkField(app.remarks, 'Actual Start Date')
                         : getRemarkField(app.remarks, 'Start Date')}
                     </TableCell>
                     <TableCell>

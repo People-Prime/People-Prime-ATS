@@ -407,12 +407,11 @@ export const Applications: React.FC = () => {
                           sx={{ 
                             fontSize: '0.75rem', 
                             fontWeight: 700, 
-                            color: (currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST') ? 'text.primary' : 'primary.main', 
-                            cursor: (currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST') ? 'default' : 'pointer', 
-                            '&:hover': (currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST') ? {} : { textDecoration: 'underline' } 
+                            color: 'primary.main', 
+                            cursor: 'pointer', 
+                            '&:hover': { textDecoration: 'underline' } 
                           }}
                           onClick={(e) => {
-                            if (currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST') return;
                             e.stopPropagation();
                             setStatusUpdateApp(app);
                             setStatusUpdateValue(app.status as ApplicationStatus);
