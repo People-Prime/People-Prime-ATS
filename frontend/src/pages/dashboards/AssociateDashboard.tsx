@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -9,7 +10,8 @@ import {
 } from '@mui/material';
 import {
   Building,
-  Wrench
+  Wrench,
+  Plus
 } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
 import { PipelineKPIs } from './PipelineKPIs';
@@ -17,6 +19,7 @@ import { DashboardCalendar, todayStr } from './DashboardCalendar';
 
 export const AssociateDashboard: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
 
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { applications } = useAppSelector(state => state.applications);
@@ -116,6 +119,17 @@ export const AssociateDashboard: React.FC = () => {
                   totalCount={dateFilteredApps.length}
                   allCount={myApplications.length}
                 />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<Plus size={18} />}
+                  sx={{ borderRadius: '8px', fontWeight: 700 }}
+                  onClick={() => {
+                    navigate('/candidates/create');
+                  }}
+                >
+                  Add Candidate
+                </Button>
               </Box>
             </Box>
 
