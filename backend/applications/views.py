@@ -102,13 +102,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER]:
             return Application.objects.all().order_by('-created_at')
         
-        # 2. Junior Manager can see applications of teams/members reporting to them
+        # 2. Junior Manager can see applications of teams/members reporting to them, plus their own
         if user.role == Role.JUNIOR_MANAGER:
             # Get members who report to this manager
             reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
-            return Application.objects.filter(assigned_employee__in=reporters).order_by('-created_at')
+            return Application.objects.filter(
+                Q(assigned_employee__in=reporters) |
+                Q(assigned_employee=user) |
+                Q(recruiter=user.full_name) |
+                Q(recruiter=user.email)
+            ).distinct().order_by('-created_at')
 
-        # 3. Team Lead & Sub Lead can see applications assigned to members of their team
+        # 3. Team Lead & Sub Lead can see applications assigned to members of their team, plus their own
         if user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
             from teams.models import Team
             # Query all teams where user is either the team lead or a member
@@ -121,7 +126,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(teams__id__in=all_team_ids) | Q(reporting_to=user)
             ).distinct()
 
-            return Application.objects.filter(assigned_employee__in=all_accessible_users).order_by('-created_at')
+            return Application.objects.filter(
+                Q(assigned_employee__in=all_accessible_users) |
+                Q(assigned_employee=user) |
+                Q(recruiter=user.full_name) |
+                Q(recruiter=user.email)
+            ).distinct().order_by('-created_at')
 
         # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them
         if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
