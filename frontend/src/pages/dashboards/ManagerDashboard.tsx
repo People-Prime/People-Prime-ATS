@@ -87,7 +87,7 @@ export const ManagerDashboard: React.FC = () => {
   };
 
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
-    const members = users.filter(u => u.team && String(u.team.id) === String(teamId));
+    const members = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
     let teamApps = applications.filter(app => 
       app.assigned_employee && members.some(member => member.email === app.assigned_employee?.email)
     );
@@ -199,7 +199,7 @@ export const ManagerDashboard: React.FC = () => {
                     </TableRow>
                   ) : (
                     myTeams.map((team: any) => {
-                      const members = users.filter(u => u.team && String(u.team.id) === String(team.id));
+                      const members = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(team.id)));
                       let teamApps = applications.filter(app => 
                         app.assigned_employee && members.some(member => member.email === app.assigned_employee?.email)
                       );

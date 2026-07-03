@@ -62,7 +62,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
-    const teamMembers = users.filter(u => u.team && String(u.team.id) === String(teamId));
+    const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
     let teamApps = applications.filter(app =>
       app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
     );
@@ -206,8 +206,9 @@ export const AdminDashboard: React.FC = () => {
                       const uniqueTeams = Array.from(
                         new Map(
                           users
-                            .filter(u => u.team && u.team.id)
-                            .map(u => [String(u.team!.id), u.team!] as [string, any])
+                            .flatMap(u => u.teams || [])
+                            .filter(t => t && t.id)
+                            .map(t => [String(t.id), t] as [string, any])
                         ).values()
                       );
 
@@ -222,7 +223,7 @@ export const AdminDashboard: React.FC = () => {
                       }
 
                       return uniqueTeams.map((team: any) => {
-                        const teamMembers = users.filter(u => u.team && String(u.team.id) === String(team.id));
+                        const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(team.id)));
                         let teamApps = applications.filter(app =>
                           app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
                         );
