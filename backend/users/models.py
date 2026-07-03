@@ -52,18 +52,15 @@ class User(AbstractBaseUser, PermissionsMixin):
         choices=Role.choices,
         default=Role.ASSOCIATE_ANALYST
     )
-    reporting_to = models.ForeignKey(
+    reporting_to = models.ManyToManyField(
         'self',
-        null=True,
+        symmetrical=False,
         blank=True,
-        on_delete=models.SET_NULL,
-        related_name='reports'
+        related_name='reporters'
     )
-    team = models.ForeignKey(
+    teams = models.ManyToManyField(
         'teams.Team',
-        null=True,
         blank=True,
-        on_delete=models.SET_NULL,
         related_name='members'
     )
     date_of_joining = models.DateField(default=timezone.now)

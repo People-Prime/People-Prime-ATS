@@ -14,37 +14,37 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         fields = ['email', 'full_name', 'role']
 
 class UserSerializer(serializers.ModelSerializer):
-    reporting_to = UserMinimalSerializer(read_only=True)
-    team = TeamMinimalSerializer(read_only=True)
-    reporting_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source='reporting_to', write_only=True, required=False, allow_null=True
+    reporting_to = UserMinimalSerializer(many=True, read_only=True)
+    teams = TeamMinimalSerializer(many=True, read_only=True)
+    reporting_to_ids = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source='reporting_to', many=True, write_only=True, required=False
     )
-    team_id = serializers.PrimaryKeyRelatedField(
-        queryset=Team.objects.all(), source='team', write_only=True, required=False, allow_null=True
+    team_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Team.objects.all(), source='teams', many=True, write_only=True, required=False
     )
 
     class Meta:
         model = User
         fields = [
-            'email', 'full_name', 'role', 'reporting_to', 'team',
-            'reporting_to_id', 'team_id', 'date_of_joining',
+            'email', 'full_name', 'role', 'reporting_to', 'teams',
+            'reporting_to_ids', 'team_ids', 'date_of_joining',
             'must_change_password', 'is_active'
         ]
         read_only_fields = ['must_change_password']
 
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, min_length=8)
-    reporting_to_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(), source='reporting_to', write_only=True, required=False, allow_null=True
+    reporting_to_ids = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source='reporting_to', many=True, write_only=True, required=False
     )
-    team_id = serializers.PrimaryKeyRelatedField(
-        queryset=Team.objects.all(), source='team', write_only=True, required=False, allow_null=True
+    team_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Team.objects.all(), source='teams', many=True, write_only=True, required=False
     )
 
     class Meta:
         model = User
         fields = [
-            'email', 'full_name', 'role', 'password', 'reporting_to_id', 'team_id', 'date_of_joining'
+            'email', 'full_name', 'role', 'password', 'reporting_to_ids', 'team_ids', 'date_of_joining'
         ]
 
     def validate_email(self, value):
