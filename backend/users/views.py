@@ -69,7 +69,7 @@ class ForgotPasswordView(APIView):
             return Response({"status": "Reset email sent if the account exists."}, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    queryset = User.objects.all().prefetch_related('reporting_to', 'teams')
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_value_regex = '[^/]+'
