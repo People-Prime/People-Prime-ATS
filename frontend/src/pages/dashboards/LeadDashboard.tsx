@@ -360,7 +360,10 @@ export const LeadDashboard: React.FC = () => {
                     const isRequirement = !app.candidate_name || jobCode !== 'N/A';
                     if (!isRequirement) return;
 
-                    const key = jobCode !== 'N/A' ? `${jobCode}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}` : `nocode-${app.id}`;
+                    // Primary: job code. Fallback: position + client (handles pre-fix records)
+                    const key = jobCode !== 'N/A' && jobCode
+                      ? `${jobCode}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`
+                      : `pos|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`;
                     if (!groups[key]) {
                       groups[key] = [];
                     }
@@ -375,11 +378,16 @@ export const LeadDashboard: React.FC = () => {
 
                   return groupedDialogApps.map(app => {
                     const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
-                    const jobCodeKey = jobCodeVal !== 'N/A' ? `${jobCodeVal}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}` : `nocode-${app.id}`;
+                    const jobCodeKey = jobCodeVal !== 'N/A' && jobCodeVal
+                      ? `${jobCodeVal}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`
+                      : `pos|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`;
                     const jobApplicants = dialogData.filter(a => 
                       a.candidate_name && 
-                      (jobCodeVal !== 'N/A' 
-                        ? (getRemarkField(a.remarks, 'Job Code') === jobCodeVal && a.position?.toLowerCase() === app.position?.toLowerCase() && a.client_name?.toLowerCase() === app.client_name?.toLowerCase())
+                      (jobCodeVal !== 'N/A' && jobCodeVal
+                        // Match by job code (preferred) OR by position+client for legacy records
+                        ? (getRemarkField(a.remarks, 'Job Code') === jobCodeVal || getRemarkField(a.remarks, 'Job Code') === 'N/A')
+                          && a.position?.toLowerCase() === app.position?.toLowerCase()
+                          && a.client_name?.toLowerCase() === app.client_name?.toLowerCase()
                         : (a.position?.toLowerCase() === app.position?.toLowerCase() && a.client_name?.toLowerCase() === app.client_name?.toLowerCase()))
                     );
                     const isExpanded = !!expandedJobs[jobCodeKey];

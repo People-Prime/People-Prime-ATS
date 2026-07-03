@@ -257,7 +257,10 @@ export const JobPostings: React.FC = () => {
 
   displayApps.forEach(app => {
     const jobCode = getRemarkField(app.remarks, 'Job Code');
-    const key = jobCode !== 'N/A' ? `${jobCode}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}` : `nocode-${app.id}`;
+    // Primary key: job code. Fallback: position + client name (handles records before the job-code fix)
+    const key = jobCode !== 'N/A' && jobCode
+      ? `${jobCode}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`
+      : `pos|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`;
     if (!groups[key]) {
       groups[key] = [];
     }
@@ -289,7 +292,12 @@ export const JobPostings: React.FC = () => {
     if (!selectedApp) return;
 
     const fullName = `${candidateForm.firstName} ${candidateForm.lastName}`.trim();
+
+    // Preserve the original job code so the candidate stays grouped under its parent job
+    const originalJobCode = getRemarkField(selectedApp.remarks, 'Job Code');
+
     const formattedRemarks = `[Ciepal Candidate Details]
+Job Code: ${originalJobCode !== 'N/A' ? originalJobCode : ''}
 Location: ${candidateForm.location}
 Work Auth: ${candidateForm.workAuth}
 Expected Salary: ${candidateForm.expectedSalary}
