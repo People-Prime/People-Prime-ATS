@@ -72,12 +72,14 @@ export const CreateRequirement: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Resolve team members (Associate Analysts)
+  // Resolve team members (Associate Analysts / Senior Analysts)
   const dbCurrentUser = users.find(u => u.email === currentUser?.email);
-  const myTeamId = dbCurrentUser?.team?.id || '';
+  const myTeamIds = (dbCurrentUser?.teams || []).map((t: any) => String(t.id));
   const teamMembers = users.filter(u => 
-    u.role === 'ASSOCIATE_ANALYST' && (
-      (u.team && String(u.team.id) === String(myTeamId)) ||
+    (u.role === 'ASSOCIATE_ANALYST' || u.role === 'SENIOR_ANALYST') && (
+      // Member belongs to one of this lead's teams
+      (u.teams && u.teams.some(t => myTeamIds.includes(String(t.id)))) ||
+      // OR member directly reports to this lead
       (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
     )
   );
