@@ -241,11 +241,6 @@ export const CreateCandidate: React.FC = () => {
 
     const targetApp = selectedApp || availableApplications.find(a => String(a.id) === applicationId);
 
-    if (!targetApp || !targetApp.id) {
-      setError('Please select a valid active Job Requirement from the dropdown list before saving.');
-      return;
-    }
-
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.city || !formData.state || !formData.degree) {
       setError('Please fill in all candidate contact details, city, state, and qualification.');
       return;
@@ -307,23 +302,23 @@ Recruiter Remarks: ${formData.remarks}`;
         candidate_phone: formData.phone,
         city: formData.city,
         state: formData.state,
-        client_name: targetApp.client_name,
-        position: targetApp.position,
-        experience: parseFloat(formData.experience) || targetApp.experience,
-        technology: formData.skills || targetApp.technology,
-        recruiter: targetApp.recruiter || currentUser?.full_name || '',
+        client_name: targetApp ? targetApp.client_name : (formData.client || 'N/A'),
+        position: targetApp ? targetApp.position : (formData.jobTitle || 'N/A'),
+        experience: parseFloat(formData.experience) || (targetApp ? targetApp.experience : 0),
+        technology: formData.skills || (targetApp ? targetApp.technology : 'N/A'),
+        recruiter: (targetApp && targetApp.recruiter) || currentUser?.full_name || '',
         remarks: formattedRemarks,
         status: 'Submitted',
-        assigned_employee_id: targetApp.assigned_employee?.email || null
+        assigned_employee_id: targetApp ? (targetApp.assigned_employee?.email || null) : (currentUser?.email || null)
       };
 
       let res;
       let isNewRecord = false;
-      if (targetApp.id && (applicationId || !targetApp.candidate_name)) {
+      if (targetApp && targetApp.id && (applicationId || !targetApp.candidate_name)) {
         // We are explicitly editing this application or filling a blank requirement - update it
         res = await api.put(`applications/${targetApp.id}/`, payload);
       } else {
-        // Requirement row already has a candidate - create a new application record
+        // Requirement row already has a candidate or targetApp is null - create a new application record
         res = await api.post('applications/', payload);
         isNewRecord = true;
       }
