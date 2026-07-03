@@ -114,17 +114,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             # Query all teams where user is either the team lead or a member
             led_teams = Team.objects.filter(team_lead=user)
             user_teams = user.teams.all()
-            all_teams = (led_teams | user_teams).distinct()
-            
-            # Find users who report directly to this team lead
-            direct_reports = User.objects.filter(reporting_to=user)
-            
-            if all_teams.exists():
-                team_members = User.objects.filter(teams__in=all_teams).distinct()
-                all_accessible_users = (team_members | direct_reports).distinct()
-            else:
-                all_accessible_users = direct_reports.distinct()
-                
+            all_team_ids = list(led_teams.values_list('id', flat=True)) + list(user_teams.values_list('id', flat=True))
+
+            # Use Q() to combine team membership OR direct reporting in one query
+            all_accessible_users = User.objects.filter(
+                Q(teams__id__in=all_team_ids) | Q(reporting_to=user)
+            ).distinct()
+
             return Application.objects.filter(assigned_employee__in=all_accessible_users).order_by('-created_at')
 
         # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them
@@ -382,14 +378,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         # B. MANAGER / LEADER STATS
         elif user.role in [Role.SENIOR_MANAGER, Role.JUNIOR_MANAGER, Role.TEAM_LEAD, Role.SUB_LEAD]:
-            team_id = user.team.id if user.team else None
-            team_name = user.team.name if user.team else 'General'
+            # Get all teams the user leads or belongs to
+            user_teams = list(user.teams.all())
+            first_team = user_teams[0] if user_teams else None
+            team_name = first_team.name if first_team else 'General'
             
             # Resolve team roster
             if user.role == Role.SENIOR_MANAGER:
                 team_members = User.objects.filter(role=Role.ASSOCIATE_ANALYST)
-            elif user.team:
-                team_members = User.objects.filter(team=user.team, role=Role.ASSOCIATE_ANALYST)
+            elif user_teams:
+                team_members = User.objects.filter(teams__in=user_teams, role=Role.ASSOCIATE_ANALYST).distinct()
             else:
                 team_members = User.objects.none()
 
