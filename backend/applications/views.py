@@ -133,9 +133,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(recruiter=user.email)
             ).distinct().order_by('-created_at')
 
-        # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them
+        # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them, or recruited by them
         if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
-            return Application.objects.filter(assigned_employee=user).order_by('-created_at')
+            return Application.objects.filter(
+                Q(assigned_employee=user) |
+                Q(recruiter=user.full_name) |
+                Q(recruiter=user.email)
+            ).distinct().order_by('-created_at')
 
         return Application.objects.none()
 
