@@ -29,8 +29,10 @@ import {
   InputAdornment,
   Chip
 } from '@mui/material';
-import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, TrendingUp } from 'lucide-react';
-import { useAppSelector } from '../../redux/store';
+import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
+import { useAppSelector, useAppDispatch } from '../../redux/store';
+import { deleteApplication } from '../../redux/applicationsSlice';
+import { api } from '../../services/api';
 import { PipelineKPIs } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
@@ -50,6 +52,31 @@ export const AdminDashboard: React.FC = () => {
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
+  const dispatch = useAppDispatch();
+
+  const handleDeleteSubmission = async (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to delete the submission for "${name}"?`)) {
+      try {
+        await api.delete(`applications/${id}/`);
+        dispatch(deleteApplication(id));
+      } catch (err) {
+        alert("Failed to delete record.");
+      }
+    }
+  };
+
+  const handleDeleteJobGroup = async (group: any[], position: string) => {
+    if (window.confirm(`Are you sure you want to delete the job requirement "${position}" and all of its ${group.length} candidate submissions?`)) {
+      try {
+        for (const app of group) {
+          await api.delete(`applications/${app.id}/`);
+          dispatch(deleteApplication(String(app.id)));
+        }
+      } catch (err) {
+        alert("Failed to delete some records.");
+      }
+    }
+  };
 
   const recentCreations = [...users]
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
@@ -541,7 +568,7 @@ export const AdminDashboard: React.FC = () => {
           </Box>
 
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.72rem' } }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>
                   <TableCell style={{ width: '50px' }}></TableCell>
@@ -550,12 +577,13 @@ export const AdminDashboard: React.FC = () => {
                   <TableCell sx={{ fontWeight: 800 }}>Recent Position & Client</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Technology</TableCell>
                   <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Total Applications</TableCell>
+                  <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {displayApplicants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       No applicants found matching the filter.
                     </TableCell>
                   </TableRow>
@@ -570,10 +598,10 @@ export const AdminDashboard: React.FC = () => {
                               onClick={() => setExpandedCandidates(prev => ({ ...prev, [key]: !prev[key] }))}
                               sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: 0.5, userSelect: 'none' }}
                             >
-                              <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main', fontSize: '1rem', lineHeight: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main', fontSize: '0.9rem', lineHeight: 1 }}>
                                 {isExpanded ? '−' : '+'}
                               </Typography>
-                              <Box sx={{ bgcolor: 'primary.main', color: '#fff', fontSize: '0.65rem', fontWeight: 700, px: 0.5, py: 0.1, borderRadius: '3px' }}>
+                              <Box sx={{ bgcolor: 'primary.main', color: '#fff', fontSize: '0.6rem', fontWeight: 700, px: 0.5, py: 0.1, borderRadius: '3px' }}>
                                 {allSubmissions.length}
                               </Box>
                             </Box>
@@ -583,62 +611,81 @@ export const AdminDashboard: React.FC = () => {
                           </TableCell>
                           <TableCell>{primaryApp.candidate_email || '—'}</TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 650 }}>{primaryApp.position}</Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Building size={12} /> {primaryApp.client_name}
+                            <Typography variant="body2" sx={{ fontSize: '0.72rem', fontWeight: 650 }}>{primaryApp.position}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.65rem' }}>
+                              <Building size={11} /> {primaryApp.client_name}
                             </Typography>
                           </TableCell>
                           <TableCell>
-                            <Chip label={primaryApp.technology || 'N/A'} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            <Chip label={primaryApp.technology || 'N/A'} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
                           </TableCell>
                           <TableCell sx={{ textAlign: 'center', fontWeight: 700 }}>{allSubmissions.length}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <IconButton 
+                              size="small" 
+                              color="error" 
+                              onClick={() => handleDeleteJobGroup(allSubmissions, primaryApp.candidate_name)}
+                              sx={{ p: 0.25 }}
+                            >
+                              <Trash2 size={13} />
+                            </IconButton>
+                          </TableCell>
                         </TableRow>
 
                         {isExpanded && (
                           <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                            <TableCell colSpan={6} style={{ padding: '12px 16px' }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
+                            <TableCell colSpan={7} style={{ padding: '8px 12px' }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5, color: 'text.secondary', fontSize: '0.68rem' }}>
                                 SUBMISSIONS HISTORY
                               </Typography>
                               <TableContainer sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '6px' }}>
-                                <Table size="small" sx={{ backgroundColor: theme.palette.background.paper }}>
+                                <Table size="small" sx={{ backgroundColor: theme.palette.background.paper, '& .MuiTableCell-root': { padding: '3px 6px', fontSize: '0.68rem' } }}>
                                   <TableHead>
                                     <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
-                                      <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Job Code</TableCell>
-                                      <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Position & Client</TableCell>
-                                      <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Assigned Analyst</TableCell>
-                                      <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Status</TableCell>
-                                      <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Date</TableCell>
-                                      <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', textAlign: 'center' }}>Actions</TableCell>
+                                      <TableCell sx={{ fontWeight: 700 }}>Job Code</TableCell>
+                                      <TableCell sx={{ fontWeight: 700 }}>Position & Client</TableCell>
+                                      <TableCell sx={{ fontWeight: 700 }}>Assigned Analyst</TableCell>
+                                      <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                      <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                                      <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>Actions</TableCell>
                                     </TableRow>
                                   </TableHead>
                                   <TableBody>
                                     {allSubmissions.map((sub) => (
                                       <TableRow key={sub.id}>
-                                        <TableCell sx={{ fontSize: '0.7rem' }}>
+                                        <TableCell>
                                           {getRemarkField(sub.remarks, 'Job Code') !== 'N/A' ? getRemarkField(sub.remarks, 'Job Code') : '—'}
                                         </TableCell>
-                                        <TableCell sx={{ fontSize: '0.7rem' }}>
-                                          <Typography variant="body2" sx={{ fontSize: '0.7rem', fontWeight: 650 }}>{sub.position}</Typography>
-                                          <Typography variant="caption" color="text.secondary">{sub.client_name}</Typography>
+                                        <TableCell>
+                                          <Typography variant="body2" sx={{ fontSize: '0.68rem', fontWeight: 650 }}>{sub.position}</Typography>
+                                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.62rem' }}>{sub.client_name}</Typography>
                                         </TableCell>
-                                        <TableCell sx={{ fontSize: '0.7rem' }}>
+                                        <TableCell>
                                           {sub.assigned_employee?.full_name || sub.recruiter || 'System'}
                                         </TableCell>
-                                        <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main' }}>
+                                        <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
                                           {sub.status}
                                         </TableCell>
-                                        <TableCell sx={{ fontSize: '0.7rem' }}>
+                                        <TableCell>
                                           {new Date(sub.updated_at || sub.created_at || '').toLocaleDateString()}
                                         </TableCell>
-                                        <TableCell sx={{ fontSize: '0.7rem', textAlign: 'center' }}>
-                                          <Typography
-                                            variant="body2"
-                                            sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                            onClick={() => navigate(`/candidates/create/${sub.id}`)}
-                                          >
-                                            Edit
-                                          </Typography>
+                                        <TableCell sx={{ textAlign: 'center' }}>
+                                          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                                            <Typography
+                                              variant="body2"
+                                              sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                              onClick={() => navigate(`/candidates/create/${sub.id}`)}
+                                            >
+                                              Edit
+                                            </Typography>
+                                            <Typography
+                                              variant="body2"
+                                              sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                              onClick={() => handleDeleteSubmission(String(sub.id), sub.candidate_name)}
+                                            >
+                                              Delete
+                                            </Typography>
+                                          </Box>
                                         </TableCell>
                                       </TableRow>
                                     ))}
@@ -692,7 +739,7 @@ export const AdminDashboard: React.FC = () => {
           </Box>
 
           <TableContainer>
-            <Table size="small">
+            <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.72rem' } }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>
                   <TableCell style={{ width: '50px' }}></TableCell>
@@ -703,12 +750,13 @@ export const AdminDashboard: React.FC = () => {
                   <TableCell sx={{ fontWeight: 800 }}>Bill Rate / Salary</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Pay Rate</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {displayJobs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    <TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       No jobs found matching the filter.
                     </TableCell>
                   </TableRow>
@@ -733,10 +781,10 @@ export const AdminDashboard: React.FC = () => {
                               onClick={() => setExpandedGroupedJobs(prev => ({ ...prev, [jobCodeKey]: !prev[jobCodeKey] }))}
                               sx={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', gap: 0.5, userSelect: 'none' }}
                             >
-                              <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main', fontSize: '1rem', lineHeight: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 900, color: 'primary.main', fontSize: '0.9rem', lineHeight: 1 }}>
                                 {isExpanded ? '−' : '+'}
                               </Typography>
-                              <Box sx={{ bgcolor: 'primary.main', color: '#fff', fontSize: '0.65rem', fontWeight: 700, px: 0.5, py: 0.1, borderRadius: '3px' }}>
+                              <Box sx={{ bgcolor: 'primary.main', color: '#fff', fontSize: '0.6rem', fontWeight: 700, px: 0.5, py: 0.1, borderRadius: '3px' }}>
                                 {jobApplicants.length}
                               </Box>
                             </Box>
@@ -745,8 +793,8 @@ export const AdminDashboard: React.FC = () => {
                             {jobCodeVal !== 'N/A' ? jobCodeVal : '—'}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 650 }}>{app.position}</Typography>
-                            <Typography variant="caption" color="text.secondary">{app.client_name}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: '0.72rem', fontWeight: 650 }}>{app.position}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{app.client_name}</Typography>
                           </TableCell>
                           <TableCell>
                             {(() => {
@@ -775,50 +823,69 @@ export const AdminDashboard: React.FC = () => {
                               label={getRemarkField(app.remarks, 'Job Status') !== 'N/A' ? getRemarkField(app.remarks, 'Job Status') : 'Active'} 
                               color={getRemarkField(app.remarks, 'Job Status') === 'Active' ? 'success' : 'default'}
                               size="small" 
-                              sx={{ fontSize: '0.65rem', height: 20 }}
+                              sx={{ fontSize: '0.6rem', height: 18 }}
                             />
+                          </TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>
+                            <IconButton 
+                              size="small" 
+                              color="error" 
+                              onClick={() => handleDeleteJobGroup(jobApplicants.length > 0 ? [...(app as any).associatedApps, ...jobApplicants] : (app as any).associatedApps, app.position)}
+                              sx={{ p: 0.25 }}
+                            >
+                              <Trash2 size={13} />
+                            </IconButton>
                           </TableCell>
                         </TableRow>
 
                         {isExpanded && (
                           <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                            <TableCell colSpan={8} style={{ padding: '12px 16px' }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
+                            <TableCell colSpan={9} style={{ padding: '8px 12px' }}>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5, color: 'text.secondary', fontSize: '0.68rem' }}>
                                 ASSOCIATED APPLICANTS ({jobApplicants.length})
                               </Typography>
                               {jobApplicants.length === 0 ? (
-                                <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1 }}>
+                                <Typography variant="body2" sx={{ fontSize: '0.68rem', color: 'text.secondary', py: 0.5 }}>
                                   No applicants sourced for this requirement.
                                 </Typography>
                               ) : (
                                 <TableContainer sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '6px' }}>
-                                  <Table size="small" sx={{ backgroundColor: theme.palette.background.paper }}>
+                                  <Table size="small" sx={{ backgroundColor: theme.palette.background.paper, '& .MuiTableCell-root': { padding: '3px 6px', fontSize: '0.68rem' } }}>
                                     <TableHead>
                                       <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Applicant Name</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Email</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Status</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem' }}>Sourced By</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', textAlign: 'center' }}>Actions</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Applicant Name</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                                        <TableCell sx={{ fontWeight: 700 }}>Sourced By</TableCell>
+                                        <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>Actions</TableCell>
                                       </TableRow>
                                     </TableHead>
                                     <TableBody>
                                       {jobApplicants.map((applicant) => (
                                         <TableRow key={applicant.id}>
-                                          <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main' }}>
+                                          <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
                                             {applicant.candidate_name}
                                           </TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.candidate_email || '—'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main' }}>{applicant.status}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem', textAlign: 'center' }}>
-                                            <Typography
-                                              variant="body2"
-                                              sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                              onClick={() => navigate(`/candidates/create/${applicant.id}`)}
-                                            >
-                                              Edit
-                                            </Typography>
+                                          <TableCell>{applicant.candidate_email || '—'}</TableCell>
+                                          <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{applicant.status}</TableCell>
+                                          <TableCell>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
+                                          <TableCell sx={{ textAlign: 'center' }}>
+                                            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                onClick={() => navigate(`/candidates/create/${applicant.id}`)}
+                                              >
+                                                Edit
+                                              </Typography>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                onClick={() => handleDeleteSubmission(String(applicant.id), applicant.candidate_name)}
+                                              >
+                                                Delete
+                                              </Typography>
+                                            </Box>
                                           </TableCell>
                                         </TableRow>
                                       ))}
@@ -1125,60 +1192,7 @@ export const AdminDashboard: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Recent User Creations - Hidden for CEO */}
-      {currentUser?.role !== 'CEO' && (
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            <Card>
-              <Box sx={{ p: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6" fontWeight={750} sx={{ fontSize: '0.95rem' }}>
-                  Recent Employee Onboardings
-                </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => navigate('/users')}
-                  sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.25 }}
-                >
-                  View All Staff
-                </Button>
-              </Box>
-              <List sx={{ py: 0 }}>
-                {recentCreations.map((user, index) => (
-                  <React.Fragment key={user.id}>
-                    <ListItem sx={{ py: 0.5, px: 2 }}>
-                      <ListItemAvatar sx={{ minWidth: 40 }}>
-                        <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem', bgcolor: COLORS[index % COLORS.length], fontWeight: 700 }}>
-                          {user.full_name.charAt(0)}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.8rem' }}>{user.full_name}</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.65rem' }}>
-                              {user.role === 'CEO' ? 'CEO' : user.role.replace('_', ' ')}
-                            </Typography>
-                          </Box>
-                        }
-                        secondary={
-                          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.7rem' }}>
-                            Joined on {new Date(user.date_of_joining).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })} • {user.email}
-                          </Typography>
-                        }
-                      />
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.75rem', color: user.is_active ? 'success.main' : 'text.secondary' }}>
-                        {user.is_active ? "Active" : "Inactive"}
-                      </Typography>
-                    </ListItem>
-                    {index < recentCreations.length - 1 && <Divider />}
-                  </React.Fragment>
-                ))}
-              </List>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
+
     </Box>
 
   );
