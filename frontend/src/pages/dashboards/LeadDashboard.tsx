@@ -37,7 +37,10 @@ export const LeadDashboard: React.FC = () => {
   const dbCurrentUser = users.find(u => u.email === currentUser?.email);
   const myTeamId = dbCurrentUser?.team?.id || currentUser?.team?.id || '';
   const myTeamName = dbCurrentUser?.team?.name || currentUser?.team?.name || 'My Team';
-  const teamMembers = users.filter(u => u.team && String(u.team.id) === String(myTeamId));
+  const teamMembers = users.filter(u => 
+    (u.team && String(u.team.id) === String(myTeamId)) ||
+    (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
+  );
 
   // Applications assigned to team members
   const teamApplications = applications.filter(app =>
