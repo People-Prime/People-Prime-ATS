@@ -11,9 +11,9 @@ from users.models import User, Role
 from teams.models import Team
 
 
-def check_and_send_assignment_email(application, request_user, is_new=False, old_assignee_id=None):
+def check_and_send_assignment_email(application, request_user, is_new=False, old_assignee_email=None):
     if not application.candidate_name and application.assigned_employee:
-        if is_new or old_assignee_id != application.assigned_employee.id:
+        if is_new or old_assignee_email != application.assigned_employee.email:
             remarks = application.remarks or ''
             
             def extract_field(field_name):
@@ -140,9 +140,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        old_assignee_id = instance.assigned_employee.id if instance.assigned_employee else None
+        old_assignee_email = instance.assigned_employee.email if instance.assigned_employee else None
         application = serializer.save()
-        check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_id=old_assignee_id)
+        check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_email=old_assignee_email)
 
     # Append a coordinator review note to the application
     @action(detail=True, methods=['post'], url_path='add-note')
