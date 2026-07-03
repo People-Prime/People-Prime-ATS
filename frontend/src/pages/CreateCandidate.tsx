@@ -15,12 +15,11 @@ import {
   MenuItem, 
   Alert,
   Divider,
-  Stack,
-  CircularProgress
+  Stack
 } from '@mui/material';
-import { Upload, Sparkles, FileText, ArrowLeft } from 'lucide-react';
+import { Upload, ArrowLeft } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
-import { updateApplication, addApplication, addApplicationNote } from '../redux/applicationsSlice';
+import { updateApplication, addApplication, addApplicationNote, setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 import { Application } from '../types';
 
@@ -36,84 +35,17 @@ export const CreateCandidate: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
-  const [sourcingMode, setSourcingMode] = useState<'choose' | 'manual' | 'parse'>('choose');
-  const [isParsing, setIsParsing] = useState(false);
-  const [parsingProgress, setParsingProgress] = useState(0);
-  const [parsingStatusText, setParsingStatusText] = useState('');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedBanner, setParsedBanner] = useState('');
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
+  // Fetch applications if not loaded (e.g. on direct page refresh)
+  useEffect(() => {
+    if (applications.length === 0) {
+      api.get('applications/').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => {});
     }
-  };
-
-  const runResumeParser = async () => {
-    if (!selectedFile) return;
-    setIsParsing(true);
-    setParsingProgress(10);
-    setParsingStatusText('Uploading resume to backend parsing engine...');
-    setError('');
-
-    try {
-      const uploadData = new FormData();
-      uploadData.append('file', selectedFile);
-
-      // Start mock progress increments to give a smooth visual experience
-      const progressInterval = setInterval(() => {
-        setParsingProgress(prev => {
-          if (prev < 85) {
-            return prev + 15;
-          }
-          return prev;
-        });
-        setParsingStatusText(prev => {
-          if (prev.includes('Uploading')) return 'Scanning document format and extraction markers...';
-          if (prev.includes('Scanning')) return 'Parsing candidate contact info and tech stack...';
-          return 'Extracting professional history...';
-        });
-      }, 400);
-
-      const res = await api.post('applications/parse-resume/', uploadData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      clearInterval(progressInterval);
-      setParsingProgress(100);
-      setParsingStatusText('Mapping extracted data to form...');
-
-      setTimeout(() => {
-        const data = res.data;
-        setFormData(prev => ({
-          ...prev,
-          firstName: data.firstName || '',
-          lastName: data.lastName || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          skills: data.skills || '',
-          experience: data.experience || '',
-          degree: data.degree || 'Bachelors Degree',
-          noticePeriod: 'Immediate',
-          expectedSalary: '',
-          fileName: data.fileName || selectedFile.name,
-          docSource: 'PC'
-        }));
-
-        setParsedBanner(`Successfully parsed details from resume: "${selectedFile.name}"`);
-        setIsParsing(false);
-        setSourcingMode('manual'); // Switch to form
-      }, 500);
-
-    } catch (err: any) {
-      console.error(err);
-      setError(`Failed to parse resume: ${err.response?.data?.error || err.message}`);
-      setIsParsing(false);
-    }
-  };
+  }, [dispatch, applications.length]);
   
   // Resolve team members if the user is a Team Lead
   const dbCurrentUser = useMemo(() => users.find(u => u.email === currentUser?.email), [users, currentUser]);
@@ -439,183 +371,16 @@ Recruiter Remarks: ${formData.remarks}`;
     } finally {
       setSubmitting(false);
     }
-  };  if (sourcingMode === 'choose') {
-    return (
-      <Box sx={{ maxWidth: 800, mx: 'auto', py: 4 }}>
-        <Box sx={{ textAlign: 'center', mb: 5 }}>
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, color: 'text.primary' }}>
-            Add Candidate Sourcing
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Choose how you would like to input the candidate details into the pipeline.
-          </Typography>
-        </Box>
-
-        <Grid container spacing={4}>
-          <Grid item xs={12} sm={6}>
-            <Card 
-              onClick={() => setSourcingMode('manual')}
-              sx={{ 
-                borderRadius: '16px', 
-                border: `2px solid ${theme.palette.divider}`,
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  borderColor: '#0062AD',
-                  transform: 'translateY(-4px)',
-                  boxShadow: theme.shadows[4]
-                }
-              }}
-            >
-              <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                <Box sx={{ display: 'inline-flex', p: 2.5, borderRadius: '50%', bgcolor: 'rgba(0, 98, 173, 0.08)', color: '#0062AD', mb: 3 }}>
-                  <FileText size={40} />
-                </Box>
-                <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
-                  Manual Sourcing
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ minHeight: 48 }}>
-                  Directly fill out the applicant contact form, job preferences, and skills manually.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <Card 
-              onClick={() => {
-                setSourcingMode('parse');
-                setSelectedFile(null);
-              }}
-              sx={{ 
-                borderRadius: '16px', 
-                border: `2px solid ${theme.palette.divider}`,
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  borderColor: '#7c3aed',
-                  transform: 'translateY(-4px)',
-                  boxShadow: theme.shadows[4]
-                }
-              }}
-            >
-              <CardContent sx={{ p: 4, textAlign: 'center' }}>
-                <Box sx={{ display: 'inline-flex', p: 2.5, borderRadius: '50%', bgcolor: 'rgba(124, 58, 237, 0.08)', color: '#7c3aed', mb: 3 }}>
-                  <Sparkles size={40} />
-                </Box>
-                <Typography variant="h6" fontWeight={800} sx={{ mb: 1 }}>
-                  Resume Parsing (AI-Powered)
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ minHeight: 48 }}>
-                  Upload a candidate resume to automatically extract contact info, skills, and details.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-    );
-  }
-
-  if (sourcingMode === 'parse') {
-    return (
-      <Box sx={{ maxWidth: 600, mx: 'auto', py: 4 }}>
-        <Box sx={{ mb: 3 }}>
-          <Button 
-            onClick={() => setSourcingMode('choose')} 
-            startIcon={<ArrowLeft size={16} />}
-            sx={{ textTransform: 'none', fontWeight: 700 }}
-          >
-            Back to Options
-          </Button>
-        </Box>
-
-        <Card sx={{ borderRadius: '16px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-          <CardContent sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>
-              Upload Candidate Resume
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-              Supports PDF, DOCX, and TXT files. Details will automatically populate the form.
-            </Typography>
-
-            {!isParsing ? (
-              <Box 
-                sx={{ 
-                  border: `2px dashed ${theme.palette.divider}`,
-                  borderRadius: '12px',
-                  p: 5,
-                  bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a',
-                  mb: 4,
-                  cursor: 'pointer',
-                  position: 'relative',
-                  display: 'block',
-                  '&:hover': {
-                    borderColor: '#7c3aed',
-                    bgcolor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b'
-                  }
-                }}
-                component="label"
-              >
-                <input 
-                  type="file" 
-                  hidden 
-                  accept=".pdf,.docx,.doc,.txt" 
-                  onChange={handleFileChange}
-                />
-                <Box sx={{ color: 'text.secondary', mb: 2 }}>
-                  <Upload size={40} style={{ margin: '0 auto', color: '#7c3aed' }} />
-                </Box>
-                <Typography variant="body2" fontWeight={700}>
-                  {selectedFile ? selectedFile.name : "Click to browse or drag resume file here"}
-                </Typography>
-                {selectedFile && (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </Typography>
-                )}
-              </Box>
-            ) : (
-              <Box sx={{ py: 5, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <CircularProgress variant="determinate" value={parsingProgress} size={60} thickness={4} sx={{ mb: 3, color: '#7c3aed' }} />
-                <Typography variant="body2" fontWeight={800} color="primary.main">
-                  {parsingProgress}% completed
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, fontWeight: 500 }}>
-                  {parsingStatusText}
-                </Typography>
-              </Box>
-            )}
-
-            <Button
-              variant="contained"
-              fullWidth
-              color="primary"
-              disabled={!selectedFile || isParsing}
-              onClick={runResumeParser}
-              sx={{ borderRadius: '8px', py: 1.5, fontWeight: 700, textTransform: 'none', bgcolor: '#7c3aed', '&:hover': { bgcolor: '#6d28d9' } }}
-            >
-              Parse Resume & Pre-fill Form
-            </Button>
-          </CardContent>
-        </Card>
-      </Box>
-    );
-  }
-
-  return (
+  };  return (
     <Box sx={{ maxWidth: 900, mx: 'auto', pb: 6 }}>
       {/* Header back button */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4 }}>
         <Button 
-          onClick={() => {
-            setSourcingMode('choose');
-            setParsedBanner('');
-          }} 
+          onClick={() => navigate('/')} 
           startIcon={<ArrowLeft size={16} />}
           sx={{ textTransform: 'none', fontWeight: 700 }}
         >
-          Change Mode
+          Back to Dashboard
         </Button>
         <Box sx={{ flexGrow: 1 }} />
         <Box sx={{ textAlign: 'right' }}>
