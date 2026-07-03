@@ -255,7 +255,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
     const buildTreeElement = (user: User): TreeElement => {
       const individual = computeIndividualMetrics(user.email);
       const directReports = filteredUsers.filter(u =>
-        u.reporting_to?.email?.toLowerCase() === user.email?.toLowerCase()
+        u.reporting_to?.email?.toLowerCase() === user.email?.toLowerCase() &&
+        u.email?.toLowerCase() !== user.email?.toLowerCase()
       );
 
       const isHarshitha = user.full_name.toLowerCase() === 'harshitha desai' || user.email.toLowerCase() === 'harshitha.d@people-prime.com';
@@ -375,7 +376,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
 
     // Default CEO view: start from top-level roots
     const roots = filteredUsers.filter(u =>
-      !u.reporting_to || u.role === 'CEO'
+      !u.reporting_to || 
+      u.reporting_to.email?.toLowerCase() === u.email?.toLowerCase() ||
+      u.role === 'CEO'
     );
 
     const sortedRoots = [...roots].sort((a, b) => {

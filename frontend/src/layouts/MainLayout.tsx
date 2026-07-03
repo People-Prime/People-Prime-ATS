@@ -51,19 +51,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           email: u.email,
           full_name: u.full_name,
           role: u.role,
-          reporting_to: u.reporting_to,
-          team: u.team,
+          reporting_to: u.reporting_to && u.reporting_to.length > 0 ? u.reporting_to[0] : null,
+          reporting_to_list: u.reporting_to || [],
+          team: u.teams && u.teams.length > 0 ? u.teams[0] : null,
+          teams: u.teams || [],
           date_of_joining: u.date_of_joining || '',
           is_active: u.is_active !== undefined ? u.is_active : true,
           must_change_password: u.must_change_password || false
         }));
         dispatch(fetchUsersSuccess(mappedUsers));
-      }).catch(() => {});
+      }).catch(() => { });
 
       api.get('applications/').then(res => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [dispatch, user]);
 
@@ -121,14 +123,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       >
-        <Toolbar 
-          sx={{ 
-            px: { xs: 2, sm: 4 }, 
-            minHeight: { xs: 'auto', md: '80px' }, 
+        <Toolbar
+          sx={{
+            px: { xs: 2, sm: 4 },
+            minHeight: { xs: 'auto', md: '80px' },
             py: { xs: 1.5, md: 0 },
-            display: 'flex', 
+            display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
-            justifyContent: 'space-between', 
+            justifyContent: 'space-between',
             alignItems: 'center',
             gap: { xs: 1.5, md: 0 }
           }}
@@ -190,15 +192,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           </Box>
 
           {/* Center: Navigation Options (Scrolls horizontally on mobile) */}
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 1, 
-              overflowX: 'auto', 
-              px: { xs: 0, md: 2 }, 
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              overflowX: 'auto',
+              px: { xs: 0, md: 2 },
               width: { xs: '100%', md: 'auto' },
-              flexGrow: 1, 
+              flexGrow: 1,
               justifyContent: { xs: 'flex-start', md: 'center' },
               '::-webkit-scrollbar': { display: 'none' },
               '-ms-overflow-style': 'none',
@@ -275,7 +277,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
           </Box>
         </Toolbar>
       </Box>
- 
+
       {/* Main Panel Viewport */}
       <Box
         component="main"

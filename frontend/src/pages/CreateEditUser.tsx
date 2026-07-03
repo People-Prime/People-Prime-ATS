@@ -14,7 +14,9 @@ import {
   Select, 
   MenuItem, 
   Alert,
-  IconButton
+  IconButton,
+  Checkbox,
+  ListItemText
 } from '@mui/material';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { InputAdornment } from '@mui/material';
@@ -69,8 +71,8 @@ export const CreateEditUser: React.FC = () => {
     name: '',
     email: '',
     role: 'ASSOCIATE_ANALYST' as UserRole,
-    reportingToId: '',
-    teamId: '',
+    reportingToIds: [] as string[],
+    teamIds: [] as string[],
     joiningDate: new Date().toISOString().split('T')[0],
     password: '',
     confirmPassword: ''
@@ -89,12 +91,14 @@ export const CreateEditUser: React.FC = () => {
     if (userId && !editingUser) {
       setError('User not found.');
     } else if (editingUser) {
+      const repIds = editingUser.reporting_to_list ? editingUser.reporting_to_list.map((r: any) => r.email || r.id) : [];
+      const tIds = editingUser.teams ? editingUser.teams.map((t: any) => String(t.id)) : [];
       setFormData({
         name: editingUser.full_name,
         email: editingUser.email,
         role: editingUser.role,
-        reportingToId: editingUser.reporting_to?.email || editingUser.reporting_to?.id || '',
-        teamId: editingUser.team?.id || '',
+        reportingToIds: repIds,
+        teamIds: tIds,
         joiningDate: editingUser.date_of_joining,
         password: '',
         confirmPassword: ''
@@ -137,21 +141,16 @@ export const CreateEditUser: React.FC = () => {
       date_of_joining: formData.joiningDate,
     };
 
-    if (formData.reportingToId) {
-      payload.reporting_to_id = formData.reportingToId;
+    if (formData.reportingToIds.length > 0) {
+      payload.reporting_to_ids = formData.reportingToIds;
     } else {
-      payload.reporting_to_id = null;
+      payload.reporting_to_ids = [];
     }
 
-    if (formData.teamId) {
-      const team = teams.find(t => String(t.id) === formData.teamId);
-      if (team) {
-        payload.team_id = team.id;
-      } else {
-        payload.team_id = null;
-      }
+    if (formData.teamIds.length > 0) {
+      payload.team_ids = formData.teamIds.map(Number);
     } else {
-      payload.team_id = null;
+      payload.team_ids = [];
     }
 
     if (editingUser) {
@@ -159,20 +158,27 @@ export const CreateEditUser: React.FC = () => {
       setSubmitting(true);
       try {
         await api.put(`users/${editingUser.id}/`, payload);
-        const selectedMgr = dbManagers.find(m => m.email === formData.reportingToId);
-        const selectedTeam = teams.find(t => String(t.id) === formData.teamId);
+        const selectedManagers = dbManagers.filter(m => formData.reportingToIds.includes(m.email));
+        const selectedTeams = teams.filter(t => formData.teamIds.includes(String(t.id)));
         const updatedUser: User = {
           ...editingUser,
           full_name: formData.name,
           email: formData.email,
           role: formData.role,
-          reporting_to: selectedMgr ? {
-            id: selectedMgr.email,
-            full_name: selectedMgr.full_name,
-            email: selectedMgr.email,
-            role: selectedMgr.role as UserRole
+          reporting_to: selectedManagers.length > 0 ? {
+            id: selectedManagers[0].email,
+            full_name: selectedManagers[0].full_name,
+            email: selectedManagers[0].email,
+            role: selectedManagers[0].role as UserRole
           } : null,
-          team: selectedTeam ? { id: String(selectedTeam.id), name: selectedTeam.name } : null,
+          reporting_to_list: selectedManagers.map(m => ({
+            id: m.email,
+            full_name: m.full_name,
+            email: m.email,
+            role: m.role as UserRole
+          })),
+          team: selectedTeams.length > 0 ? { id: String(selectedTeams[0].id), name: selectedTeams[0].name } : null,
+          teams: selectedTeams.map(t => ({ id: String(t.id), name: t.name })),
           date_of_joining: formData.joiningDate
         };
         dispatch(updateUserInList(updatedUser));
@@ -199,7 +205,7 @@ export const CreateEditUser: React.FC = () => {
 
       setSubmitting(true);
       try {
-        const payload: Record<string, any> = {
+        const createPayload: Record<string, any> = {
           email: formData.email,
           full_name: formData.name,
           role: formData.role,
@@ -207,34 +213,42 @@ export const CreateEditUser: React.FC = () => {
           date_of_joining: formData.joiningDate,
         };
 
-        // reporting_to_id = the selected manager's email (real DB PK)
-        if (formData.reportingToId) {
-          payload.reporting_to_id = formData.reportingToId; // already is email from dbManagers
+        if (formData.reportingToIds.length > 0) {
+          createPayload.reporting_to_ids = formData.reportingToIds;
+        } else {
+          createPayload.reporting_to_ids = [];
         }
 
-        // team_id = real integer DB id
-        if (formData.teamId) {
-          const team = teams.find(t => String(t.id) === formData.teamId);
-          if (team) payload.team_id = team.id;
+        if (formData.teamIds.length > 0) {
+          createPayload.team_ids = formData.teamIds.map(Number);
+        } else {
+          createPayload.team_ids = [];
         }
 
-        await api.post('users/', payload);
+        await api.post('users/', createPayload);
 
         // Mirror into Redux so the user appears in View All Staff immediately
-        const selectedMgr = dbManagers.find(m => m.email === formData.reportingToId);
-        const selectedTeam = teams.find(t => String(t.id) === formData.teamId);
+        const selectedManagers = dbManagers.filter(m => formData.reportingToIds.includes(m.email));
+        const selectedTeams = teams.filter(t => formData.teamIds.includes(String(t.id)));
         const newUser: User = {
           id: formData.email,
           email: formData.email,
           full_name: formData.name,
           role: formData.role,
-          reporting_to: selectedMgr ? {
-            id: selectedMgr.email,
-            full_name: selectedMgr.full_name,
-            email: selectedMgr.email,
-            role: selectedMgr.role as UserRole
+          reporting_to: selectedManagers.length > 0 ? {
+            id: selectedManagers[0].email,
+            full_name: selectedManagers[0].full_name,
+            email: selectedManagers[0].email,
+            role: selectedManagers[0].role as UserRole
           } : null,
-          team: selectedTeam ? { id: String(selectedTeam.id), name: selectedTeam.name } : null,
+          reporting_to_list: selectedManagers.map(m => ({
+            id: m.email,
+            full_name: m.full_name,
+            email: m.email,
+            role: m.role as UserRole
+          })),
+          team: selectedTeams.length > 0 ? { id: String(selectedTeams[0].id), name: selectedTeams[0].name } : null,
+          teams: selectedTeams.map(t => ({ id: String(t.id), name: t.name })),
           date_of_joining: formData.joiningDate,
           is_active: true,
           must_change_password: true
@@ -364,20 +378,34 @@ export const CreateEditUser: React.FC = () => {
 
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Reporting Manager</InputLabel>
+                  <InputLabel>Reporting Managers</InputLabel>
                   <Select
-                    value={formData.reportingToId}
-                    label="Reporting Manager"
-                    onChange={(e) => setFormData({ ...formData, reportingToId: e.target.value })}
+                    multiple
+                    value={formData.reportingToIds}
+                    label="Reporting Managers"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        reportingToIds: typeof val === 'string' ? val.split(',') : val 
+                      });
+                    }}
+                    renderValue={(selected) => {
+                      const selectedNames = (dbManagers.length > 0 ? dbManagers : users)
+                        .filter(m => selected.includes((m as any).email || (m as any).id))
+                        .map(m => m.full_name);
+                      return selectedNames.join(', ');
+                    }}
                   >
-                    <MenuItem value="">None / Executive Level</MenuItem>
                     {(dbManagers.length > 0 ? dbManagers : users)
                       .filter(u => ((u as any).email || (u as any).id) !== editingUser?.email)
                       .map(mgr => {
                         const val = (mgr as any).email || (mgr as any).id;
+                        const isChecked = formData.reportingToIds.indexOf(val) > -1;
                         return (
                           <MenuItem key={val} value={val}>
-                            {mgr.full_name} ({mgr.role.replace('_', ' ')})
+                            <Checkbox checked={isChecked} size="small" />
+                            <ListItemText primary={`${mgr.full_name} (${mgr.role.replace('_', ' ')})`} />
                           </MenuItem>
                         );
                       })}
@@ -387,16 +415,35 @@ export const CreateEditUser: React.FC = () => {
 
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Assign Team</InputLabel>
+                  <InputLabel>Assign Teams</InputLabel>
                   <Select
-                    value={formData.teamId}
-                    label="Assign Team"
-                    onChange={(e) => setFormData({ ...formData, teamId: e.target.value })}
+                    multiple
+                    value={formData.teamIds}
+                    label="Assign Teams"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({ 
+                        ...formData, 
+                        teamIds: typeof val === 'string' ? val.split(',') : val 
+                      });
+                    }}
+                    renderValue={(selected) => {
+                      const selectedNames = teams
+                        .filter(t => selected.includes(String(t.id)))
+                        .map(t => t.name);
+                      return selectedNames.join(', ');
+                    }}
                   >
-                    <MenuItem value="">Unassigned</MenuItem>
-                    {teams.map(team => (
-                      <MenuItem key={team.id} value={String(team.id)}>{team.name}</MenuItem>
-                    ))}
+                    {teams.map(team => {
+                      const val = String(team.id);
+                      const isChecked = formData.teamIds.indexOf(val) > -1;
+                      return (
+                        <MenuItem key={team.id} value={val}>
+                          <Checkbox checked={isChecked} size="small" />
+                          <ListItemText primary={team.name} />
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
               </Grid>

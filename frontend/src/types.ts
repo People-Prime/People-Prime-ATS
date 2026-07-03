@@ -19,10 +19,20 @@ export interface User {
     email: string;
     role: UserRole;
   } | null;
+  reporting_to_list?: Array<{
+    id: string;
+    full_name: string;
+    email: string;
+    role: UserRole;
+  }> | null;
   team?: {
     id: string;
     name: string;
   } | null;
+  teams?: Array<{
+    id: string;
+    name: string;
+  }> | null;
   date_of_joining: string;
   is_active: boolean;
   must_change_password: boolean;

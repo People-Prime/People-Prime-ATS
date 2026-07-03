@@ -18,7 +18,9 @@ import {
   IconButton,
   CircularProgress,
   Divider,
-  Chip
+  Chip,
+  Checkbox,
+  ListItemText
 } from '@mui/material';
 import { 
   Plus, 
@@ -44,7 +46,8 @@ export const TeamManagement: React.FC = () => {
   const [teamForm, setTeamForm] = useState({
     name: '',
     description: '',
-    leadId: ''
+    leadId: '',
+    memberIds: [] as string[]
   });
 
   // State for members viewer dialog
@@ -119,17 +122,22 @@ export const TeamManagement: React.FC = () => {
     setTeamForm({
       name: '',
       description: '',
-      leadId: teamLeads[0]?.email || ''
+      leadId: teamLeads[0]?.email || '',
+      memberIds: []
     });
     setOpenDialog(true);
   };
 
   const handleOpenEdit = (team: Team) => {
     setEditingTeam(team);
+    const currentMembers = dbUsers
+      .filter(u => u.teams && u.teams.some(t => String(t.id) === String(team.id)))
+      .map(u => u.email);
     setTeamForm({
       name: team.name,
       description: team.description,
-      leadId: team.team_lead?.email || ''
+      leadId: team.team_lead?.email || '',
+      memberIds: currentMembers
     });
     setOpenDialog(true);
   };
@@ -141,7 +149,8 @@ export const TeamManagement: React.FC = () => {
     const payload = {
       name: teamForm.name,
       description: teamForm.description,
-      team_lead_id: teamForm.leadId || null
+      team_lead_id: teamForm.leadId || null,
+      member_ids: teamForm.memberIds
     };
 
     try {
@@ -247,7 +256,7 @@ export const TeamManagement: React.FC = () => {
             </thead>
             <tbody>
               {visibleTeams.map((team) => {
-                const teamMembersList = dbUsers.filter(u => u.team && String(u.team.id) === team.id);
+                const teamMembersList = dbUsers.filter(u => u.teams && u.teams.some(t => String(t.id) === String(team.id)));
                 return (
                   <tr key={team.id} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
                     {/* Team Name */}
@@ -481,6 +490,40 @@ export const TeamManagement: React.FC = () => {
                     {lead.full_name} ({lead.email})
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth size="small">
+              <InputLabel>Assign Team Members</InputLabel>
+              <Select
+                multiple
+                value={teamForm.memberIds}
+                label="Assign Team Members"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTeamForm({ 
+                    ...teamForm, 
+                    memberIds: typeof val === 'string' ? val.split(',') : val 
+                  });
+                }}
+                renderValue={(selected) => {
+                  const selectedNames = dbUsers
+                    .filter(u => selected.includes(u.email))
+                    .map(u => u.full_name);
+                  return selectedNames.join(', ');
+                }}
+              >
+                {dbUsers
+                  .filter(u => u.is_active && u.role !== 'ADMIN')
+                  .map(usr => {
+                    const isChecked = teamForm.memberIds.indexOf(usr.email) > -1;
+                    return (
+                      <MenuItem key={usr.email} value={usr.email}>
+                        <Checkbox checked={isChecked} size="small" />
+                        <ListItemText primary={`${usr.full_name} (${usr.role.replace('_', ' ')})`} />
+                      </MenuItem>
+                    );
+                  })}
               </Select>
             </FormControl>
           </DialogContent>

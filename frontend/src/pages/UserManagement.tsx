@@ -260,11 +260,18 @@ export const UserManagement: React.FC = () => {
                     </Typography>
                   </td>
                   <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{u.reporting_to?.full_name || '-'}</Typography>
-                    {u.reporting_to && <Typography variant="caption" sx={{ fontSize: '0.7rem' }} color="text.secondary">{u.reporting_to.role.replace('_', ' ')}</Typography>}
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                      {u.reporting_to_list && u.reporting_to_list.length > 0 
+                        ? u.reporting_to_list.map((m: any) => m.full_name).join(', ') 
+                        : '-'}
+                    </Typography>
                   </td>
                   <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 600 }}>{u.team?.name || 'Unassigned'}</Typography>
+                    <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                      {u.teams && u.teams.length > 0 
+                        ? u.teams.map(t => t.name).join(', ') 
+                        : 'Unassigned'}
+                    </Typography>
                   </td>
                   <td style={{ padding: '4px 8px' }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem' }} color="text.secondary">{u.date_of_joining}</Typography>
