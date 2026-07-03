@@ -41,7 +41,8 @@ export const Placements: React.FC = () => {
   // Helper to extract fields from remarks
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
-    const regex = new RegExp(`${fieldName}:\\s*(.*)`);
+    // Use ^ anchor with multiline flag so we only match the field on its own line
+    const regex = new RegExp(`^${fieldName}:\\s*(.+)`, 'm');
     const match = remarks.match(regex);
     if (!match) return 'N/A';
     return match[1].trim() || 'N/A';

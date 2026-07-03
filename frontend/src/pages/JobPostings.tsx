@@ -42,8 +42,11 @@ import { api } from '../services/api';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
-  const match = remarks.match(new RegExp(`${fieldName}:\\s*(.+)`));
-  return match ? match[1].trim() : 'N/A';
+  // Use ^ anchor with multiline flag so we only match the field on its own line
+  const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'm'));
+  const value = match ? match[1].trim() : 'N/A';
+  // Guard against matching next field label when value is missing
+  return value && value !== '' ? value : 'N/A';
 };
 
 export const JobPostings: React.FC = () => {
@@ -251,16 +254,13 @@ export const JobPostings: React.FC = () => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  // Group displayApps by Job Code to prevent duplicates in UI for users who see multiple assignments
+  // Group ALL apps by position + client_name so records with and without job codes merge correctly
   const groupedApps: any[] = [];
   const groups: Record<string, Application[]> = {};
 
   displayApps.forEach(app => {
-    const jobCode = getRemarkField(app.remarks, 'Job Code');
-    // Primary key: job code. Fallback: position + client name (handles records before the job-code fix)
-    const key = jobCode !== 'N/A' && jobCode
-      ? `${jobCode}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`
-      : `pos|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}`;
+    // Always group by position + client — this merges old-format records with PPW-coded ones
+    const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
     if (!groups[key]) {
       groups[key] = [];
     }
@@ -269,7 +269,12 @@ export const JobPostings: React.FC = () => {
 
   Object.keys(groups).forEach(key => {
     const group = groups[key];
-    const rep = { ...group[0] };
+    // Prefer the record that has a proper job code as the representative
+    const rep = { ...(
+      group.find(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A') ||
+      group.find(a => getRemarkField(a.remarks, 'Location') !== 'N/A') ||
+      group[0]
+    )};
     (rep as any).associatedIds = group.map(a => String(a.id));
     (rep as any).associatedApps = group;
     
@@ -536,12 +541,12 @@ Remarks: ${candidateForm.remarks}`;
             <tbody>
               {groupedApps.map((app) => {
                 const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
-                const jobCodeKey = jobCodeVal !== 'N/A' ? `${jobCodeVal}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}` : `nocode-${app.id}`;
-                const jobApplicants = applications.filter(a => 
-                  a.candidate_name && 
-                  (jobCodeVal !== 'N/A' 
-                    ? (getRemarkField(a.remarks, 'Job Code') === jobCodeVal && a.position?.toLowerCase() === app.position?.toLowerCase() && a.client_name?.toLowerCase() === app.client_name?.toLowerCase())
-                    : (a.position?.toLowerCase() === app.position?.toLowerCase() && a.client_name?.toLowerCase() === app.client_name?.toLowerCase()))
+                // Stable key always based on position+client (matches grouping logic)
+                const jobCodeKey = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
+                const jobApplicants = applications.filter(a =>
+                  a.candidate_name &&
+                  a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+                  a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
                 );
                 const isExpanded = !!expandedJobs[jobCodeKey];
 
@@ -602,7 +607,9 @@ Remarks: ${candidateForm.remarks}`;
                         </Box>
                       </td>
                       <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem' }}>{getRemarkField(app.remarks, 'Job Code')}</Typography>
+                        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
+                          {jobCodeVal !== 'N/A' ? jobCodeVal : '—'}
+                        </Typography>
                       </td>
                   <td style={{ padding: '4px 8px' }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>{app.position}</Typography>
@@ -614,7 +621,13 @@ Remarks: ${candidateForm.remarks}`;
                   </td>
                   <td style={{ padding: '4px 8px' }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      {getRemarkField(app.remarks, 'Location')}
+                      {(() => {
+                        const loc = getRemarkField(app.remarks, 'Location');
+                        if (loc !== 'N/A') return loc;
+                        // Fallback: city or state from application fields
+                        const cityState = [app.city, app.state].filter(Boolean).join(', ');
+                        return cityState || '—';
+                      })()}
                     </Typography>
                   </td>
                   <td style={{ padding: '4px 8px' }}>
@@ -643,12 +656,23 @@ Remarks: ${candidateForm.remarks}`;
                   </td>
                   <td style={{ padding: '4px 8px' }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      {getRemarkField(app.remarks, 'Client Bill Rate') === 'N/A' ? getRemarkField(app.remarks, 'Salary') : getRemarkField(app.remarks, 'Client Bill Rate')}
+                      {(() => {
+                        const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
+                        if (billRate !== 'N/A') return billRate;
+                        const salary = getRemarkField(app.remarks, 'Salary');
+                        if (salary !== 'N/A') return salary;
+                        // fallback for old format using 'Pay' or direct numeric values in remarks
+                        return '—';
+                      })()}
                     </Typography>
                   </td>
                   <td style={{ padding: '4px 8px' }}>
                     <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      {getRemarkField(app.remarks, 'Pay Rate')}
+                      {(() => {
+                        const payRate = getRemarkField(app.remarks, 'Pay Rate');
+                        if (payRate !== 'N/A') return payRate;
+                        return '—';
+                      })()}
                     </Typography>
                   </td>
                   {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && (
