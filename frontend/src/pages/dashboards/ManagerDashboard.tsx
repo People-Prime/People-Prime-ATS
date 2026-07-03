@@ -41,22 +41,29 @@ export const ManagerDashboard: React.FC = () => {
   // 1. Identify team leads who report to this Senior Manager
   const myLeads = users.filter(u => 
     (u.role === 'TEAM_LEAD' || u.role === 'SUB_LEAD') && 
-    u.reporting_to && u.reporting_to.email && currentUser?.email &&
-    u.reporting_to.email.toLowerCase() === currentUser.email.toLowerCase()
+    u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase())
   );
 
   // 2. Identify the unique teams led by these leads
-  const myTeams = Array.from(
-    new Map(
-      myLeads
-        .filter(lead => lead.team && lead.team.id)
-        .map(lead => [String(lead.team!.id), lead.team!])
-    ).values()
-  );
+  const myTeams: any[] = [];
+  myLeads.forEach(lead => {
+    if (lead.teams && lead.teams.length > 0) {
+      lead.teams.forEach(t => {
+        if (!myTeams.some(item => String(item.id) === String(t.id))) {
+          myTeams.push(t);
+        }
+      });
+    } else if (lead.team && lead.team.id) {
+      if (!myTeams.some(item => String(item.id) === String(lead.team!.id))) {
+        myTeams.push(lead.team);
+      }
+    }
+  });
 
-  // 3. Find all users belonging to these teams
+  // 3. Find all users belonging to these teams or reporting directly to this manager
   const teamMembers = users.filter(u => 
-    u.team && myTeams.some(team => String(team.id) === String(u.team?.id))
+    (u.teams && u.teams.some(t => myTeams.some(mt => String(mt.id) === String(t.id)))) ||
+    (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
   );
 
   // 4. Find all applications assigned to these team members
