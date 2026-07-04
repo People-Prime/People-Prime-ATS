@@ -240,13 +240,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if not file_obj:
             return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
         
+        import os
         import cloudinary
         import cloudinary.uploader
         
         cloudinary.config(
-            cloud_name = "ggdlbhrf",
-            api_key = "154731121199677",
-            api_secret = "dquFbWva1EO_bTI__FbKiCieRrs",
+            cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME', 'ggdlbhrf'),
+            api_key = os.getenv('CLOUDINARY_API_KEY', '154731121199677'),
+            api_secret = os.getenv('CLOUDINARY_API_SECRET', 'dquFbWva1EO_bTI__FbKiCieRrs'),
             secure = True
         )
         

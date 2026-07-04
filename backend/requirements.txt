@@ -9,3 +9,5 @@ redis>=5.0.1
 sqlalchemy>=2.0.0
 pypdf>=4.0.0
 docx2txt>=0.8
+cloudinary>=1.45.0
+django-cloudinary-storage>=0.3.0
