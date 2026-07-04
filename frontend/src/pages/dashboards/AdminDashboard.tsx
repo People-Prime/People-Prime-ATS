@@ -162,7 +162,7 @@ export const AdminDashboard: React.FC = () => {
   const displayJobs = useMemo(() => {
     // Requirements: candidate_name is empty or has a job code
     const reqs = applications.filter(app => {
-      return !app.candidate_name;
+      return getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     });
 
     const groups: Record<string, typeof reqs> = {};
@@ -177,8 +177,7 @@ export const AdminDashboard: React.FC = () => {
     const groupedList = Object.keys(groups).map(key => {
       const group = groups[key];
       const rep = { ...(
-        group.find(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A') ||
-        group.find(a => getRemarkField(a.remarks, 'Location') !== 'N/A') ||
+        group.find(a => !a.candidate_name) ||
         group[0]
       )};
       (rep as any).associatedApps = group;

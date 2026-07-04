@@ -327,11 +327,11 @@ Recruiter Remarks: ${formData.remarks}`;
 
       let res;
       let isNewRecord = false;
-      if (applicationId && targetApp && targetApp.id) {
-        // We are explicitly editing this application or filling a blank requirement - update it
+      if (applicationId && targetApp && targetApp.id && !targetApp.candidate_name) {
+        // We are explicitly filling a blank requirement - update it in place
         res = await api.put(`applications/${applicationId}/`, payload);
       } else {
-        // Create a new standalone application record
+        // The requirement is already filled, or we are creating standalone - POST a new record
         res = await api.post('applications/', payload);
         isNewRecord = true;
       }

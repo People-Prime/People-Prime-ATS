@@ -253,9 +253,9 @@ export const JobPostings: React.FC = () => {
 
   // Filter applications based on search and selected filter and roles
   const filteredApps = applications.filter((app) => {
-    // Only show job requirements (candidate_name is empty)
-    const isRequirement = !app.candidate_name;
-    if (!isRequirement) return false;
+    // Only show applications associated with a real job requirement (Job Code is present and not N/A)
+    const isJobPostingApp = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
+    if (!isJobPostingApp) return false;
 
     // 1. Role-based restrictions
     if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
@@ -303,10 +303,9 @@ export const JobPostings: React.FC = () => {
 
   Object.keys(groups).forEach(key => {
     const group = groups[key];
-    // Prefer the record that has a proper job code as the representative
+    // Prefer the blank requirement as the representative if it exists, otherwise fall back to any record in the group
     const rep = { ...(
-      group.find(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A') ||
-      group.find(a => getRemarkField(a.remarks, 'Location') !== 'N/A') ||
+      group.find(a => !a.candidate_name) ||
       group[0]
     )};
     (rep as any).associatedIds = group.map(a => String(a.id));
