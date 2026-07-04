@@ -59,6 +59,16 @@ export const CandidateDetails: React.FC = () => {
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
   const uniqueTeamRequirements = React.useMemo(() => {
+    const candidate = applications.find(a => String(a.id) === applicationId);
+    if (!candidate) return [];
+
+    // Find keys of all jobs this candidate is already assigned to
+    const assignedJobKeys = new Set(
+      applications
+        .filter(a => a.candidate_name && (a.candidate_email?.toLowerCase() === candidate.candidate_email?.toLowerCase() || a.candidate_name?.toLowerCase() === candidate.candidate_name?.toLowerCase()))
+        .map(a => `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`)
+    );
+
     // 1. Filter out standalone candidates (which have Job Code = N/A)
     const jobPostingApps = applications.filter(app => getRemarkField(app.remarks, 'Job Code') !== 'N/A');
 
@@ -74,6 +84,9 @@ export const CandidateDetails: React.FC = () => {
     const groups: Record<string, typeof filtered> = {};
     filtered.forEach(app => {
       const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
+      // Skip if the candidate is already assigned to this job
+      if (assignedJobKeys.has(key)) return;
+
       if (!groups[key]) {
         groups[key] = [];
       }
@@ -86,7 +99,7 @@ export const CandidateDetails: React.FC = () => {
       const rep = group.find(a => !a.candidate_name) || group[0];
       return rep;
     });
-  }, [applications, currentUser, activeRole]);
+  }, [applications, currentUser, activeRole, applicationId]);
 
   const selectedApp = applications.find(a => String(a.id) === applicationId);
 

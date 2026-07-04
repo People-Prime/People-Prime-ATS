@@ -431,6 +431,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   <Select
                     value={formData.jobStatus}
                     label="Job Status *"
+                    required
                     onChange={(e) => setFormData({ ...formData, jobStatus: e.target.value })}
                   >
                     <MenuItem value="Active">Active</MenuItem>
