@@ -121,7 +121,7 @@ export const LeadDashboard: React.FC = () => {
 
   const getRemarkField = (remarks: string | undefined, fieldName: string): string => {
     if (!remarks) return 'N/A';
-    const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
+    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
     const value = match ? match[1].trim() : 'N/A';
     return value && value !== '' ? value : 'N/A';
   };
@@ -424,7 +424,7 @@ export const LeadDashboard: React.FC = () => {
                   const groups: Record<string, any[]> = {};
                   dialogData.forEach(app => {
                     const jobCode = getRemarkField(app.remarks, 'Job Code');
-                    const isRequirement = !app.candidate_name || jobCode !== 'N/A';
+                    const isRequirement = !app.candidate_name;
                     if (!isRequirement) return;
 
                     // Primary: job code. Fallback: position + client (handles pre-fix records)

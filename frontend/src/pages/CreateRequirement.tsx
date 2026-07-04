@@ -164,8 +164,8 @@ export const CreateRequirement: React.FC = () => {
     setError('');
     setSuccess('');
 
-    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience) {
-      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience).');
+    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate) {
+      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate).');
       return;
     }
 
@@ -363,6 +363,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Client Bill Rate"
+                  required
                   fullWidth
                   value={formData.clientBillRate}
                   onChange={(e) => setFormData({ ...formData, clientBillRate: e.target.value })}
@@ -373,6 +374,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Pay Rate / Salary"
+                  required
                   fullWidth
                   value={formData.payRate}
                   onChange={(e) => setFormData({ ...formData, payRate: e.target.value })}
@@ -384,6 +386,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 <TextField
                   label="Job Start Date"
                   type="date"
+                  disabled={!applicationId}
                   fullWidth
                   inputProps={{ max: new Date().toISOString().split('T')[0] }}
                   value={formData.startDate}
@@ -414,6 +417,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               <Grid item xs={12} sm={6}>
                 <TextField
                   label="Location"
+                  required
                   fullWidth
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -422,11 +426,11 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 />
               </Grid>
               <Grid item xs={12} sm={3}>
-                <FormControl fullWidth size="small">
+                <FormControl fullWidth size="small" required>
                   <InputLabel>Job Status</InputLabel>
                   <Select
                     value={formData.jobStatus}
-                    label="Job Status"
+                    label="Job Status *"
                     onChange={(e) => setFormData({ ...formData, jobStatus: e.target.value })}
                   >
                     <MenuItem value="Active">Active</MenuItem>

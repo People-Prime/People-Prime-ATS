@@ -43,10 +43,9 @@ import { api } from '../services/api';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
-  // Use ^ anchor with multiline flag so we only match the field on its own line
-  const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'm'));
+  // Use [ \t]* instead of \s* to prevent matching across newlines when value is missing
+  const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'm'));
   const value = match ? match[1].trim() : 'N/A';
-  // Guard against matching next field label when value is missing
   return value && value !== '' ? value : 'N/A';
 };
 
@@ -254,9 +253,8 @@ export const JobPostings: React.FC = () => {
 
   // Filter applications based on search and selected filter and roles
   const filteredApps = applications.filter((app) => {
-    // Only show job requirements (either candidate_name is empty, OR Job Code is present)
-    const hasJobCode = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
-    const isRequirement = !app.candidate_name || hasJobCode;
+    // Only show job requirements (candidate_name is empty)
+    const isRequirement = !app.candidate_name;
     if (!isRequirement) return false;
 
     // 1. Role-based restrictions

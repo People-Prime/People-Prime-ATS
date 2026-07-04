@@ -39,7 +39,7 @@ import { HierarchyReport } from './HierarchyReport';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
-  const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
+  const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
   const value = match ? match[1].trim() : 'N/A';
   return value && value !== '' ? value : 'N/A';
 };
@@ -162,8 +162,7 @@ export const AdminDashboard: React.FC = () => {
   const displayJobs = useMemo(() => {
     // Requirements: candidate_name is empty or has a job code
     const reqs = applications.filter(app => {
-      const hasJobCode = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
-      return !app.candidate_name || hasJobCode;
+      return !app.candidate_name;
     });
 
     const groups: Record<string, typeof reqs> = {};

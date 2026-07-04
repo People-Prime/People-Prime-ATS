@@ -55,7 +55,7 @@ export const Applications: React.FC = () => {
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
-    const match = remarks.match(new RegExp(`^${fieldName}:\\s*(.+)`, 'im'));
+    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
     const value = match ? match[1].trim() : 'N/A';
     return value && value !== '' ? value : 'N/A';
   };
