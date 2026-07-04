@@ -29,6 +29,13 @@ const extractField = (remarks: string, fieldName: string): string => {
   return match ? match[1].trim() : '';
 };
 
+const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
+  if (!remarks) return 'N/A';
+  const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
+  const value = match ? match[1].trim() : 'N/A';
+  return value && value !== '' ? value : 'N/A';
+};
+
 export const CandidateDetails: React.FC = () => {
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
@@ -52,13 +59,32 @@ export const CandidateDetails: React.FC = () => {
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
   const uniqueTeamRequirements = React.useMemo(() => {
-    const baseJobs = applications.filter(app => !app.candidate_name);
+    // 1. Filter out standalone candidates (which have Job Code = N/A)
+    const jobPostingApps = applications.filter(app => getRemarkField(app.remarks, 'Job Code') !== 'N/A');
 
-    return baseJobs.filter(app => {
+    // 2. Filter by assignee role if associate
+    const filtered = jobPostingApps.filter(app => {
       if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
         return app.assigned_employee?.email?.toLowerCase() === currentUser?.email?.toLowerCase();
       }
       return true;
+    });
+
+    // 3. Group by position + client so we only show one entry per unique Job Posting in the list
+    const groups: Record<string, typeof filtered> = {};
+    filtered.forEach(app => {
+      const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(app);
+    });
+
+    // 4. Return the representative for each group (preferring the blank requirement if it exists)
+    return Object.keys(groups).map(key => {
+      const group = groups[key];
+      const rep = group.find(a => !a.candidate_name) || group[0];
+      return rep;
     });
   }, [applications, currentUser, activeRole]);
 
