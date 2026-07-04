@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
-import { 
-  Box, 
-  Card, 
+import {
+  Box,
+  Card,
   CardContent,
-  Typography, 
-  Button, 
-  TextField, 
+  Typography,
+  Button,
+  TextField,
   Grid,
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Alert,
   Divider,
   Stack
@@ -43,15 +43,15 @@ export const CreateCandidate: React.FC = () => {
       api.get('applications/').then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, [dispatch, applications.length]);
-  
+
   // Resolve team members if the user is a Team Lead
   const dbCurrentUser = useMemo(() => users.find(u => u.email === currentUser?.email), [users, currentUser]);
   const myTeamIds = useMemo(() => (dbCurrentUser?.teams || []).map((t: any) => String(t.id)), [dbCurrentUser]);
-  const teamMembers = useMemo(() => 
-    users.filter(u => 
+  const teamMembers = useMemo(() =>
+    users.filter(u =>
       ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(u.role) && (
         (u.teams && u.teams.some(t => myTeamIds.includes(String(t.id)))) ||
         (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
@@ -66,7 +66,7 @@ export const CreateCandidate: React.FC = () => {
         app.assigned_employee && teamMembers.some(member => member.email?.toLowerCase() === app.assigned_employee?.email?.toLowerCase())
       );
     }
-    return applications.filter(app => 
+    return applications.filter(app =>
       app.assigned_employee?.email?.toLowerCase() === currentUser?.email?.toLowerCase()
     );
   }, [applications, activeRole, teamMembers, currentUser]);
@@ -132,14 +132,15 @@ export const CreateCandidate: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
 
   const isDuplicateEmail = useMemo(() => {
     if (!formData.email) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
-    return applications.some(app => 
-      app.id !== targetApp?.id && 
-      app.candidate_email && 
+    return applications.some(app =>
+      app.id !== targetApp?.id &&
+      app.candidate_email &&
       app.candidate_email.toLowerCase() === formData.email.toLowerCase()
     );
   }, [formData.email, applications, selectedApp, applicationId, availableApplications]);
@@ -258,12 +259,24 @@ export const CreateCandidate: React.FC = () => {
 
     setSubmitting(true);
     try {
+      let finalResumeLink = formData.resumeLink || 'N/A';
+      if (selectedFile) {
+        const uploadForm = new FormData();
+        uploadForm.append('file', selectedFile);
+        const uploadRes = await api.post('applications/upload-resume/', uploadForm, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        finalResumeLink = uploadRes.data.url;
+      }
+
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       const formattedRemarks = `[Candidate Details]
 Location: ${formData.location}
 Expected Salary: ${formData.expectedSalary}
 Notice Period: ${formData.noticePeriod}
-Resume Link: ${formData.resumeLink || formData.fileName || 'N/A'}
+Resume Link: ${finalResumeLink}
 Skills: ${formData.skills}
 --------------------------
 [Job Details Update]
@@ -366,12 +379,12 @@ Recruiter Remarks: ${formData.remarks}`;
     } finally {
       setSubmitting(false);
     }
-  };  return (
+  }; return (
     <Box sx={{ maxWidth: 900, mx: 'auto', pb: 6 }}>
       {/* Header back button */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4 }}>
-        <Button 
-          onClick={() => navigate('/')} 
+        <Button
+          onClick={() => navigate('/')}
           startIcon={<ArrowLeft size={16} />}
           sx={{ textTransform: 'none', fontWeight: 700 }}
         >
@@ -578,7 +591,8 @@ Recruiter Remarks: ${formData.remarks}`;
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            setFormData({ ...formData, fileName: file.name });
+                            setSelectedFile(file);
+                            setFormData(prev => ({ ...prev, fileName: file.name }));
                           }
                         }}
                       />
@@ -606,17 +620,17 @@ Recruiter Remarks: ${formData.remarks}`;
 
             {/* Actions */}
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
-              <Button 
-                variant="outlined" 
-                onClick={() => navigate('/')} 
+              <Button
+                variant="outlined"
+                onClick={() => navigate('/')}
                 sx={{ px: 4, borderRadius: '8px' }}
                 disabled={submitting}
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                variant="contained" 
+              <Button
+                type="submit"
+                variant="contained"
                 color="success"
                 sx={{ px: 5, borderRadius: '8px', fontWeight: 700 }}
                 disabled={submitting || availableApplications.length === 0 || isDuplicate}

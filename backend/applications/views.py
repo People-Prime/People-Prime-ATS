@@ -233,6 +233,34 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             
         return response
 
+    # Upload resume to Cloudinary
+    @action(detail=False, methods=['post'], url_path='upload-resume')
+    def upload_resume(self, request):
+        file_obj = request.FILES.get('file')
+        if not file_obj:
+            return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        import cloudinary
+        import cloudinary.uploader
+        
+        cloudinary.config(
+            cloud_name = "ggdlbhrf",
+            api_key = "154731121199677",
+            api_secret = "dquFbWva1EO_bTI__FbKiCieRrs",
+            secure = True
+        )
+        
+        try:
+            result = cloudinary.uploader.upload(
+                file_obj,
+                resource_type="raw",
+                public_id=file_obj.name
+            )
+            secure_url = result.get('secure_url')
+            return Response({'url': secure_url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['post'], url_path='parse-resume')
     def parse_resume(self, request):
         file_obj = request.FILES.get('file')

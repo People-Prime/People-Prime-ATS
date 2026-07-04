@@ -42,7 +42,8 @@ export const CandidateDetails: React.FC = () => {
 
   React.useEffect(() => {
     api.get('applications/').then((res: any) => {
-      dispatch(setApplications(res.data));
+      const list = res.data?.results ?? res.data ?? [];
+      dispatch(setApplications(list));
     }).catch(err => console.error("Failed to load applications", err));
   }, [dispatch]);
 
@@ -53,24 +54,12 @@ export const CandidateDetails: React.FC = () => {
   const uniqueTeamRequirements = React.useMemo(() => {
     const baseJobs = applications.filter(app => !app.candidate_name);
 
-    const filtered = baseJobs.filter(app => {
+    return baseJobs.filter(app => {
       if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
         return app.assigned_employee?.email?.toLowerCase() === currentUser?.email?.toLowerCase();
       }
       return true;
     });
-
-    const seen = new Set<string>();
-    const unique: typeof filtered = [];
-    filtered.forEach(job => {
-      const jobCode = extractField(job.remarks || '', 'Job Code');
-      const key = jobCode && jobCode !== 'N/A' ? jobCode : `${job.client_name?.toLowerCase()}|${job.position?.toLowerCase()}|${job.technology?.toLowerCase()}|${job.experience}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        unique.push(job);
-      }
-    });
-    return unique;
   }, [applications, currentUser, activeRole]);
 
   const selectedApp = applications.find(a => String(a.id) === applicationId);
