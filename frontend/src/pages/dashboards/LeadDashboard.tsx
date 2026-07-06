@@ -30,7 +30,7 @@ import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { changeApplicationStatus, addApplicationNote } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
 import { ApplicationStatus } from '../../types';
-import { PipelineKPIs } from './PipelineKPIs';
+import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
@@ -59,8 +59,8 @@ export const LeadDashboard: React.FC = () => {
 
 
 
-  // Applications assigned to team members
-  const teamApplications = applications.filter(app =>
+  // Applications assigned to team members (deduplicated)
+  const teamApplications = getUniqueSubmissions(applications).filter(app =>
     app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
   );
 

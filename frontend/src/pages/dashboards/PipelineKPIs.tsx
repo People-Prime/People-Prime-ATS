@@ -11,9 +11,51 @@ import {
   Briefcase
 } from 'lucide-react';
 
+export const getUniqueSubmissions = (apps: any[]) => {
+  const getRemarkFieldVal = (remarks: string | undefined | null, fieldName: string): string => {
+    if (!remarks) return 'N/A';
+    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
+    const value = match ? match[1].trim() : 'N/A';
+    return value && value !== '' ? value : 'N/A';
+  };
+
+  const candidateGroups: Record<string, any[]> = {};
+  apps.forEach(app => {
+    if (!app.candidate_name) return;
+    const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
+    if (!candidateGroups[key]) {
+      candidateGroups[key] = [];
+    }
+    candidateGroups[key].push(app);
+  });
+
+  const uniqueApps: any[] = [];
+  apps.forEach(app => {
+    if (!app.candidate_name) {
+      uniqueApps.push(app);
+      return;
+    }
+    const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
+    const group = candidateGroups[key] || [];
+    const hasRealJob = group.some(a => getRemarkFieldVal(a.remarks, 'Job Code') !== 'N/A');
+    if (hasRealJob) {
+      if (getRemarkFieldVal(app.remarks, 'Job Code') !== 'N/A') {
+        uniqueApps.push(app);
+      }
+    } else {
+      if (app.id === group[0].id) {
+        uniqueApps.push(app);
+      }
+    }
+  });
+
+  return uniqueApps;
+};
+
 interface PipelineKPIsProps {
   applications: Array<{
     candidate_name?: string;
+    remarks?: string;
     status: string;
   }>;
 }
@@ -26,16 +68,18 @@ interface PipelineKPIsProps {
 export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   const theme = useTheme();
 
-  const submissions       = applications.filter(app => app.candidate_name).length;
-  const pendingFeedback   = applications.filter(app => app.status === 'Under Review').length;
-  const clientSubmissions = applications.filter(app => app.status === 'Submitted').length;
-  const clientInterviews  = applications.filter(app =>
+  const uniqueApps = getUniqueSubmissions(applications);
+
+  const submissions       = uniqueApps.filter(app => app.candidate_name).length;
+  const pendingFeedback   = uniqueApps.filter(app => app.status === 'Under Review').length;
+  const clientSubmissions = uniqueApps.filter(app => app.status === 'Submitted').length;
+  const clientInterviews  = uniqueApps.filter(app =>
     ['Interview Scheduled', 'Interview Completed'].includes(app.status)
   ).length;
-  const clientRejections  = applications.filter(app => app.status === 'Rejected').length;
-  const offerSent         = applications.filter(app => app.status === 'On Hold').length;
-  const offerAccepted     = applications.filter(app => app.status === 'Selected').length;
-  const placed            = applications.filter(app => app.status === 'Selected').length;
+  const clientRejections  = uniqueApps.filter(app => app.status === 'Rejected').length;
+  const offerSent         = uniqueApps.filter(app => app.status === 'On Hold').length;
+  const offerAccepted     = uniqueApps.filter(app => app.status === 'Selected').length;
+  const placed            = uniqueApps.filter(app => app.status === 'Selected').length;
 
   const cards = [
     { label: 'Submissions',        value: submissions,        Icon: Users,         border: '#f59e0b', darkColor: '#fbbf24', lightColor: '#d97706', darkBg: 'rgba(245, 158, 11, 0.15)',  lightBg: '#fffbeb' },

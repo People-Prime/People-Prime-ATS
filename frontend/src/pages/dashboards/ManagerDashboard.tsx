@@ -20,7 +20,7 @@ import {
 } from '@mui/material';
 import { X, Building } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
-import { PipelineKPIs } from './PipelineKPIs';
+import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -62,8 +62,10 @@ export const ManagerDashboard: React.FC = () => {
     (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
   );
 
+  const deduplicatedApps = getUniqueSubmissions(applications);
+
   // 4. Find all applications assigned to these team members
-  const myTeamApps = applications.filter(app => 
+  const myTeamApps = deduplicatedApps.filter(app => 
     app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
   );
 
@@ -84,7 +86,7 @@ export const ManagerDashboard: React.FC = () => {
 
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
     const members = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
-    let teamApps = applications.filter(app => 
+    let teamApps = deduplicatedApps.filter(app => 
       app.assigned_employee && members.some(member => member.email === app.assigned_employee?.email)
     );
 

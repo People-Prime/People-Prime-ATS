@@ -319,7 +319,7 @@ Recruiter Remarks: ${formData.remarks}`;
         position: targetApp ? targetApp.position : (formData.jobTitle || 'N/A'),
         experience: parseFloat(formData.experience) || (targetApp ? targetApp.experience : 0),
         technology: formData.skills || (targetApp ? targetApp.technology : 'N/A'),
-        recruiter: (targetApp && targetApp.recruiter) || currentUser?.full_name || '',
+        recruiter: currentUser?.full_name || '',
         remarks: formattedRemarks,
         status: 'Submitted',
         assigned_employee_id: targetApp ? (targetApp.assigned_employee?.email || null) : (currentUser?.email || null)

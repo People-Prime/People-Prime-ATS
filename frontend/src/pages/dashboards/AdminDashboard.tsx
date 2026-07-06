@@ -33,7 +33,7 @@ import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, Trendi
 import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { deleteApplication } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
-import { PipelineKPIs } from './PipelineKPIs';
+import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -52,6 +52,7 @@ export const AdminDashboard: React.FC = () => {
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
+  const deduplicatedApps = getUniqueSubmissions(applications);
   const dispatch = useAppDispatch();
 
   const handleDeleteSubmission = async (id: string, name: string) => {
@@ -123,7 +124,7 @@ export const AdminDashboard: React.FC = () => {
   // 1. APPLICANTS DATA PREPARATION (from all teams)
   const displayApplicants = useMemo(() => {
     // Applicants are applications with a candidate name
-    const apps = applications.filter(app => app.candidate_name);
+    const apps = deduplicatedApps.filter(app => app.candidate_name);
     
     // Filter by search term
     const filtered = apps.filter(app => {
@@ -156,12 +157,12 @@ export const AdminDashboard: React.FC = () => {
         allSubmissions: apps
       };
     });
-  }, [applications, applicantsSearch]);
+  }, [deduplicatedApps, applicantsSearch]);
 
   // 2. JOB POSTINGS DATA PREPARATION (from all teams)
   const displayJobs = useMemo(() => {
     // Requirements: candidate_name is empty or has a job code
-    const reqs = applications.filter(app => {
+    const reqs = deduplicatedApps.filter(app => {
       return getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     });
 
@@ -203,11 +204,11 @@ export const AdminDashboard: React.FC = () => {
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
-  }, [applications, jobsSearch]);
+  }, [deduplicatedApps, jobsSearch]);
 
   // 3. PLACEMENTS DATA PREPARATION (from all teams)
   const displayPlacements = useMemo(() => {
-    const placed = applications.filter(app => app.status === 'Selected');
+    const placed = deduplicatedApps.filter(app => app.status === 'Selected');
     
     // Sort ascending for consistent Placement Code generation
     const sorted = [...placed].sort((a, b) => {
@@ -238,14 +239,14 @@ export const AdminDashboard: React.FC = () => {
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
-  }, [applications, placementsSearch]);
+  }, [deduplicatedApps, placementsSearch]);
 
 
 
 
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
     const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
-    let teamApps = applications.filter(app =>
+    let teamApps = deduplicatedApps.filter(app =>
       app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
     );
 
@@ -289,11 +290,11 @@ export const AdminDashboard: React.FC = () => {
 
   // Filter all org-wide applications by selected date
   const dateFilteredApps = selectedDate
-    ? applications.filter(app => {
+    ? deduplicatedApps.filter(app => {
       const d = app.updated_at || app.created_at || '';
       return d.slice(0, 10) === selectedDate;
     })
-    : applications;
+    : deduplicatedApps;
 
   return (
     <Box>
@@ -320,7 +321,7 @@ export const AdminDashboard: React.FC = () => {
             selectedDate={selectedDate}
             onChange={setSelectedDate}
             totalCount={dateFilteredApps.length}
-            allCount={applications.length}
+            allCount={deduplicatedApps.length}
           />
           {currentUser?.role !== 'CEO' && (
             <Button
@@ -347,7 +348,7 @@ export const AdminDashboard: React.FC = () => {
 
 
       {/* Pipeline KPIs – org-wide counts filtered by date or all-time */}
-      <PipelineKPIs applications={showAllTimeKPIs ? applications : dateFilteredApps} />
+      <PipelineKPIs applications={showAllTimeKPIs ? deduplicatedApps : dateFilteredApps} />
 
       {/* Tabs Menu */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 3 }}>
@@ -432,7 +433,7 @@ export const AdminDashboard: React.FC = () => {
 
                           return uniqueTeams.map((team: any) => {
                             const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(team.id)));
-                            let teamApps = applications.filter(app =>
+                            let teamApps = deduplicatedApps.filter(app =>
                               app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
                             );
 

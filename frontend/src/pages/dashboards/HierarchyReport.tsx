@@ -27,6 +27,7 @@ import {
 import { useAppSelector } from '../../redux/store';
 import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { getUniqueSubmissions } from './PipelineKPIs';
 
 interface CalculatedMetrics {
   jobsCount: number;
@@ -65,6 +66,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
   const theme = useTheme();
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
+  const deduplicatedApps = getUniqueSubmissions(applications);
 
   const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN'), [users]);
 
@@ -82,7 +84,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
 
   const handleMetricClick = (userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
     const emails = isSelfRow ? [userEmail] : getDescendantEmails(userEmail);
-    const userApps = applications.filter(app =>
+    const userApps = deduplicatedApps.filter(app =>
       app.assigned_employee?.email &&
       emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
     );
@@ -183,7 +185,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
 
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
-    const userApps = applications.filter(app =>
+    const userApps = deduplicatedApps.filter(app =>
       app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
     );
 
@@ -221,7 +223,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
         return [email, ...direct.flatMap(d => getDescendantEmails(d.email))];
       };
       const emails = getDescendantEmails(userEmail);
-      const subApps = applications.filter(app => app.assigned_employee?.email && emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase()));
+      const subApps = deduplicatedApps.filter(app => app.assigned_employee?.email && emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase()));
 
       let cwrCount = 0;
       let fteCount = 0;

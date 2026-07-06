@@ -14,7 +14,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
-import { PipelineKPIs } from './PipelineKPIs';
+import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 
 export const AssociateDashboard: React.FC = () => {
@@ -24,14 +24,23 @@ export const AssociateDashboard: React.FC = () => {
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { applications } = useAppSelector(state => state.applications);
 
-  const myApplications = applications.filter(app => app.assigned_employee?.email === currentUser?.email);
+  const deduplicatedApps = getUniqueSubmissions(applications);
+
+  const myApplications = deduplicatedApps.filter(app => app.assigned_employee?.email === currentUser?.email);
+
+  const recruitedApps = deduplicatedApps.filter(app =>
+    app.candidate_name && (
+      app.recruiter?.toLowerCase() === currentUser?.full_name?.toLowerCase() ||
+      app.recruiter?.toLowerCase() === currentUser?.email?.toLowerCase()
+    )
+  );
 
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   const getJobCandidates = (selectedApp: any) => {
-    const matches = applications.filter(app =>
+    const matches = deduplicatedApps.filter(app =>
       app.candidate_name &&
       app.position?.toLowerCase() === selectedApp.position?.toLowerCase() &&
       app.client_name?.toLowerCase() === selectedApp.client_name?.toLowerCase() &&
@@ -53,6 +62,13 @@ export const AssociateDashboard: React.FC = () => {
       return d.slice(0, 10) === selectedDate;
     })
     : myApplications;
+
+  const dateFilteredRecruitedApps = selectedDate
+    ? recruitedApps.filter(app => {
+      const d = app.updated_at || app.created_at || '';
+      return d.slice(0, 10) === selectedDate;
+    })
+    : recruitedApps;
 
   const uniqueJobOpenings = React.useMemo(() => {
     const seen = new Set<string>();
@@ -87,8 +103,7 @@ export const AssociateDashboard: React.FC = () => {
   return (
     <Box>
 
-      {/* Pipeline KPIs - driven by date-filtered applications or all-time */}
-      <PipelineKPIs applications={showAllTimeKPIs ? myApplications : dateFilteredApps} />
+      <PipelineKPIs applications={showAllTimeKPIs ? recruitedApps : dateFilteredRecruitedApps} />
 
 
       {/* Assigned Job Requirement Openings for the analyst */}
