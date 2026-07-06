@@ -426,7 +426,6 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                     label="Email Address"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@peopleprimeats.com"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start" sx={{ color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>
@@ -460,7 +459,7 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start" sx={{ color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)' }}>
