@@ -33,7 +33,13 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   if (!remarks) return 'N/A';
   const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
   const value = match ? match[1].trim() : 'N/A';
-  return value && value !== '' ? value : 'N/A';
+  const cleanVal = value && value !== '' ? value : 'N/A';
+  if (fieldName === 'Job Code' && cleanVal !== 'N/A') {
+    if (!cleanVal.toUpperCase().startsWith('PPW')) {
+      return 'N/A';
+    }
+  }
+  return cleanVal;
 };
 
 export const CandidateDetails: React.FC = () => {

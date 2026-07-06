@@ -41,7 +41,13 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   if (!remarks) return 'N/A';
   const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
   const value = match ? match[1].trim() : 'N/A';
-  return value && value !== '' ? value : 'N/A';
+  const cleanVal = value && value !== '' ? value : 'N/A';
+  if (fieldName === 'Job Code' && cleanVal !== 'N/A') {
+    if (!cleanVal.toUpperCase().startsWith('PPW')) {
+      return 'N/A';
+    }
+  }
+  return cleanVal;
 };
 
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];

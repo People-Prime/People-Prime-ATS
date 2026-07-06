@@ -46,7 +46,13 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   // Use [ \t]* instead of \s* to prevent matching across newlines when value is missing
   const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'm'));
   const value = match ? match[1].trim() : 'N/A';
-  return value && value !== '' ? value : 'N/A';
+  const cleanVal = value && value !== '' ? value : 'N/A';
+  if (fieldName === 'Job Code' && cleanVal !== 'N/A') {
+    if (!cleanVal.toUpperCase().startsWith('PPW')) {
+      return 'N/A';
+    }
+  }
+  return cleanVal;
 };
 
 export const JobPostings: React.FC = () => {
