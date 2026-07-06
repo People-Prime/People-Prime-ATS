@@ -167,10 +167,20 @@ export const Applications: React.FC = () => {
         ? apps.filter(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A')
         : apps;
 
+      // Deduplicate submissions by Job Code so the same job is not listed twice
+      const seenJobCodes = new Set<string>();
+      const uniqueSubmissions = filteredSubmissions.filter(a => {
+        const code = getRemarkField(a.remarks, 'Job Code');
+        if (code === 'N/A') return true;
+        if (seenJobCodes.has(code)) return false;
+        seenJobCodes.add(code);
+        return true;
+      });
+
       return {
         key,
         primaryApp: sorted[0],
-        allSubmissions: filteredSubmissions
+        allSubmissions: uniqueSubmissions
       };
     });
   }, [candidateGroups]);

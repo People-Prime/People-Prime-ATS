@@ -17,6 +17,13 @@ import { useAppSelector } from '../../redux/store';
 import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 
+const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
+  if (!remarks) return 'N/A';
+  const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
+  const value = match ? match[1].trim() : 'N/A';
+  return value && value !== '' ? value : 'N/A';
+};
+
 export const AssociateDashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -26,7 +33,10 @@ export const AssociateDashboard: React.FC = () => {
 
   const deduplicatedApps = getUniqueSubmissions(applications);
 
-  const myApplications = deduplicatedApps.filter(app => app.assigned_employee?.email === currentUser?.email);
+  const myApplications = deduplicatedApps.filter(app => 
+    app.assigned_employee?.email === currentUser?.email &&
+    getRemarkField(app.remarks, 'Job Code') !== 'N/A'
+  );
 
   const recruitedApps = deduplicatedApps.filter(app =>
     app.candidate_name && (
