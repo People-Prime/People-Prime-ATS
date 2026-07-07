@@ -272,7 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     if (status !== 'ALL') {
       if (status === 'HAS_CANDIDATE') teamApps = teamApps.filter(a => a.candidate_name);
       else if (status === 'INTERVIEWS') teamApps = teamApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
-      else if (status === 'Placed') teamApps = teamApps.filter(a => a.status === 'Submitted' || a.status === 'Placed');
+      else if (status === 'Placed') teamApps = teamApps.filter(a => a.status === 'Placed');
       else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
       else if (status === 'Offer Accepted') teamApps = teamApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
       else teamApps = teamApps.filter(a => a.status === status);

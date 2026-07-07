@@ -151,7 +151,7 @@ export const LeadDashboard: React.FC = () => {
      if (status !== 'ALL') {
         if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
         else if (status === 'INTERVIEWS') filtered = filtered.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
-        else if (status === 'Placed') filtered = filtered.filter(a => a.status === 'Submitted' || a.status === 'Placed');
+        else if (status === 'Placed') filtered = filtered.filter(a => a.status === 'Placed');
         else if (status === 'Offer Sent') filtered = filtered.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
         else if (status === 'Offer Accepted') filtered = filtered.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
         else filtered = filtered.filter(a => a.status === status);
