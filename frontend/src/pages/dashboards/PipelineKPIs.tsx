@@ -49,8 +49,9 @@ export const getUniqueSubmissions = (apps: any[]) => {
         uniqueApps.push(app);
       }
     } else {
-      // Standalone candidate profile with no assigned job requirement
-      // Do not push to uniqueApps so they don't count towards pipeline KPIs
+      if (app.id === group[0].id) {
+        uniqueApps.push(app);
+      }
     }
   });
 
@@ -75,16 +76,25 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
 
   const uniqueApps = getUniqueSubmissions(applications);
 
-  const submissions       = uniqueApps.filter(app => app.candidate_name).length;
-  const pendingFeedback   = uniqueApps.filter(app => app.status === 'Under Review').length;
-  const clientSubmissions = uniqueApps.filter(app => app.status === 'Submitted' || app.status === 'Placed').length;
-  const clientInterviews  = uniqueApps.filter(app =>
+  const getRemarkFieldVal = (remarks: string | undefined | null, fieldName: string): string => {
+    if (!remarks) return 'N/A';
+    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
+    const value = match ? match[1].trim() : 'N/A';
+    return value && value !== '' ? value : 'N/A';
+  };
+
+  const validApps = uniqueApps.filter(app => !app.candidate_name || getRemarkFieldVal(app.remarks, 'Job Code') !== 'N/A');
+
+  const submissions       = validApps.filter(app => app.candidate_name).length;
+  const pendingFeedback   = validApps.filter(app => app.status === 'Under Review').length;
+  const clientSubmissions = validApps.filter(app => app.status === 'Submitted' || app.status === 'Placed').length;
+  const clientInterviews  = validApps.filter(app =>
     ['Interview Scheduled', 'Interview Completed'].includes(app.status)
   ).length;
-  const clientRejections  = uniqueApps.filter(app => app.status === 'Rejected').length;
-  const offerSent         = uniqueApps.filter(app => app.status === 'Offer Sent' || app.status === 'On Hold').length;
-  const offerAccepted     = uniqueApps.filter(app => app.status === 'Offer Accepted' || app.status === 'Selected').length;
-  const placed            = uniqueApps.filter(app => app.status === 'Selected').length;
+  const clientRejections  = validApps.filter(app => app.status === 'Rejected').length;
+  const offerSent         = validApps.filter(app => app.status === 'Offer Sent').length;
+  const offerAccepted     = validApps.filter(app => app.status === 'Offer Accepted').length;
+  const placed            = validApps.filter(app => app.status === 'Placed').length;
 
   const cards = [
     { label: 'Submissions',        value: submissions,        Icon: Users,         border: '#f59e0b', darkColor: '#fbbf24', lightColor: '#d97706', darkBg: 'rgba(245, 158, 11, 0.15)',  lightBg: '#fffbeb' },
