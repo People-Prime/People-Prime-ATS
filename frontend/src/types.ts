@@ -1,4 +1,4 @@
-export type UserRole = 
+export type UserRole =
   | 'ADMIN'
   | 'CEO'
   | 'SENIOR_MANAGER'
