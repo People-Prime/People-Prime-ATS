@@ -341,6 +341,9 @@ export const CreateEditUser: React.FC = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   size="small"
+                  inputProps={{
+                    autoComplete: 'new-email'
+                  }}
                 />
               </Grid>
 
@@ -462,6 +465,9 @@ export const CreateEditUser: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       size="small"
                       helperText="Minimum 8 characters"
+                      inputProps={{
+                        autoComplete: 'new-password'
+                      }}
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
@@ -482,6 +488,9 @@ export const CreateEditUser: React.FC = () => {
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       size="small"
+                      inputProps={{
+                        autoComplete: 'new-password'
+                      }}
                       error={formData.confirmPassword !== '' && formData.password !== formData.confirmPassword}
                       helperText={formData.confirmPassword !== '' && formData.password !== formData.confirmPassword ? 'Passwords do not match' : ' '}
                       InputProps={{
