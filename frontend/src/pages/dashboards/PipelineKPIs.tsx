@@ -49,9 +49,8 @@ export const getUniqueSubmissions = (apps: any[]) => {
         uniqueApps.push(app);
       }
     } else {
-      if (app.id === group[0].id) {
-        uniqueApps.push(app);
-      }
+      // Standalone candidate profile with no assigned job requirement
+      // Do not push to uniqueApps so they don't count towards pipeline KPIs
     }
   });
 

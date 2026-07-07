@@ -172,7 +172,7 @@ export const Applications: React.FC = () => {
       const hasRealJob = apps.some(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A');
       const filteredSubmissions = hasRealJob 
         ? apps.filter(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A')
-        : apps;
+        : [];
 
       // Deduplicate submissions by Job Code so the same job is not listed twice
       const seenJobCodes = new Set<string>();
