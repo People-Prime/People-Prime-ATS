@@ -100,7 +100,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   const [dialogData, setDialogData] = useState<any[]>([]);
   const [dialogTitle, setDialogTitle] = useState('');
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
-  
+
   // Tab control and search states
   const [activeTab, setActiveTab] = useState(0);
   const [applicantsSearch, setApplicantsSearch] = useState('');
@@ -136,7 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   const displayApplicants = useMemo(() => {
     // Applicants are applications with a candidate name
     const apps = deduplicatedApps.filter(app => app.candidate_name);
-    
+
     // Filter by search term
     const filtered = apps.filter(app => {
       if (!applicantsSearch) return true;
@@ -188,19 +188,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
 
     const groupedList = Object.keys(groups).map(key => {
       const group = groups[key];
-      const rep = { ...(
-        group.find(a => !a.candidate_name) ||
-        group[0]
-      )};
+      const rep = {
+        ...(
+          group.find(a => !a.candidate_name) ||
+          group[0]
+        )
+      };
       (rep as any).associatedApps = group;
-      
+
       const employeeNames = group
         .map(a => a.assigned_employee?.full_name)
         .filter(Boolean);
-      (rep as any).consolidatedAnalysts = employeeNames.length > 0 
-        ? Array.from(new Set(employeeNames)).join(', ') 
+      (rep as any).consolidatedAnalysts = employeeNames.length > 0
+        ? Array.from(new Set(employeeNames)).join(', ')
         : 'Unassigned';
-      
+
       return rep;
     });
 
@@ -220,7 +222,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   // 3. PLACEMENTS DATA PREPARATION (from all teams)
   const displayPlacements = useMemo(() => {
     const placed = deduplicatedApps.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
-    
+
     // Sort ascending for consistent Placement Code generation
     const sorted = [...placed].sort((a, b) => {
       const timeA = new Date(a.created_at || 0).getTime();
@@ -372,8 +374,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
 
       {/* Tabs Menu */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 3 }}>
-        <Tabs 
-          value={activeTab} 
+        <Tabs
+          value={activeTab}
           onChange={(_, val) => setActiveTab(val)}
           variant="scrollable"
           scrollButtons="auto"
@@ -398,14 +400,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       {activeTab === 0 && (
         <>
           {/* CEO / Admin Hierarchy Report – full org tree */}
-           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
-             <HierarchyReport startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
-           )}
+          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
+            <HierarchyReport startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+          )}
 
-           {/* Senior Manager Hierarchy Report – starts from their own node */}
-           {currentUser?.role === 'SENIOR_MANAGER' && (
-             <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
-           )}
+          {/* Senior Manager Hierarchy Report – starts from their own node */}
+          {currentUser?.role === 'SENIOR_MANAGER' && (
+            <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+          )}
 
           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
             <Grid container spacing={3} sx={{ mt: 1, mb: 3 }}>
@@ -640,9 +642,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                           <TableCell sx={{ textAlign: 'center', fontWeight: 700 }}>{allSubmissions.length}</TableCell>
                           {!readOnly && (
                             <TableCell sx={{ textAlign: 'center' }}>
-                              <IconButton 
-                                size="small" 
-                                color="error" 
+                              <IconButton
+                                size="small"
+                                color="error"
                                 onClick={() => handleDeleteJobGroup(allSubmissions, primaryApp.candidate_name)}
                                 sx={{ p: 0.25 }}
                               >
@@ -841,18 +843,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                             {getRemarkField(app.remarks, 'Pay Rate') !== 'N/A' ? getRemarkField(app.remarks, 'Pay Rate') : '—'}
                           </TableCell>
                           <TableCell>
-                            <Chip 
-                              label={getRemarkField(app.remarks, 'Job Status') !== 'N/A' ? getRemarkField(app.remarks, 'Job Status') : 'Active'} 
+                            <Chip
+                              label={getRemarkField(app.remarks, 'Job Status') !== 'N/A' ? getRemarkField(app.remarks, 'Job Status') : 'Active'}
                               color={getRemarkField(app.remarks, 'Job Status') === 'Active' ? 'success' : 'default'}
-                              size="small" 
+                              size="small"
                               sx={{ fontSize: '0.6rem', height: 18 }}
                             />
                           </TableCell>
                           {!readOnly && (
                             <TableCell sx={{ textAlign: 'center' }}>
-                              <IconButton 
-                                size="small" 
-                                color="error" 
+                              <IconButton
+                                size="small"
+                                color="error"
                                 onClick={() => handleDeleteJobGroup(jobApplicants.length > 0 ? [...(app as any).associatedApps, ...jobApplicants] : (app as any).associatedApps, app.position)}
                                 sx={{ p: 0.25 }}
                               >
@@ -891,9 +893,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                                             {applicant.candidate_name}
                                           </TableCell>
                                           <TableCell>{applicant.candidate_email || '—'}</TableCell>
-                                           <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                          <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
                                             {applicant.status === 'Submitted' ? 'Placed' : applicant.status}
-                                           </TableCell>
+                                          </TableCell>
                                           <TableCell>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
                                           {!readOnly && (
                                             <TableCell sx={{ textAlign: 'center' }}>
