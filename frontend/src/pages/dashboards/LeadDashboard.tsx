@@ -158,7 +158,7 @@ export const LeadDashboard: React.FC = () => {
   };
 
   const handleMetricClick = (searchName: string, status: string) => {
-    let filtered = dateFilteredTeamApps;
+    let filtered = showAllTimeKPIs ? teamApplications : dateFilteredTeamApps;
     if (searchName) {
        filtered = filtered.filter(a => {
          const member = users.find(u => u.full_name === searchName || u.email === searchName);
