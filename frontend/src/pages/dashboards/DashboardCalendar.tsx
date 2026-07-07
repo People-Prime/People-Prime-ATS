@@ -37,6 +37,8 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
     }
   };
 
+  const maxDate = todayStr();
+
   return (
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, position: 'relative' }}>
       <TextField
@@ -46,6 +48,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         value={startDate || todayStr()}
         onChange={(e) => onChange(e.target.value, endDate || todayStr())}
         InputLabelProps={{ shrink: true }}
+        inputProps={{ max: maxDate }}
         sx={{ 
           width: 140,
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
@@ -57,6 +60,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
       <input
         type="date"
         ref={singleDateInputRef}
+        max={maxDate}
         onChange={(e) => {
           const val = e.target.value;
           if (val) {
@@ -96,6 +100,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         value={endDate || todayStr()}
         onChange={(e) => onChange(startDate || todayStr(), e.target.value)}
         InputLabelProps={{ shrink: true }}
+        inputProps={{ max: maxDate }}
         sx={{ 
           width: 140,
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
