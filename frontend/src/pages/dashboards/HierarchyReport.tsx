@@ -60,22 +60,28 @@ interface RenderRow {
 
 interface HierarchyReportProps {
   rootEmail?: string; // If provided, tree starts from this user (e.g. SENIOR_MANAGER)
+  startDate?: string;
+  endDate?: string;
 }
 
-export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) => {
+export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, startDate, endDate }) => {
   const theme = useTheme();
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
   const deduplicatedApps = getUniqueSubmissions(applications);
 
-  const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN'), [users]);
+  const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
 
-  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [localStartDate, setLocalStartDate] = useState(todayStr());
+  const [localEndDate, setLocalEndDate] = useState(todayStr());
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
 
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogData, setDialogData] = useState<any[]>([]);
   const [dialogTitle, setDialogTitle] = useState('');
+
+  const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
+  const effectiveEndDate = endDate !== undefined ? endDate : localEndDate;
 
   const getDescendantEmails = (email: string): string[] => {
     const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
@@ -89,10 +95,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
       emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
     );
 
-    const dateFiltered = selectedDate
+    const dateFiltered = (effectiveStartDate && effectiveEndDate)
       ? userApps.filter(app => {
-        const d = app.updated_at || app.created_at || '';
-        return d.slice(0, 10) === selectedDate;
+        const d = (app.updated_at || app.created_at || '').slice(0, 10);
+        return d >= effectiveStartDate && d <= effectiveEndDate;
       })
       : userApps;
 
@@ -111,20 +117,20 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
       filtered = unique;
       label = 'Assigned Jobs';
     } else if (metricType === 'SUBMISSIONS') {
-      filtered = dateFiltered.filter(app => ['Submitted', 'Under Review'].includes(app.status));
-      label = 'Client Submissions';
+      filtered = dateFiltered.filter(app => ['Submitted', 'Placed', 'Under Review'].includes(app.status));
+      label = 'Placed/Submissions';
     } else if (metricType === 'INTERVIEWS') {
       filtered = dateFiltered.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));
       label = 'Interview Schedules';
     } else if (metricType === 'OFFERS') {
-      filtered = dateFiltered.filter(app => app.status === 'Selected');
+      filtered = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status));
       label = 'Offer Sent';
     } else if (metricType === 'ONBOARD') {
-      filtered = dateFiltered.filter(app => app.status === 'Selected');
-      label = 'Onboard';
+      filtered = dateFiltered.filter(app => ['Offer Accepted', 'Selected'].includes(app.status));
+      label = 'Offer Accepted';
     }
 
-    const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${selectedDate})`;
+    const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${effectiveStartDate} to ${effectiveEndDate})`;
     setDialogTitle(title);
     setDialogData(filtered);
     setOpenDialog(true);
@@ -189,10 +195,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
       app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
     );
 
-    const dateFiltered = selectedDate
+    const dateFiltered = (effectiveStartDate && effectiveEndDate)
       ? userApps.filter(app => {
-        const d = app.updated_at || app.created_at || '';
-        return d.slice(0, 10) === selectedDate;
+        const d = (app.updated_at || app.created_at || '').slice(0, 10);
+        return d >= effectiveStartDate && d <= effectiveEndDate;
       })
       : userApps;
 
@@ -204,13 +210,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
 
     const jobsCount = uniqueReqs.size;
     const submissions = dateFiltered.filter(app =>
-      ['Submitted', 'Under Review'].includes(app.status)
+      ['Submitted', 'Placed', 'Under Review'].includes(app.status)
     ).length;
     const interviews = dateFiltered.filter(app =>
       ['Interview Scheduled', 'Interview Completed'].includes(app.status)
     ).length;
-    const offers = dateFiltered.filter(app => app.status === 'Selected').length;
-    const onboard = dateFiltered.filter(app => app.status === 'Selected').length;
+    const offers = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status)).length;
+    const onboard = dateFiltered.filter(app => ['Offer Accepted', 'Selected'].includes(app.status)).length;
 
     return { jobsCount, submissions, interviews, offers, onboard };
   };
@@ -394,7 +400,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
     );
 
     return trueRoots.map(buildTreeElement);
-  }, [filteredUsers, applications, selectedDate, rootEmail]);
+  }, [filteredUsers, applications, effectiveStartDate, effectiveEndDate, rootEmail]);
 
   // Flatten Tree for Grid Rendering
   const rows = useMemo(() => {
@@ -538,12 +544,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
               Collapse All
             </Button>
 
-            <DashboardCalendar
-              selectedDate={selectedDate}
-              onChange={setSelectedDate}
-              totalCount={rows.filter(r => r.isSelfRow && (r.metrics.jobsCount > 0 || r.metrics.submissions > 0)).length}
-              allCount={filteredUsers.length}
-            />
+            {!startDate && !endDate && (
+              <DashboardCalendar
+                startDate={effectiveStartDate}
+                endDate={effectiveEndDate}
+                onChange={(start, end) => {
+                  setLocalStartDate(start);
+                  setLocalEndDate(end);
+                }}
+              />
+            )}
           </Box>
         </Box>
 
@@ -689,7 +699,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail }) =
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        {app.status}
+                        {app.status === 'Submitted' ? 'Placed' : app.status}
                       </Typography>
                     </TableCell>
                   </TableRow>

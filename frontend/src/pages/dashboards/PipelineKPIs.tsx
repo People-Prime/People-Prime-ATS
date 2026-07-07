@@ -78,13 +78,13 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
 
   const submissions       = uniqueApps.filter(app => app.candidate_name).length;
   const pendingFeedback   = uniqueApps.filter(app => app.status === 'Under Review').length;
-  const clientSubmissions = uniqueApps.filter(app => app.status === 'Submitted').length;
+  const clientSubmissions = uniqueApps.filter(app => app.status === 'Submitted' || app.status === 'Placed').length;
   const clientInterviews  = uniqueApps.filter(app =>
     ['Interview Scheduled', 'Interview Completed'].includes(app.status)
   ).length;
   const clientRejections  = uniqueApps.filter(app => app.status === 'Rejected').length;
-  const offerSent         = uniqueApps.filter(app => app.status === 'On Hold').length;
-  const offerAccepted     = uniqueApps.filter(app => app.status === 'Selected').length;
+  const offerSent         = uniqueApps.filter(app => app.status === 'Offer Sent' || app.status === 'On Hold').length;
+  const offerAccepted     = uniqueApps.filter(app => app.status === 'Offer Accepted' || app.status === 'Selected').length;
   const placed            = uniqueApps.filter(app => app.status === 'Selected').length;
 
   const cards = [

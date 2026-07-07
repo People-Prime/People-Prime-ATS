@@ -51,7 +51,8 @@ export const AssociateDashboard: React.FC = () => {
     )
   );
 
-  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
@@ -71,18 +72,18 @@ export const AssociateDashboard: React.FC = () => {
     });
   };
 
-  // Filter by updated_at date when a date is selected
-  const dateFilteredApps = selectedDate
+  // Filter by date range when range is selected
+  const dateFilteredApps = (startDate && endDate)
     ? myApplications.filter(app => {
-      const d = app.updated_at || app.created_at || '';
-      return d.slice(0, 10) === selectedDate;
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
     })
     : myApplications;
 
-  const dateFilteredRecruitedApps = selectedDate
+  const dateFilteredRecruitedApps = (startDate && endDate)
     ? recruitedApps.filter(app => {
-      const d = app.updated_at || app.created_at || '';
-      return d.slice(0, 10) === selectedDate;
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
     })
     : recruitedApps;
 
@@ -118,6 +119,35 @@ export const AssociateDashboard: React.FC = () => {
 
   return (
     <Box>
+      {/* Header section with Greeting on Left and Calendar controls on Right */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -0.5 }}>
+            Welcome Back, {currentUser?.full_name?.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}!
+          </Typography>
+          <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+            Here is your candidate sourcing and job assignment status today.
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Button
+            variant={showAllTimeKPIs ? "contained" : "outlined"}
+            size="small"
+            onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
+            sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.5, fontWeight: 700 }}
+          >
+            {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
+          </Button>
+          <DashboardCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
+        </Box>
+      </Box>
 
       <PipelineKPIs applications={showAllTimeKPIs ? recruitedApps : dateFilteredRecruitedApps} />
 
@@ -135,21 +165,7 @@ export const AssociateDashboard: React.FC = () => {
                   These requirements are assigned to you by your Team Lead. Select a requirement to add a candidate, submit details, or check active candidates.
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Button
-                  variant={showAllTimeKPIs ? "contained" : "outlined"}
-                  size="small"
-                  onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
-                  sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.5, fontWeight: 700 }}
-                >
-                  {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
-                </Button>
-                <DashboardCalendar
-                  selectedDate={selectedDate}
-                  onChange={setSelectedDate}
-                  totalCount={dateFilteredApps.length}
-                  allCount={myApplications.length}
-                />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
                 <Button
                   variant="contained"
                   color="primary"

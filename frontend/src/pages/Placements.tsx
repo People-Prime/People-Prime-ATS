@@ -73,7 +73,7 @@ export const Placements: React.FC = () => {
 
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
-    const placed = applications.filter(app => app.status === 'Selected');
+    const placed = applications.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
 
     // Sort by created_at ascending
     const sorted = [...placed].sort((a, b) => {
@@ -287,7 +287,7 @@ export const Placements: React.FC = () => {
                       {getRemarkField(app.remarks, 'End Date')}
                     </TableCell>
                     <TableCell>
-                      {app.status}
+                      {app.status === 'Submitted' ? 'Placed' : app.status}
                     </TableCell>
                     <TableCell>
                       {app.recruiter || app.assigned_employee?.full_name || 'System'}

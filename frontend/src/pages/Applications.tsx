@@ -305,11 +305,13 @@ export const Applications: React.FC = () => {
               >
                 <MenuItem value="ALL">All Statuses</MenuItem>
                 <MenuItem value="New">New / Unassigned</MenuItem>
-                <MenuItem value="Submitted">Submitted</MenuItem>
+                <MenuItem value="Submitted">Placed</MenuItem>
                 <MenuItem value="Under Review">Under Review</MenuItem>
                 <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                 <MenuItem value="Interview Completed">Interview Completed</MenuItem>
-                <MenuItem value="Selected">Selected / Offered</MenuItem>
+                <MenuItem value="Offer Sent">Offer Sent</MenuItem>
+                <MenuItem value="Offer Accepted">Offer Accepted</MenuItem>
+                <MenuItem value="Selected">Selected</MenuItem>
                 <MenuItem value="Rejected">Rejected</MenuItem>
                 <MenuItem value="On Hold">On Hold</MenuItem>
                 <MenuItem value="Closed">Closed</MenuItem>
@@ -440,7 +442,7 @@ export const Applications: React.FC = () => {
                             setStatusUpdateComment('');
                           }}
                         >
-                          {app.status}
+                          {app.status === 'Submitted' ? 'Placed' : app.status}
                         </Typography>
                       </td>
                       <td style={{ padding: '4px 8px' }}>
@@ -492,7 +494,7 @@ export const Applications: React.FC = () => {
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{getRemarkField(sub.remarks, 'Job Code')}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 700 }}>{sub.position}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{sub.recruiter || sub.assigned_employee?.full_name || 'System'}</TableCell>
-                                  <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 750, color: 'primary.main' }}>{sub.status}</TableCell>
+                                  <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 750, color: 'primary.main' }}>{sub.status === 'Submitted' ? 'Placed' : sub.status}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{sub.client_name}</TableCell>
                                 </TableRow>
                               ))}
@@ -612,10 +614,12 @@ export const Applications: React.FC = () => {
                   sx={{ borderRadius: '8px' }}
                 >
                   <MenuItem value="New">New</MenuItem>
-                  <MenuItem value="Submitted">Submitted</MenuItem>
+                  <MenuItem value="Submitted">Placed</MenuItem>
                   <MenuItem value="Under Review">Under Review</MenuItem>
                   <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                   <MenuItem value="Interview Completed">Interview Completed</MenuItem>
+                  <MenuItem value="Offer Sent">Offer Sent</MenuItem>
+                  <MenuItem value="Offer Accepted">Offer Accepted</MenuItem>
                   <MenuItem value="Selected">Selected</MenuItem>
                   <MenuItem value="Rejected">Rejected</MenuItem>
                   <MenuItem value="On Hold">On Hold</MenuItem>

@@ -55,9 +55,12 @@ export interface Team {
 export type ApplicationStatus =
   | 'New'
   | 'Submitted'
+  | 'Placed'
   | 'Under Review'
   | 'Interview Scheduled'
   | 'Interview Completed'
+  | 'Offer Sent'
+  | 'Offer Accepted'
   | 'Selected'
   | 'Rejected'
   | 'On Hold'

@@ -1,12 +1,14 @@
 import React, { useRef } from 'react';
-import { Box, Tooltip, IconButton, useTheme } from '@mui/material';
-import { CalendarDays, X } from 'lucide-react';
+import { Box, TextField, IconButton, Tooltip } from '@mui/material';
+import { CalendarDays } from 'lucide-react';
 
 interface DashboardCalendarProps {
-  selectedDate: string;           // ISO date string "YYYY-MM-DD"
-  onChange: (date: string) => void;
-  totalCount: number;             // count of matching records for selected date
-  allCount: number;               // count when no date filter is applied
+  startDate: string;              // ISO date string "YYYY-MM-DD"
+  endDate: string;                // ISO date string "YYYY-MM-DD"
+  onChange: (start: string, end: string) => void;
+  totalCount?: number;            // count of matching records for range
+  allCount?: number;              // count when no filter is applied
+  selectedDate?: string;          // backward compatibility
 }
 
 /** Returns today's date as "YYYY-MM-DD" in local time */
@@ -19,103 +21,87 @@ export const todayStr = (): string => {
 };
 
 export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
-  selectedDate,
-  onChange,
-  totalCount,
-  allCount
+  startDate,
+  endDate,
+  onChange
 }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const inputRef = useRef<HTMLInputElement>(null);
+  const singleDateInputRef = useRef<HTMLInputElement>(null);
 
-  const hasFilter = selectedDate !== todayStr() && Boolean(selectedDate);
+  const handleSingleDateIconClick = () => {
+    if (singleDateInputRef.current) {
+      if (typeof singleDateInputRef.current.showPicker === 'function') {
+        singleDateInputRef.current.showPicker();
+      } else {
+        singleDateInputRef.current.click();
+      }
+    }
+  };
 
   return (
-    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, position: 'relative' }}>
-      {/* Hidden native date input positioned relative to wrapper to anchor showPicker() correctly */}
+    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, position: 'relative' }}>
+      <TextField
+        label="From Date"
+        type="date"
+        size="small"
+        value={startDate || todayStr()}
+        onChange={(e) => onChange(e.target.value, endDate || todayStr())}
+        InputLabelProps={{ shrink: true }}
+        sx={{ 
+          width: 140,
+          '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
+          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+        }}
+      />
+      
+      {/* Hidden single date selector input */}
       <input
         type="date"
-        ref={inputRef}
-        value={selectedDate}
-        max={todayStr()}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+        ref={singleDateInputRef}
+        onChange={(e) => {
           const val = e.target.value;
-          if (val && val > todayStr()) {
-            onChange(todayStr());
-          } else {
-            onChange(val || todayStr());
+          if (val) {
+            onChange(val, val);
           }
         }}
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '32px',
-          height: '32px',
           opacity: 0,
           pointerEvents: 'none',
-          border: 'none',
-          padding: 0,
-          margin: 0
+          width: 0,
+          height: 0
         }}
       />
 
-      {/* Visible icon button */}
-      <Tooltip title={hasFilter ? `Filtered: ${selectedDate} (${totalCount}/${allCount}) — Click to change` : 'Filter by date (showing today by default)'}>
-        <IconButton
-          size="small"
-          onClick={() => {
-            if (inputRef.current) {
-              if (typeof inputRef.current.showPicker === 'function') {
-                inputRef.current.showPicker();
-              } else {
-                inputRef.current.click();
-              }
-            }
-          }}
-          sx={{
-            borderRadius: '10px',
-            p: 0.75,
-            bgcolor: hasFilter
-              ? isDark ? 'rgba(99,102,241,0.25)' : '#e0e7ff'
-              : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-            border: hasFilter
-              ? `1.5px solid ${isDark ? 'rgba(99,102,241,0.5)' : '#c7d2fe'}`
-              : `1.5px solid transparent`,
-            color: hasFilter ? 'primary.main' : 'text.secondary',
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              bgcolor: isDark ? 'rgba(99,102,241,0.35)' : '#c7d2fe',
-              color: 'primary.main',
-              border: `1.5px solid ${isDark ? 'rgba(99,102,241,0.5)' : '#c7d2fe'}`,
-            },
+      <Tooltip title="Choose a single date for both From/To">
+        <IconButton 
+          size="small" 
+          onClick={handleSingleDateIconClick}
+          sx={{ 
+            color: 'primary.main',
+            p: 0.5,
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: '8px',
+            bgcolor: 'action.hover'
           }}
         >
-          <CalendarDays size={18} />
+          <CalendarDays size={16} />
         </IconButton>
       </Tooltip>
 
-      {/* Clear Button (resets back to today) */}
-      {hasFilter && (
-        <Tooltip title={`Reset to Today's date`}>
-          <IconButton
-            size="small"
-            onClick={() => onChange(todayStr())}
-            sx={{
-              borderRadius: '50%',
-              p: 0.5,
-              color: 'error.main',
-              bgcolor: isDark ? 'rgba(239,68,68,0.15)' : '#fee2e2',
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                bgcolor: isDark ? 'rgba(239,68,68,0.25)' : '#fca5a5',
-              },
-            }}
-          >
-            <X size={14} />
-          </IconButton>
-        </Tooltip>
-      )}
+      <TextField
+        label="To Date"
+        type="date"
+        size="small"
+        value={endDate || todayStr()}
+        onChange={(e) => onChange(startDate || todayStr(), e.target.value)}
+        InputLabelProps={{ shrink: true }}
+        sx={{ 
+          width: 140,
+          '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
+          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+        }}
+      />
     </Box>
   );
 };

@@ -64,7 +64,8 @@ export const LeadDashboard: React.FC = () => {
     app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
   );
 
-  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
   const dispatch = useAppDispatch();
   const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
@@ -101,11 +102,11 @@ export const LeadDashboard: React.FC = () => {
     }
   };
 
-  // Filter team applications by selected date (KPIs + table)
-  const dateFilteredTeamApps = selectedDate
+  // Filter team applications by date range (KPIs + table)
+  const dateFilteredTeamApps = (startDate && endDate)
     ? teamApplications.filter(app => {
-      const d = app.updated_at || app.created_at || '';
-      return d.slice(0, 10) === selectedDate;
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
     })
     : teamApplications;
 
@@ -147,17 +148,22 @@ export const LeadDashboard: React.FC = () => {
          return isRecruiter || (!a.recruiter && isAssigned);
        });
     }
-    if (status !== 'ALL') {
-       if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
-       else if (status === 'INTERVIEWS') filtered = filtered.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
-       else filtered = filtered.filter(a => a.status === status);
-    }
-    
-    let title = searchName ? `Applications for ${searchName}` : 'Team Applications';
-    if (status !== 'ALL' && status !== 'HAS_CANDIDATE' && status !== 'INTERVIEWS') title += ` - ${status}`;
-    else if (status === 'HAS_CANDIDATE') title += ' - Submissions';
-    else if (status === 'INTERVIEWS') title += ' - Client Interviews';
-    else title += ' - Assigned Jobs';
+     if (status !== 'ALL') {
+        if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
+        else if (status === 'INTERVIEWS') filtered = filtered.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
+        else if (status === 'Placed') filtered = filtered.filter(a => a.status === 'Submitted' || a.status === 'Placed');
+        else if (status === 'Offer Sent') filtered = filtered.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
+        else if (status === 'Offer Accepted') filtered = filtered.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
+        else filtered = filtered.filter(a => a.status === status);
+     }
+     
+     let title = searchName ? `Applications for ${searchName}` : 'Team Applications';
+     if (status !== 'ALL' && status !== 'HAS_CANDIDATE' && status !== 'INTERVIEWS') {
+       title += ` - ${status === 'Placed' ? 'Placed' : status}`;
+     }
+     else if (status === 'HAS_CANDIDATE') title += ' - Submissions';
+     else if (status === 'INTERVIEWS') title += ' - Client Interviews';
+     else title += ' - Assigned Jobs';
     
     setDialogTitle(title);
     setDialogData(filtered);
@@ -185,17 +191,16 @@ export const LeadDashboard: React.FC = () => {
       <Box 
         sx={{ 
           display: 'flex', 
-          flexDirection: { xs: 'column', sm: 'row' },
           justifyContent: 'space-between', 
-          alignItems: { xs: 'flex-start', sm: 'center' }, 
+          alignItems: 'flex-start', 
           gap: 2,
-          mb: 3.5 
+          mb: 2 
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 800 }}>
           Team Management: <span style={{ color: theme.palette.primary.main }}>{myTeamName}</span>
         </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             variant={showAllTimeKPIs ? "contained" : "outlined"}
             size="small"
@@ -205,30 +210,36 @@ export const LeadDashboard: React.FC = () => {
             {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
           </Button>
           <DashboardCalendar
-            selectedDate={selectedDate}
-            onChange={setSelectedDate}
-            totalCount={dateFilteredTeamApps.length}
-            allCount={teamApplications.length}
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
           />
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<Plus size={18} />}
-            onClick={handleOpenAddReq}
-            sx={{ borderRadius: '8px', fontSize: '0.8rem', py: 0.5 }}
-          >
-            Add Job Opening
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<Plus size={18} />}
-            onClick={() => navigate('/candidates/create')}
-            sx={{ borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', py: 0.5 }}
-          >
-            Add Candidate
-          </Button>
         </Box>
+      </Box>
+
+      {/* Action buttons row below greeting */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<Plus size={18} />}
+          onClick={handleOpenAddReq}
+          sx={{ borderRadius: '8px', fontSize: '0.8rem', py: 0.5 }}
+        >
+          Add Job Opening
+        </Button>
+        <Button
+          variant="outlined"
+          color="primary"
+          startIcon={<Plus size={18} />}
+          onClick={() => navigate('/candidates/create')}
+          sx={{ borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', py: 0.5 }}
+        >
+          Add Candidate
+        </Button>
       </Box>
 
       <PipelineKPIs applications={showAllTimeKPIs ? teamApplications : dateFilteredTeamApps} />
@@ -267,12 +278,11 @@ export const LeadDashboard: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Assigned Jobs</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Submissions</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Pending Feedback</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Client Submissions</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Placed</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Client Interviews</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Client Rejections</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Offer Sent</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Offer Accepted</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Placed</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -280,12 +290,11 @@ export const LeadDashboard: React.FC = () => {
                     let totalAssigned = 0;
                     let totalSubmissions = 0;
                     let totalPendingFeedback = 0;
-                    let totalClientSubs = 0;
+                    let totalPlaced = 0;
                     let totalClientInterviews = 0;
                     let totalClientRejections = 0;
                     let totalOffers = 0;
                     let totalOfferAccepted = 0;
-                    let totalPlaced = 0;
 
                     const memberStats = teamMembers.map(member => {
                       // Filter items associated with this member
@@ -308,24 +317,22 @@ export const LeadDashboard: React.FC = () => {
                       const assigned = assignedApps.length;
                       const subs = sourcedApps.length;
                       const pending = sourcedApps.filter(a => a.status === 'Under Review').length;
-                      const clientSubs = sourcedApps.filter(a => a.status === 'Submitted').length;
+                      const placed = sourcedApps.filter(a => a.status === 'Submitted' || a.status === 'Placed').length;
                       const ints = sourcedApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
                       const rejections = sourcedApps.filter(a => a.status === 'Rejected').length;
-                      const offers = sourcedApps.filter(a => a.status === 'On Hold').length;
-                      const offerAcc = sourcedApps.filter(a => a.status === 'Selected').length;
-                      const placed = sourcedApps.filter(a => a.status === 'Selected').length;
+                      const offers = sourcedApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold').length;
+                      const offerAcc = sourcedApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected').length;
 
                       totalAssigned += assigned;
                       totalSubmissions += subs;
                       totalPendingFeedback += pending;
-                      totalClientSubs += clientSubs;
+                      totalPlaced += placed;
                       totalClientInterviews += ints;
                       totalClientRejections += rejections;
                       totalOffers += offers;
                       totalOfferAccepted += offerAcc;
-                      totalPlaced += placed;
 
-                      return { member, assigned, subs, pending, clientSubs, ints, rejections, offers, offerAcc, placed };
+                      return { member, assigned, subs, pending, placed, ints, rejections, offers, offerAcc };
                     });
 
                     return (
@@ -344,7 +351,7 @@ export const LeadDashboard: React.FC = () => {
                             {renderClickableMetric(totalPendingFeedback, '', 'Under Review')}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
-                            {renderClickableMetric(totalClientSubs, '', 'Submitted')}
+                            {renderClickableMetric(totalPlaced, '', 'Placed')}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
                             {renderClickableMetric(totalClientInterviews, '', 'INTERVIEWS')}
@@ -353,13 +360,10 @@ export const LeadDashboard: React.FC = () => {
                             {renderClickableMetric(totalClientRejections, '', 'Rejected')}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
-                            {renderClickableMetric(totalOffers, '', 'On Hold')}
+                            {renderClickableMetric(totalOffers, '', 'Offer Sent')}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
-                            {renderClickableMetric(totalOfferAccepted, '', 'Selected')}
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
-                            {renderClickableMetric(totalPlaced, '', 'Selected')}
+                            {renderClickableMetric(totalOfferAccepted, '', 'Offer Accepted')}
                           </TableCell>
                         </TableRow>
                         {memberStats.map((stat, idx) => (
@@ -375,17 +379,16 @@ export const LeadDashboard: React.FC = () => {
                             <TableCell>{renderClickableMetric(stat.assigned, stat.member.full_name, 'ALL')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.subs, stat.member.full_name, 'HAS_CANDIDATE')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.pending, stat.member.full_name, 'Under Review')}</TableCell>
-                            <TableCell>{renderClickableMetric(stat.clientSubs, stat.member.full_name, 'Submitted')}</TableCell>
+                            <TableCell>{renderClickableMetric(stat.placed, stat.member.full_name, 'Placed')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.ints, stat.member.full_name, 'INTERVIEWS')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.rejections, stat.member.full_name, 'Rejected')}</TableCell>
-                            <TableCell>{renderClickableMetric(stat.offers, stat.member.full_name, 'On Hold')}</TableCell>
-                            <TableCell>{renderClickableMetric(stat.offerAcc, stat.member.full_name, 'Selected')}</TableCell>
-                            <TableCell>{renderClickableMetric(stat.placed, stat.member.full_name, 'Selected')}</TableCell>
+                            <TableCell>{renderClickableMetric(stat.offers, stat.member.full_name, 'Offer Sent')}</TableCell>
+                            <TableCell>{renderClickableMetric(stat.offerAcc, stat.member.full_name, 'Offer Accepted')}</TableCell>
                           </TableRow>
                         ))}
                         {memberStats.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={10} sx={{ textAlign: 'center', color: 'text.secondary', py: 3 }}>
+                            <TableCell colSpan={9} sx={{ textAlign: 'center', color: 'text.secondary', py: 3 }}>
                               No Associate Analysts in this team.
                             </TableCell>
                           </TableRow>

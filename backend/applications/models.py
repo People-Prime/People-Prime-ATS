@@ -3,10 +3,12 @@ from django.conf import settings
 
 class ApplicationStatus(models.TextChoices):
     NEW = 'New', 'New'
-    SUBMITTED = 'Submitted', 'Submitted'
+    SUBMITTED = 'Submitted', 'Placed'
     UNDER_REVIEW = 'Under Review', 'Under Review'
     INTERVIEW_SCHEDULED = 'Interview Scheduled', 'Interview Scheduled'
     INTERVIEW_COMPLETED = 'Interview Completed', 'Interview Completed'
+    OFFER_SENT = 'Offer Sent', 'Offer Sent'
+    OFFER_ACCEPTED = 'Offer Accepted', 'Offer Accepted'
     SELECTED = 'Selected', 'Selected'
     REJECTED = 'Rejected', 'Rejected'
     ON_HOLD = 'On Hold', 'On Hold'

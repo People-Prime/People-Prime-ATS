@@ -93,7 +93,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
     .slice(0, 4);
 
-  const [selectedDate, setSelectedDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogData, setDialogData] = useState<any[]>([]);
@@ -218,7 +219,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
 
   // 3. PLACEMENTS DATA PREPARATION (from all teams)
   const displayPlacements = useMemo(() => {
-    const placed = deduplicatedApps.filter(app => app.status === 'Selected');
+    const placed = deduplicatedApps.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
     
     // Sort ascending for consistent Placement Code generation
     const sorted = [...placed].sort((a, b) => {
@@ -261,21 +262,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     );
 
     // Apply date filter if not showAllTimeKPIs
-    if (selectedDate && !showAllTimeKPIs) {
+    if (!showAllTimeKPIs && startDate && endDate) {
       teamApps = teamApps.filter(app => {
-        const d = app.updated_at || app.created_at || '';
-        return d.slice(0, 10) === selectedDate;
+        const d = (app.updated_at || app.created_at || '').slice(0, 10);
+        return d >= startDate && d <= endDate;
       });
     }
 
     if (status !== 'ALL') {
       if (status === 'HAS_CANDIDATE') teamApps = teamApps.filter(a => a.candidate_name);
       else if (status === 'INTERVIEWS') teamApps = teamApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
+      else if (status === 'Placed') teamApps = teamApps.filter(a => a.status === 'Submitted' || a.status === 'Placed');
+      else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
+      else if (status === 'Offer Accepted') teamApps = teamApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
       else teamApps = teamApps.filter(a => a.status === status);
     }
 
     let title = `Applications for Team ${teamName}`;
-    if (status !== 'ALL' && status !== 'HAS_CANDIDATE' && status !== 'INTERVIEWS') title += ` - ${status}`;
+    if (status !== 'ALL' && status !== 'HAS_CANDIDATE' && status !== 'INTERVIEWS') {
+      title += ` - ${status === 'Placed' ? 'Placed' : status}`;
+    }
     else if (status === 'HAS_CANDIDATE') title += ' - Submissions';
     else if (status === 'INTERVIEWS') title += ' - Client Interviews';
     else title += ' - Assigned Jobs';
@@ -299,17 +305,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   };
 
   // Filter all org-wide applications by selected date
-  const dateFilteredApps = selectedDate
+  const dateFilteredApps = (startDate && endDate)
     ? deduplicatedApps.filter(app => {
-      const d = app.updated_at || app.created_at || '';
-      return d.slice(0, 10) === selectedDate;
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
     })
     : deduplicatedApps;
 
   return (
     <Box>
-      {/* Title greeting */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      {/* Header section with Greeting on Left and Calendar controls on Right */}
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -0.5 }}>
             Welcome Back, {currentUser?.full_name?.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}!
@@ -318,7 +324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
             Here is what's happening with the Application Tracking System today.
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             variant={showAllTimeKPIs ? "contained" : "outlined"}
             size="small"
@@ -328,33 +334,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
             {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
           </Button>
           <DashboardCalendar
-            selectedDate={selectedDate}
-            onChange={setSelectedDate}
-            totalCount={dateFilteredApps.length}
-            allCount={deduplicatedApps.length}
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
           />
-          {!readOnly && currentUser?.role !== 'CEO' && (
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/teams')}
-              startIcon={<ShieldCheck size={18} />}
-              sx={{ borderRadius: '8px', fontWeight: 700 }}
-            >
-              Manage Teams
-            </Button>
-          )}
-          {!readOnly && currentUser?.role !== 'CEO' && (
-            <Button
-              variant="contained"
-              onClick={() => navigate('/users/create')}
-              startIcon={<Plus size={18} />}
-              sx={{ borderRadius: '8px', fontWeight: 750 }}
-            >
-              Onboard Employee
-            </Button>
-          )}
         </Box>
       </Box>
+
+      {/* Action buttons row below greeting */}
+      {!readOnly && currentUser?.role !== 'CEO' && (
+        <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/teams')}
+            startIcon={<ShieldCheck size={18} />}
+            sx={{ borderRadius: '8px', fontWeight: 700 }}
+          >
+            Manage Teams
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => navigate('/users/create')}
+            startIcon={<Plus size={18} />}
+            sx={{ borderRadius: '8px', fontWeight: 750 }}
+          >
+            Onboard Employee
+          </Button>
+        </Box>
+      )}
 
 
       {/* Pipeline KPIs – org-wide counts filtered by date or all-time */}
@@ -388,12 +398,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       {activeTab === 0 && (
         <>
           {/* CEO / Admin Hierarchy Report – full org tree */}
-          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && <HierarchyReport />}
+           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
+             <HierarchyReport startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+           )}
 
-          {/* Senior Manager Hierarchy Report – starts from their own node */}
-          {currentUser?.role === 'SENIOR_MANAGER' && (
-            <HierarchyReport rootEmail={currentUser.email} />
-          )}
+           {/* Senior Manager Hierarchy Report – starts from their own node */}
+           {currentUser?.role === 'SENIOR_MANAGER' && (
+             <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+           )}
 
           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
             <Grid container spacing={3} sx={{ mt: 1, mb: 3 }}>
@@ -412,12 +424,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                           <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Assigned Jobs</TableCell>
                           <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Submissions</TableCell>
                           <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Pending Feedback</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Submissions</TableCell>
+                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Placed</TableCell>
                           <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Interviews</TableCell>
                           <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Rejections</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offers Sent</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offers Accepted</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Placed</TableCell>
+                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offer Sent</TableCell>
+                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offer Accepted</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -447,22 +458,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                               app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
                             );
 
-                            if (selectedDate && !showAllTimeKPIs) {
+                            if (!showAllTimeKPIs && startDate && endDate) {
                               teamApps = teamApps.filter(app => {
-                                const d = app.updated_at || app.created_at || '';
-                                return d.slice(0, 10) === selectedDate;
+                                const d = (app.updated_at || app.created_at || '').slice(0, 10);
+                                return d >= startDate && d <= endDate;
                               });
                             }
 
                             const assigned = teamApps.length;
                             const subs = teamApps.filter(app => app.candidate_name).length;
                             const pending = teamApps.filter(app => app.status === 'Under Review').length;
-                            const clientSubs = teamApps.filter(app => app.status === 'Submitted').length;
+                            const placed = teamApps.filter(app => app.status === 'Submitted' || app.status === 'Placed').length;
                             const ints = teamApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status)).length;
                             const rejections = teamApps.filter(app => app.status === 'Rejected').length;
-                            const offers = teamApps.filter(app => app.status === 'On Hold').length;
-                            const offerAcc = teamApps.filter(app => app.status === 'Selected').length;
-                            const placed = teamApps.filter(app => app.status === 'Selected').length;
+                            const offerSent = teamApps.filter(app => app.status === 'Offer Sent' || app.status === 'On Hold').length;
+                            const offerAccepted = teamApps.filter(app => app.status === 'Offer Accepted' || app.status === 'Selected').length;
 
                             return (
                               <TableRow key={team.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
@@ -470,12 +480,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                                 <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(assigned, team.id, team.name, 'ALL')}</TableCell>
                                 <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(subs, team.id, team.name, 'HAS_CANDIDATE')}</TableCell>
                                 <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(pending, team.id, team.name, 'Under Review')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(clientSubs, team.id, team.name, 'Submitted')}</TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(placed, team.id, team.name, 'Placed')}</TableCell>
                                 <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(ints, team.id, team.name, 'INTERVIEWS')}</TableCell>
                                 <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(rejections, team.id, team.name, 'Rejected')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offers, team.id, team.name, 'On Hold')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerAcc, team.id, team.name, 'Selected')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(placed, team.id, team.name, 'Selected')}</TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerSent, team.id, team.name, 'Offer Sent')}</TableCell>
+                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerAccepted, team.id, team.name, 'Offer Accepted')}</TableCell>
                               </TableRow>
                             );
                           });
@@ -675,7 +684,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                                           {sub.assigned_employee?.full_name || sub.recruiter || 'System'}
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                          {sub.status}
+                                          {sub.status === 'Submitted' ? 'Placed' : sub.status}
                                         </TableCell>
                                         <TableCell>
                                           {new Date(sub.updated_at || sub.created_at || '').toLocaleDateString()}
@@ -882,7 +891,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                                             {applicant.candidate_name}
                                           </TableCell>
                                           <TableCell>{applicant.candidate_email || '—'}</TableCell>
-                                          <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{applicant.status}</TableCell>
+                                           <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                            {applicant.status === 'Submitted' ? 'Placed' : applicant.status}
+                                           </TableCell>
                                           <TableCell>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
                                           {!readOnly && (
                                             <TableCell sx={{ textAlign: 'center' }}>
