@@ -138,7 +138,7 @@ class UserViewSet(viewsets.ModelViewSet):
     # Visual tree mapping of reporting hierarchy
     @action(detail=False, methods=['get'], url_path='hierarchy')
     def hierarchy(self, request):
-        all_users = User.objects.filter(is_active=True).select_related('team')
+        all_users = User.objects.filter(is_active=True).exclude(role=Role.REPORTING_TEAM).select_related('team')
         
         # Map managers to their report lists
         users_by_manager = {}

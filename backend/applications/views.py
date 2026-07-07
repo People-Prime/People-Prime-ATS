@@ -97,6 +97,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        if self.request.method not in permissions.SAFE_METHODS:
+            class IsNotReportingTeam(permissions.BasePermission):
+                def has_permission(self, request, view):
+                    return request.user.role != Role.REPORTING_TEAM
+            self.permission_classes = [permissions.IsAuthenticated, IsNotReportingTeam]
+        return super().get_permissions()
+
     def get_queryset(self):
         # Auto-close expired job requirements where End Date is past today
         import datetime

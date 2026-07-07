@@ -23,7 +23,9 @@ export const Dashboard: React.FC = () => {
 
   return (
     <Box className="animate-fade-in">
-      {(activeRole === 'ADMIN' || activeRole === 'CEO') && <AdminDashboard />}
+      {(activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && (
+        <AdminDashboard readOnly={activeRole === 'REPORTING_TEAM'} />
+      )}
       {activeRole === 'SENIOR_MANAGER' && <ManagerDashboard />}
       {(activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && <LeadDashboard />}
       {activeRole === 'ASSOCIATE_ANALYST' && <AssociateDashboard />}

@@ -52,7 +52,11 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
 
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
 
-export const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+  readOnly?: boolean;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user: currentUser } = useAppSelector(state => state.auth);
@@ -329,7 +333,7 @@ export const AdminDashboard: React.FC = () => {
             totalCount={dateFilteredApps.length}
             allCount={deduplicatedApps.length}
           />
-          {currentUser?.role !== 'CEO' && (
+          {!readOnly && currentUser?.role !== 'CEO' && (
             <Button
               variant="outlined"
               onClick={() => navigate('/teams')}
@@ -339,7 +343,7 @@ export const AdminDashboard: React.FC = () => {
               Manage Teams
             </Button>
           )}
-          {currentUser?.role !== 'CEO' && (
+          {!readOnly && currentUser?.role !== 'CEO' && (
             <Button
               variant="contained"
               onClick={() => navigate('/users/create')}
@@ -384,14 +388,14 @@ export const AdminDashboard: React.FC = () => {
       {activeTab === 0 && (
         <>
           {/* CEO / Admin Hierarchy Report – full org tree */}
-          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN') && <HierarchyReport />}
+          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && <HierarchyReport />}
 
           {/* Senior Manager Hierarchy Report – starts from their own node */}
           {currentUser?.role === 'SENIOR_MANAGER' && (
             <HierarchyReport rootEmail={currentUser.email} />
           )}
 
-          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN') && (
+          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
             <Grid container spacing={3} sx={{ mt: 1, mb: 3 }}>
               <Grid item xs={12}>
                 <Card sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '12px', boxShadow: 'none' }}>
@@ -582,13 +586,13 @@ export const AdminDashboard: React.FC = () => {
                   <TableCell sx={{ fontWeight: 800 }}>Recent Position & Client</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Technology</TableCell>
                   <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Total Applications</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Actions</TableCell>
+                  {!readOnly && <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Actions</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {displayApplicants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                    <TableCell colSpan={readOnly ? 6 : 7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       No applicants found matching the filter.
                     </TableCell>
                   </TableRow>
@@ -625,21 +629,23 @@ export const AdminDashboard: React.FC = () => {
                             <Chip label={primaryApp.technology || 'N/A'} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
                           </TableCell>
                           <TableCell sx={{ textAlign: 'center', fontWeight: 700 }}>{allSubmissions.length}</TableCell>
-                          <TableCell sx={{ textAlign: 'center' }}>
-                            <IconButton 
-                              size="small" 
-                              color="error" 
-                              onClick={() => handleDeleteJobGroup(allSubmissions, primaryApp.candidate_name)}
-                              sx={{ p: 0.25 }}
-                            >
-                              <Trash2 size={13} />
-                            </IconButton>
-                          </TableCell>
+                          {!readOnly && (
+                            <TableCell sx={{ textAlign: 'center' }}>
+                              <IconButton 
+                                size="small" 
+                                color="error" 
+                                onClick={() => handleDeleteJobGroup(allSubmissions, primaryApp.candidate_name)}
+                                sx={{ p: 0.25 }}
+                              >
+                                <Trash2 size={13} />
+                              </IconButton>
+                            </TableCell>
+                          )}
                         </TableRow>
 
                         {isExpanded && (
                           <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                            <TableCell colSpan={7} style={{ padding: '8px 12px' }}>
+                            <TableCell colSpan={readOnly ? 6 : 7} style={{ padding: '8px 12px' }}>
                               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5, color: 'text.secondary', fontSize: '0.68rem' }}>
                                 SUBMISSIONS HISTORY
                               </Typography>
@@ -652,7 +658,7 @@ export const AdminDashboard: React.FC = () => {
                                       <TableCell sx={{ fontWeight: 700 }}>Assigned Analyst</TableCell>
                                       <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                                       <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                                      <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>Actions</TableCell>
+                                      {!readOnly && <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>Actions</TableCell>}
                                     </TableRow>
                                   </TableHead>
                                   <TableBody>
@@ -674,24 +680,26 @@ export const AdminDashboard: React.FC = () => {
                                         <TableCell>
                                           {new Date(sub.updated_at || sub.created_at || '').toLocaleDateString()}
                                         </TableCell>
-                                        <TableCell sx={{ textAlign: 'center' }}>
-                                          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
-                                            <Typography
-                                              variant="body2"
-                                              sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                              onClick={() => navigate(`/candidates/create/${sub.id}`)}
-                                            >
-                                              Edit
-                                            </Typography>
-                                            <Typography
-                                              variant="body2"
-                                              sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                              onClick={() => handleDeleteSubmission(String(sub.id), sub.candidate_name)}
-                                            >
-                                              Delete
-                                            </Typography>
-                                          </Box>
-                                        </TableCell>
+                                        {!readOnly && (
+                                          <TableCell sx={{ textAlign: 'center' }}>
+                                            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                onClick={() => navigate(`/candidates/create/${sub.id}`)}
+                                              >
+                                                Edit
+                                              </Typography>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                onClick={() => handleDeleteSubmission(String(sub.id), sub.candidate_name)}
+                                              >
+                                                Delete
+                                              </Typography>
+                                            </Box>
+                                          </TableCell>
+                                        )}
                                       </TableRow>
                                     ))}
                                   </TableBody>
@@ -755,13 +763,13 @@ export const AdminDashboard: React.FC = () => {
                   <TableCell sx={{ fontWeight: 800 }}>Bill Rate / Salary</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Pay Rate</TableCell>
                   <TableCell sx={{ fontWeight: 800 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Actions</TableCell>
+                  {!readOnly && <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Actions</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {displayJobs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                    <TableCell colSpan={readOnly ? 8 : 9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       No jobs found matching the filter.
                     </TableCell>
                   </TableRow>
@@ -831,21 +839,23 @@ export const AdminDashboard: React.FC = () => {
                               sx={{ fontSize: '0.6rem', height: 18 }}
                             />
                           </TableCell>
-                          <TableCell sx={{ textAlign: 'center' }}>
-                            <IconButton 
-                              size="small" 
-                              color="error" 
-                              onClick={() => handleDeleteJobGroup(jobApplicants.length > 0 ? [...(app as any).associatedApps, ...jobApplicants] : (app as any).associatedApps, app.position)}
-                              sx={{ p: 0.25 }}
-                            >
-                              <Trash2 size={13} />
-                            </IconButton>
-                          </TableCell>
+                          {!readOnly && (
+                            <TableCell sx={{ textAlign: 'center' }}>
+                              <IconButton 
+                                size="small" 
+                                color="error" 
+                                onClick={() => handleDeleteJobGroup(jobApplicants.length > 0 ? [...(app as any).associatedApps, ...jobApplicants] : (app as any).associatedApps, app.position)}
+                                sx={{ p: 0.25 }}
+                              >
+                                <Trash2 size={13} />
+                              </IconButton>
+                            </TableCell>
+                          )}
                         </TableRow>
 
                         {isExpanded && (
                           <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                            <TableCell colSpan={9} style={{ padding: '8px 12px' }}>
+                            <TableCell colSpan={readOnly ? 8 : 9} style={{ padding: '8px 12px' }}>
                               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5, color: 'text.secondary', fontSize: '0.68rem' }}>
                                 ASSOCIATED APPLICANTS ({jobApplicants.length})
                               </Typography>
@@ -862,7 +872,7 @@ export const AdminDashboard: React.FC = () => {
                                         <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>
                                         <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                                         <TableCell sx={{ fontWeight: 700 }}>Sourced By</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>Actions</TableCell>
+                                        {!readOnly && <TableCell sx={{ fontWeight: 700, textAlign: 'center' }}>Actions</TableCell>}
                                       </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -874,24 +884,26 @@ export const AdminDashboard: React.FC = () => {
                                           <TableCell>{applicant.candidate_email || '—'}</TableCell>
                                           <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{applicant.status}</TableCell>
                                           <TableCell>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
-                                          <TableCell sx={{ textAlign: 'center' }}>
-                                            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
-                                              <Typography
-                                                variant="body2"
-                                                sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                                onClick={() => navigate(`/candidates/create/${applicant.id}`)}
-                                              >
-                                                Edit
-                                              </Typography>
-                                              <Typography
-                                                variant="body2"
-                                                sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                                onClick={() => handleDeleteSubmission(String(applicant.id), applicant.candidate_name)}
-                                              >
-                                                Delete
-                                              </Typography>
-                                            </Box>
-                                          </TableCell>
+                                          {!readOnly && (
+                                            <TableCell sx={{ textAlign: 'center' }}>
+                                              <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                                                <Typography
+                                                  variant="body2"
+                                                  sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                  onClick={() => navigate(`/candidates/create/${applicant.id}`)}
+                                                >
+                                                  Edit
+                                                </Typography>
+                                                <Typography
+                                                  variant="body2"
+                                                  sx={{ fontSize: '0.68rem', fontWeight: 750, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                  onClick={() => handleDeleteSubmission(String(applicant.id), applicant.candidate_name)}
+                                                >
+                                                  Delete
+                                                </Typography>
+                                              </Box>
+                                            </TableCell>
+                                          )}
                                         </TableRow>
                                       ))}
                                     </TableBody>

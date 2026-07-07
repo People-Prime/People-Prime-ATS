@@ -372,6 +372,7 @@ export const CreateEditUser: React.FC = () => {
                     <MenuItem value="SUB_LEAD">Sub Lead</MenuItem>
                     <MenuItem value="SENIOR_ANALYST">Senior Analyst</MenuItem>
                     <MenuItem value="ASSOCIATE_ANALYST">Associate Analyst</MenuItem>
+                    <MenuItem value="REPORTING_TEAM">Reporting Team</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

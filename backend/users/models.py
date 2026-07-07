@@ -11,6 +11,7 @@ class Role(models.TextChoices):
     SUB_LEAD = 'SUB_LEAD', 'Sub Lead'
     SENIOR_ANALYST = 'SENIOR_ANALYST', 'Senior Analyst'
     ASSOCIATE_ANALYST = 'ASSOCIATE_ANALYST', 'Associate Analyst'
+    REPORTING_TEAM = 'REPORTING_TEAM', 'Reporting Team'
 
 class UserManager(BaseUserManager):
     def create_user(self, email, full_name, password=None, role=Role.ASSOCIATE_ANALYST, **extra_fields):

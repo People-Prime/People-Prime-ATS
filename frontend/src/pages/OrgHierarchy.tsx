@@ -37,6 +37,7 @@ export const OrgHierarchy: React.FC = () => {
       'SUB_LEAD': '#f59e0b', // Amber
       'SENIOR_ANALYST': '#059669', // Emerald/Green
       'ASSOCIATE_ANALYST': '#10b981', // Emerald
+      'REPORTING_TEAM': '#ec4899', // Pink
     };
     return colors[role] || '#64748b';
   };

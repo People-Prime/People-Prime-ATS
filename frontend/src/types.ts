@@ -6,7 +6,8 @@ export type UserRole =
   | 'TEAM_LEAD'
   | 'SUB_LEAD'
   | 'SENIOR_ANALYST'
-  | 'ASSOCIATE_ANALYST';
+  | 'ASSOCIATE_ANALYST'
+  | 'REPORTING_TEAM';
 
 export interface User {
   id: string;
