@@ -136,7 +136,7 @@ export const CandidateDetails: React.FC = () => {
           technology: selectedApp.technology,
           recruiter: selectedApp.recruiter || currentUser?.full_name || '',
           remarks: job.remarks,
-          status: 'Submitted',
+          status: 'New',
           assigned_employee_id: job.assigned_employee?.email || null
         };
 

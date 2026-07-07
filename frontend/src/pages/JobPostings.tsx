@@ -359,7 +359,7 @@ Remarks: ${candidateForm.remarks}`;
       technology: candidateForm.skills || selectedApp.technology,
       recruiter: candidateForm.recruiter,
       remarks: formattedRemarks,
-      status: 'Submitted'
+      status: 'New'
     };
 
     try {
