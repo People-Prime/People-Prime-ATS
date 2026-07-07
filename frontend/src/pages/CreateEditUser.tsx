@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
-import { 
-  Box, 
-  Card, 
+import {
+  Box,
+  Card,
   CardContent,
-  Typography, 
-  Button, 
-  TextField, 
+  Typography,
+  Button,
+  TextField,
   Grid,
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem, 
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
   Alert,
   IconButton,
   Checkbox,
@@ -368,6 +368,7 @@ export const CreateEditUser: React.FC = () => {
                     label="Organizational Role"
                     onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
                   >
+                    <MenuItem value="ADMIN">Admin (Superuser)</MenuItem>
                     <MenuItem value="CEO">CEO</MenuItem>
                     <MenuItem value="SENIOR_MANAGER">Senior Manager</MenuItem>
                     <MenuItem value="JUNIOR_MANAGER">Junior Manager</MenuItem>
@@ -389,9 +390,9 @@ export const CreateEditUser: React.FC = () => {
                     label="Reporting Managers"
                     onChange={(e) => {
                       const val = e.target.value;
-                      setFormData({ 
-                        ...formData, 
-                        reportingToIds: typeof val === 'string' ? val.split(',') : val 
+                      setFormData({
+                        ...formData,
+                        reportingToIds: typeof val === 'string' ? val.split(',') : val
                       });
                     }}
                     renderValue={(selected) => {
@@ -426,9 +427,9 @@ export const CreateEditUser: React.FC = () => {
                     label="Assign Teams"
                     onChange={(e) => {
                       const val = e.target.value;
-                      setFormData({ 
-                        ...formData, 
-                        teamIds: typeof val === 'string' ? val.split(',') : val 
+                      setFormData({
+                        ...formData,
+                        teamIds: typeof val === 'string' ? val.split(',') : val
                       });
                     }}
                     renderValue={(selected) => {
@@ -513,16 +514,16 @@ export const CreateEditUser: React.FC = () => {
               )}
 
               <Grid item xs={12} sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 1 }}>
-                <Button 
+                <Button
                   variant="outlined"
                   onClick={() => navigate('/users')}
                   sx={{ py: 1, px: 3, borderRadius: '8px', fontWeight: 600 }}
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
-                  variant="contained" 
+                <Button
+                  type="submit"
+                  variant="contained"
                   color="primary"
                   disabled={submitting}
                   sx={{ py: 1, px: 4, borderRadius: '8px', fontWeight: 700 }}
