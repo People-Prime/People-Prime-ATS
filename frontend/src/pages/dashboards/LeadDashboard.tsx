@@ -127,6 +127,22 @@ export const LeadDashboard: React.FC = () => {
     return value && value !== '' ? value : 'N/A';
   };
 
+  const getUniqueJobsList = (apps: any[]): any[] => {
+    const seenKeys = new Set<string>();
+    const uniqueJobs: any[] = [];
+    apps.forEach(app => {
+      const jobCode = getRemarkField(app.remarks, 'Job Code');
+      const key = (jobCode !== 'N/A' && jobCode)
+        ? jobCode.toUpperCase().trim()
+        : `${(app.position || '').toLowerCase().trim()}|${(app.client_name || '').toLowerCase().trim()}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueJobs.push(app);
+      }
+    });
+    return uniqueJobs;
+  };
+
   const handleMetricClick = (searchName: string, status: string) => {
     let filtered = dateFilteredTeamApps;
     if (searchName) {
@@ -148,14 +164,16 @@ export const LeadDashboard: React.FC = () => {
          return isRecruiter || (!a.recruiter && isAssigned);
        });
     }
-     if (status !== 'ALL') {
-        if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
-        else if (status === 'INTERVIEWS') filtered = filtered.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
-        else if (status === 'Placed') filtered = filtered.filter(a => a.status === 'Placed');
-        else if (status === 'Offer Sent') filtered = filtered.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
-        else if (status === 'Offer Accepted') filtered = filtered.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
-        else filtered = filtered.filter(a => a.status === status);
-     }
+      if (status !== 'ALL') {
+         if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
+         else if (status === 'INTERVIEWS') filtered = filtered.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
+         else if (status === 'Placed') filtered = filtered.filter(a => a.status === 'Placed');
+         else if (status === 'Offer Sent') filtered = filtered.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
+         else if (status === 'Offer Accepted') filtered = filtered.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
+         else filtered = filtered.filter(a => a.status === status);
+      } else {
+        filtered = getUniqueJobsList(filtered);
+      }
      
      let title = searchName ? `Applications for ${searchName}` : 'Team Applications';
      if (status !== 'ALL' && status !== 'HAS_CANDIDATE' && status !== 'INTERVIEWS') {
@@ -287,7 +305,6 @@ export const LeadDashboard: React.FC = () => {
                 </TableHead>
                 <TableBody>
                   {(() => {
-                    let totalAssigned = 0;
                     let totalSubmissions = 0;
                     let totalPendingFeedback = 0;
                     let totalPlaced = 0;
@@ -298,10 +315,10 @@ export const LeadDashboard: React.FC = () => {
 
                     const memberStats = teamMembers.map(member => {
                       // Filter items associated with this member
-                      const assignedApps = dateFilteredTeamApps.filter(a => 
-                        String(a.assigned_employee?.id) === String(member.id) || 
-                        (a.assigned_employee?.email && member.email && a.assigned_employee.email.toLowerCase() === member.email.toLowerCase())
-                      );
+                       const assignedApps = dateFilteredTeamApps.filter(a => 
+                         String(a.assigned_employee?.id) === String(member.id) || 
+                         (a.assigned_employee?.email && member.email && a.assigned_employee.email.toLowerCase() === member.email.toLowerCase())
+                       );
 
                       const sourcedApps = dateFilteredTeamApps.filter(a => {
                         const isRecruiter = a.recruiter && (
@@ -314,26 +331,27 @@ export const LeadDashboard: React.FC = () => {
                         return a.candidate_name && (isRecruiter || (!a.recruiter && isAssigned));
                       });
                       
-                      const assigned = assignedApps.length;
-                      const subs = sourcedApps.length;
-                      const pending = sourcedApps.filter(a => a.status === 'Under Review').length;
-                      const placed = sourcedApps.filter(a => a.status === 'Placed').length;
-                      const ints = sourcedApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
-                      const rejections = sourcedApps.filter(a => a.status === 'Rejected').length;
-                      const offers = sourcedApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold').length;
-                      const offerAcc = sourcedApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected').length;
-
-                      totalAssigned += assigned;
-                      totalSubmissions += subs;
-                      totalPendingFeedback += pending;
-                      totalPlaced += placed;
-                      totalClientInterviews += ints;
-                      totalClientRejections += rejections;
-                      totalOffers += offers;
-                      totalOfferAccepted += offerAcc;
-
-                      return { member, assigned, subs, pending, placed, ints, rejections, offers, offerAcc };
-                    });
+                       const assigned = getUniqueJobsList(assignedApps).length;
+                       const subs = sourcedApps.length;
+                       const pending = sourcedApps.filter(a => a.status === 'Under Review').length;
+                       const placed = sourcedApps.filter(a => a.status === 'Placed').length;
+                       const ints = sourcedApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
+                       const rejections = sourcedApps.filter(a => a.status === 'Rejected').length;
+                       const offers = sourcedApps.filter(a => a.status === 'Offer Sent').length;
+                       const offerAcc = sourcedApps.filter(a => a.status === 'Offer Accepted').length;
+ 
+                       totalSubmissions += subs;
+                       totalPendingFeedback += pending;
+                       totalPlaced += placed;
+                       totalClientInterviews += ints;
+                       totalClientRejections += rejections;
+                       totalOffers += offers;
+                       totalOfferAccepted += offerAcc;
+ 
+                       return { member, assigned, subs, pending, placed, ints, rejections, offers, offerAcc };
+                     });
+ 
+                     const totalAssigned = getUniqueJobsList(dateFilteredTeamApps).length;
 
                     return (
                       <>

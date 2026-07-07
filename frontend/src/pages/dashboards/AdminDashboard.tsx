@@ -50,6 +50,22 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   return cleanVal;
 };
 
+const getUniqueJobsList = (apps: any[]): any[] => {
+  const seenKeys = new Set<string>();
+  const uniqueJobs: any[] = [];
+  apps.forEach(app => {
+    const jobCode = getRemarkField(app.remarks, 'Job Code');
+    const key = (jobCode !== 'N/A' && jobCode)
+      ? jobCode.toUpperCase().trim()
+      : `${(app.position || '').toLowerCase().trim()}|${(app.client_name || '').toLowerCase().trim()}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueJobs.push(app);
+    }
+  });
+  return uniqueJobs;
+};
+
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
 
 interface AdminDashboardProps {
@@ -278,6 +294,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
       else if (status === 'Offer Accepted') teamApps = teamApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
       else teamApps = teamApps.filter(a => a.status === status);
+    } else {
+      teamApps = getUniqueJobsList(teamApps);
     }
 
     let title = `Applications for Team ${teamName}`;
@@ -467,7 +485,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                               });
                             }
 
-                            const assigned = teamApps.length;
+                            const assigned = getUniqueJobsList(teamApps).length;
                             const subs = teamApps.filter(app => app.candidate_name).length;
                             const pending = teamApps.filter(app => app.status === 'Under Review').length;
                             const placed = teamApps.filter(app => app.status === 'Placed').length;

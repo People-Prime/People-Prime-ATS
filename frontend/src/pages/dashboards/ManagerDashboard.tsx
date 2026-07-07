@@ -85,6 +85,22 @@ export const ManagerDashboard: React.FC = () => {
     return value && value !== '' ? value : 'N/A';
   };
 
+  const getUniqueJobsList = (apps: any[]): any[] => {
+    const seenKeys = new Set<string>();
+    const uniqueJobs: any[] = [];
+    apps.forEach(app => {
+      const jobCode = getRemarkField(app.remarks, 'Job Code');
+      const key = (jobCode !== 'N/A' && jobCode)
+        ? jobCode.toUpperCase().trim()
+        : `${(app.position || '').toLowerCase().trim()}|${(app.client_name || '').toLowerCase().trim()}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueJobs.push(app);
+      }
+    });
+    return uniqueJobs;
+  };
+
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
     const members = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
     let teamApps = deduplicatedApps.filter(app => 
@@ -105,6 +121,8 @@ export const ManagerDashboard: React.FC = () => {
        else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
        else if (status === 'Offer Accepted') teamApps = teamApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
        else teamApps = teamApps.filter(a => a.status === status);
+    } else {
+      teamApps = getUniqueJobsList(teamApps);
     }
     
     let title = `Applications for Team ${teamName}`;
@@ -216,7 +234,7 @@ export const ManagerDashboard: React.FC = () => {
                         });
                       }
 
-                      const assigned = teamApps.length;
+                      const assigned = getUniqueJobsList(teamApps).length;
                       const subs = teamApps.filter(app => app.candidate_name).length;
                       const pending = teamApps.filter(app => app.status === 'Under Review').length;
                       const placed = teamApps.filter(app => app.status === 'Placed').length;
