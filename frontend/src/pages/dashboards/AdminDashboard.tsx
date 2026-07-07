@@ -66,6 +66,20 @@ const getUniqueJobsList = (apps: any[]): any[] => {
   return uniqueJobs;
 };
 
+const getUniqueCandidatesList = (apps: any[]): any[] => {
+  const seenKeys = new Set<string>();
+  const uniqueCandidates: any[] = [];
+  apps.forEach(app => {
+    if (!app.candidate_name) return;
+    const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueCandidates.push(app);
+    }
+  });
+  return uniqueCandidates;
+};
+
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
 
 interface AdminDashboardProps {
@@ -288,7 +302,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     }
 
     if (status !== 'ALL') {
-      if (status === 'HAS_CANDIDATE') teamApps = teamApps.filter(a => a.candidate_name);
+      if (status === 'HAS_CANDIDATE') teamApps = getUniqueCandidatesList(teamApps.filter(a => a.candidate_name));
       else if (status === 'INTERVIEWS') teamApps = teamApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
       else if (status === 'Placed') teamApps = teamApps.filter(a => a.status === 'Placed');
       else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
@@ -486,7 +500,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                             }
 
                             const assigned = getUniqueJobsList(teamApps).length;
-                            const subs = teamApps.filter(app => app.candidate_name).length;
+                            const subs = getUniqueCandidatesList(teamApps.filter(app => app.candidate_name)).length;
                             const pending = teamApps.filter(app => app.status === 'Under Review').length;
                             const placed = teamApps.filter(app => app.status === 'Placed').length;
                             const ints = teamApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status)).length;

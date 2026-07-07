@@ -143,6 +143,20 @@ export const LeadDashboard: React.FC = () => {
     return uniqueJobs;
   };
 
+  const getUniqueCandidatesList = (apps: any[]): any[] => {
+    const seenKeys = new Set<string>();
+    const uniqueCandidates: any[] = [];
+    apps.forEach(app => {
+      if (!app.candidate_name) return;
+      const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueCandidates.push(app);
+      }
+    });
+    return uniqueCandidates;
+  };
+
   const handleMetricClick = (searchName: string, status: string) => {
     let filtered = dateFilteredTeamApps;
     if (searchName) {
@@ -165,7 +179,7 @@ export const LeadDashboard: React.FC = () => {
        });
     }
       if (status !== 'ALL') {
-         if (status === 'HAS_CANDIDATE') filtered = filtered.filter(a => a.candidate_name);
+         if (status === 'HAS_CANDIDATE') filtered = getUniqueCandidatesList(filtered.filter(a => a.candidate_name));
          else if (status === 'INTERVIEWS') filtered = filtered.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
          else if (status === 'Placed') filtered = filtered.filter(a => a.status === 'Placed');
          else if (status === 'Offer Sent') filtered = filtered.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
@@ -305,7 +319,6 @@ export const LeadDashboard: React.FC = () => {
                 </TableHead>
                 <TableBody>
                   {(() => {
-                    let totalSubmissions = 0;
                     let totalPendingFeedback = 0;
                     let totalPlaced = 0;
                     let totalClientInterviews = 0;
@@ -332,7 +345,7 @@ export const LeadDashboard: React.FC = () => {
                       });
                       
                        const assigned = getUniqueJobsList(assignedApps).length;
-                       const subs = sourcedApps.length;
+                       const subs = getUniqueCandidatesList(sourcedApps).length;
                        const pending = sourcedApps.filter(a => a.status === 'Under Review').length;
                        const placed = sourcedApps.filter(a => a.status === 'Placed').length;
                        const ints = sourcedApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
@@ -340,7 +353,6 @@ export const LeadDashboard: React.FC = () => {
                        const offers = sourcedApps.filter(a => a.status === 'Offer Sent').length;
                        const offerAcc = sourcedApps.filter(a => a.status === 'Offer Accepted').length;
  
-                       totalSubmissions += subs;
                        totalPendingFeedback += pending;
                        totalPlaced += placed;
                        totalClientInterviews += ints;
@@ -352,6 +364,7 @@ export const LeadDashboard: React.FC = () => {
                      });
  
                      const totalAssigned = getUniqueJobsList(dateFilteredTeamApps).length;
+                     const totalSubmissions = getUniqueCandidatesList(dateFilteredTeamApps.filter(a => a.candidate_name)).length;
 
                     return (
                       <>
