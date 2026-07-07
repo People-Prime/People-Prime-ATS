@@ -55,9 +55,8 @@ const getUniqueJobsList = (apps: any[]): any[] => {
   const uniqueJobs: any[] = [];
   apps.forEach(app => {
     const jobCode = getRemarkField(app.remarks, 'Job Code');
-    const key = (jobCode !== 'N/A' && jobCode)
-      ? jobCode.toUpperCase().trim()
-      : `${(app.position || '').toLowerCase().trim()}|${(app.client_name || '').toLowerCase().trim()}`;
+    if (jobCode === 'N/A' || !jobCode) return;
+    const key = jobCode.toUpperCase().trim();
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       uniqueJobs.push(app);
