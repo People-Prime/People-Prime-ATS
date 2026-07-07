@@ -188,11 +188,11 @@ export const ManagerDashboard: React.FC = () => {
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Assigned Jobs</TableCell>
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Submissions</TableCell>
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Pending Feedback</TableCell>
-                    <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Placed</TableCell>
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Interviews</TableCell>
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Rejections</TableCell>
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offer Sent</TableCell>
                     <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offer Accepted</TableCell>
+                    <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Placed</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -219,7 +219,7 @@ export const ManagerDashboard: React.FC = () => {
                       const assigned = teamApps.length;
                       const subs = teamApps.filter(app => app.candidate_name).length;
                       const pending = teamApps.filter(app => app.status === 'Under Review').length;
-                      const placed = teamApps.filter(app => app.status === 'Submitted' || app.status === 'Placed').length;
+                      const placed = teamApps.filter(app => app.status === 'Placed').length;
                       const ints = teamApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status)).length;
                       const rejections = teamApps.filter(app => app.status === 'Rejected').length;
                       const offerSent = teamApps.filter(app => app.status === 'Offer Sent' || app.status === 'On Hold').length;
@@ -231,11 +231,11 @@ export const ManagerDashboard: React.FC = () => {
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(assigned, team.id, team.name, 'ALL')}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(subs, team.id, team.name, 'HAS_CANDIDATE')}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(pending, team.id, team.name, 'Under Review')}</TableCell>
-                          <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(placed, team.id, team.name, 'Placed')}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(ints, team.id, team.name, 'INTERVIEWS')}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(rejections, team.id, team.name, 'Rejected')}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerSent, team.id, team.name, 'Offer Sent')}</TableCell>
                           <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerAccepted, team.id, team.name, 'Offer Accepted')}</TableCell>
+                          <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(placed, team.id, team.name, 'Placed')}</TableCell>
                         </TableRow>
                       );
                     })

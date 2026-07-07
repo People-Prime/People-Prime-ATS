@@ -124,7 +124,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/applications" 
                       element={
-                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'SUB_LEAD', 'REPORTING_TEAM']}>
                           <Applications />
                         </ProtectedRoute>
                       } 
@@ -132,7 +132,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/job-postings" 
                       element={
-                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'SUB_LEAD', 'REPORTING_TEAM']}>
                           <JobPostings />
                         </ProtectedRoute>
                       } 
@@ -140,7 +140,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/placements" 
                       element={
-                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'SUB_LEAD', 'REPORTING_TEAM']}>
                           <Placements />
                         </ProtectedRoute>
                       } 

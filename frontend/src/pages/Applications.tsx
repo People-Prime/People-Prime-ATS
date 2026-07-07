@@ -87,6 +87,7 @@ export const Applications: React.FC = () => {
   };
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
+  const isReadOnly = activeRole === 'REPORTING_TEAM';
 
   // Load applications from API
   useEffect(() => {
@@ -338,7 +339,7 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant Status</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Title</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created By</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                {!isReadOnly && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -432,10 +433,10 @@ export const Applications: React.FC = () => {
                             fontSize: '0.75rem', 
                             fontWeight: 700, 
                             color: 'primary.main', 
-                            cursor: 'pointer', 
-                            '&:hover': { textDecoration: 'underline' } 
+                            cursor: isReadOnly ? 'default' : 'pointer', 
+                            '&:hover': { textDecoration: isReadOnly ? 'none' : 'underline' } 
                           }}
-                          onClick={(e) => {
+                          onClick={isReadOnly ? undefined : (e) => {
                             e.stopPropagation();
                             setStatusUpdateApp(app);
                             setStatusUpdateValue(app.status as ApplicationStatus);
@@ -451,20 +452,22 @@ export const Applications: React.FC = () => {
                       <td style={{ padding: '4px 8px' }}>
                         <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{app.recruiter || app.assigned_employee?.full_name || 'System'}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
-                          <Typography
-                            variant="body2"
-                            sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/candidates/create/${app.id}`);
-                            }}
-                          >
-                            Edit
-                          </Typography>
-                        </Box>
-                      </td>
+                      {!isReadOnly && (
+                        <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/candidates/create/${app.id}`);
+                              }}
+                            >
+                              Edit
+                            </Typography>
+                          </Box>
+                        </td>
+                      )}
                     </tr>
                     {isExpanded && (
                       <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>

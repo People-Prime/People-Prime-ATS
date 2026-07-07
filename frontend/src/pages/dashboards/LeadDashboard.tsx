@@ -278,11 +278,11 @@ export const LeadDashboard: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Assigned Jobs</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Submissions</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Pending Feedback</TableCell>
-                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Placed</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Client Interviews</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Client Rejections</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Offer Sent</TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Offer Accepted</TableCell>
+                    <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Placed</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -317,7 +317,7 @@ export const LeadDashboard: React.FC = () => {
                       const assigned = assignedApps.length;
                       const subs = sourcedApps.length;
                       const pending = sourcedApps.filter(a => a.status === 'Under Review').length;
-                      const placed = sourcedApps.filter(a => a.status === 'Submitted' || a.status === 'Placed').length;
+                      const placed = sourcedApps.filter(a => a.status === 'Placed').length;
                       const ints = sourcedApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed').length;
                       const rejections = sourcedApps.filter(a => a.status === 'Rejected').length;
                       const offers = sourcedApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold').length;
@@ -351,9 +351,6 @@ export const LeadDashboard: React.FC = () => {
                             {renderClickableMetric(totalPendingFeedback, '', 'Under Review')}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
-                            {renderClickableMetric(totalPlaced, '', 'Placed')}
-                          </TableCell>
-                          <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
                             {renderClickableMetric(totalClientInterviews, '', 'INTERVIEWS')}
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
@@ -364,6 +361,9 @@ export const LeadDashboard: React.FC = () => {
                           </TableCell>
                           <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
                             {renderClickableMetric(totalOfferAccepted, '', 'Offer Accepted')}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, verticalAlign: 'top', borderRight: `1px solid ${theme.palette.divider}` }}>
+                            {renderClickableMetric(totalPlaced, '', 'Placed')}
                           </TableCell>
                         </TableRow>
                         {memberStats.map((stat, idx) => (
@@ -379,11 +379,11 @@ export const LeadDashboard: React.FC = () => {
                             <TableCell>{renderClickableMetric(stat.assigned, stat.member.full_name, 'ALL')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.subs, stat.member.full_name, 'HAS_CANDIDATE')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.pending, stat.member.full_name, 'Under Review')}</TableCell>
-                            <TableCell>{renderClickableMetric(stat.placed, stat.member.full_name, 'Placed')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.ints, stat.member.full_name, 'INTERVIEWS')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.rejections, stat.member.full_name, 'Rejected')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.offers, stat.member.full_name, 'Offer Sent')}</TableCell>
                             <TableCell>{renderClickableMetric(stat.offerAcc, stat.member.full_name, 'Offer Accepted')}</TableCell>
+                            <TableCell>{renderClickableMetric(stat.placed, stat.member.full_name, 'Placed')}</TableCell>
                           </TableRow>
                         ))}
                         {memberStats.length === 0 && (
