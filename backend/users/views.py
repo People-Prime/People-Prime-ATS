@@ -80,9 +80,14 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserSerializer
 
     def get_permissions(self):
-        # Only admins can write/delete users. All users can view.
-        if self.action in ['create', 'destroy', 'toggle_active', 'admin_reset_password']:
-            self.permission_classes = [IsAdmin]
+        if self.request.method not in permissions.SAFE_METHODS:
+            if self.request.user.role == Role.REPORTING_TEAM:
+                class Deny(permissions.BasePermission):
+                    def has_permission(self, request, view):
+                        return False
+                self.permission_classes = [Deny]
+            elif self.action in ['create', 'destroy', 'toggle_active', 'admin_reset_password']:
+                self.permission_classes = [IsAdmin]
         return super().get_permissions()
 
     def perform_create(self, serializer):

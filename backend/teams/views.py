@@ -17,9 +17,14 @@ class TeamViewSet(viewsets.ModelViewSet):
         return TeamSerializer
 
     def get_permissions(self):
-        # Create, Update, Delete restricted to Manager or above
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            self.permission_classes = [IsManagerOrAbove]
+        if self.request.method not in permissions.SAFE_METHODS:
+            if self.request.user.role.code == 'REPORTING_TEAM' if hasattr(self.request.user.role, 'code') else self.request.user.role == 'REPORTING_TEAM':
+                class Deny(permissions.BasePermission):
+                    def has_permission(self, request, view):
+                        return False
+                self.permission_classes = [Deny]
+            elif self.action in ['create', 'update', 'partial_update', 'destroy']:
+                self.permission_classes = [IsManagerOrAbove]
         return super().get_permissions()
 
     # Query all active employees assigned to this team
