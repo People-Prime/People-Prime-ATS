@@ -39,7 +39,7 @@ export const AssociateDashboard: React.FC = () => {
 
   const deduplicatedApps = getUniqueSubmissions(applications);
 
-  const myApplications = deduplicatedApps.filter(app => 
+  const myApplications = deduplicatedApps.filter(app =>
     app.assigned_employee?.email === currentUser?.email &&
     getRemarkField(app.remarks, 'Job Code') !== 'N/A'
   );
@@ -95,7 +95,7 @@ export const AssociateDashboard: React.FC = () => {
       if (!seen.has(key)) {
         seen.add(key);
         // Find the record with candidate_name if it exists, otherwise use this one
-        const matches = dateFilteredApps.filter(m => 
+        const matches = dateFilteredApps.filter(m =>
           m.client_name?.toLowerCase() === app.client_name?.toLowerCase() &&
           m.position?.toLowerCase() === app.position?.toLowerCase() &&
           m.technology?.toLowerCase() === app.technology?.toLowerCase() &&
@@ -183,88 +183,88 @@ export const AssociateDashboard: React.FC = () => {
             <Box sx={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
-                    <tr style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
-                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Client</th>
-                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Position</th>
-                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Requirements</th>
-                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
-                      <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Candidates</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {uniqueJobOpenings.map((app) => (
-                      <React.Fragment key={app.id}>
-                        <tr style={{ borderBottom: expandedRow === app.id ? 'none' : `1px solid ${theme.palette.divider}` }}>
-                          <td style={{ padding: '4px 8px' }}>
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600, fontSize: '0.75rem' }}>
-                              <Building size={12} /> {app.client_name}
-                            </Typography>
-                          </td>
-                          <td style={{ padding: '4px 8px' }}>
-                            <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.75rem' }}>{app.position}</Typography>
-                          </td>
-                          <td style={{ padding: '4px 8px' }}>
-                            <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
-                              <Wrench size={10} /> {app.technology}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Experience: {app.experience} years</Typography>
-                          </td>
-                          <td style={{ padding: '4px 8px' }}>
-                            {getStatusChip(app.status)}
-                          </td>
-                          <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                            <Button
-                              variant={expandedRow === app.id ? "contained" : "outlined"}
-                              size="small"
-                              sx={{ borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, py: 0.25 }}
-                              onClick={() => setExpandedRow(expandedRow === app.id ? null : app.id)}
-                            >
-                              {expandedRow === app.id ? 'Hide Candidates' : 'View Candidates'}
-                            </Button>
+                  <tr style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Client</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Position</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Requirements</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Candidates</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {uniqueJobOpenings.map((app) => (
+                    <React.Fragment key={app.id}>
+                      <tr style={{ borderBottom: expandedRow === app.id ? 'none' : `1px solid ${theme.palette.divider}` }}>
+                        <td style={{ padding: '4px 8px' }}>
+                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600, fontSize: '0.75rem' }}>
+                            <Building size={12} /> {app.client_name}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: '4px 8px' }}>
+                          <Typography variant="body2" fontWeight={700} sx={{ fontSize: '0.75rem' }}>{app.position}</Typography>
+                        </td>
+                        <td style={{ padding: '4px 8px' }}>
+                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
+                            <Wrench size={10} /> {app.technology}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Experience: {app.experience} years</Typography>
+                        </td>
+                        <td style={{ padding: '4px 8px' }}>
+                          {getStatusChip(app.status)}
+                        </td>
+                        <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                          <Button
+                            variant={expandedRow === app.id ? "contained" : "outlined"}
+                            size="small"
+                            sx={{ borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700, py: 0.25 }}
+                            onClick={() => setExpandedRow(expandedRow === app.id ? null : app.id)}
+                          >
+                            {expandedRow === app.id ? 'Hide Candidates' : 'View Candidates'}
+                          </Button>
+                        </td>
+                      </tr>
+                      {expandedRow === app.id && (
+                        <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                          <td colSpan={5} style={{ padding: '8px 12px' }}>
+                            <Box sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.paper' }}>
+                              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <thead>
+                                  <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
+                                    <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Candidate Name</th>
+                                    <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Contact Info</th>
+                                    <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {getJobCandidates(app).map(candidate => (
+                                    <tr key={candidate.id} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
+                                      <td style={{ padding: '4px 8px' }}>
+                                        <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{candidate.candidate_name}</Typography>
+                                      </td>
+                                      <td style={{ padding: '4px 8px' }}>
+                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{candidate.candidate_email}</Typography>
+                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{candidate.candidate_phone}</Typography>
+                                      </td>
+                                      <td style={{ padding: '4px 8px' }}>
+                                        <Typography variant="body2" fontWeight={600} color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                          {candidate.status}
+                                        </Typography>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  {getJobCandidates(app).length === 0 && (
+                                    <tr>
+                                      <td colSpan={3} style={{ padding: '8px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+                                        No candidates uploaded for this position yet.
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </Box>
                           </td>
                         </tr>
-                        {expandedRow === app.id && (
-                          <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a', borderBottom: `1px solid ${theme.palette.divider}` }}>
-                            <td colSpan={5} style={{ padding: '8px 12px' }}>
-                              <Box sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', overflow: 'hidden', bgcolor: 'background.paper' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                  <thead>
-                                    <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
-                                      <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Candidate Name</th>
-                                      <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Contact Info</th>
-                                      <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 600, color: theme.palette.text.secondary }}>Status</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {getJobCandidates(app).map(candidate => (
-                                      <tr key={candidate.id} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
-                                        <td style={{ padding: '4px 8px' }}>
-                                          <Typography variant="body2" fontWeight={600} sx={{ fontSize: '0.75rem' }}>{candidate.candidate_name}</Typography>
-                                        </td>
-                                        <td style={{ padding: '4px 8px' }}>
-                                          <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{candidate.candidate_email}</Typography>
-                                          <Typography variant="caption" display="block" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{candidate.candidate_phone}</Typography>
-                                        </td>
-                                        <td style={{ padding: '4px 8px' }}>
-                                          <Typography variant="body2" fontWeight={600} color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                                            {candidate.status}
-                                          </Typography>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                    {getJobCandidates(app).length === 0 && (
-                                      <tr>
-                                        <td colSpan={3} style={{ padding: '8px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
-                                          No candidates uploaded for this position yet.
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </tbody>
-                                </table>
-                              </Box>
-                            </td>
-                          </tr>
-                        )}
+                      )}
                     </React.Fragment>
                   ))}
                   {myApplications.length === 0 && (
