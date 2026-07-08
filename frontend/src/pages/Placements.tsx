@@ -18,6 +18,7 @@ import { Search } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
+import { getUniqueSubmissions } from './dashboards/PipelineKPIs';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
@@ -73,7 +74,11 @@ export const Placements: React.FC = () => {
 
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
-    const placed = applications.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
+    const uniqueApps = getUniqueSubmissions(applications);
+    const placed = uniqueApps.filter(app => 
+      app.status === 'Placed' && 
+      getRemarkField(app.remarks || '', 'Job Code') !== 'N/A'
+    );
 
     // Sort by created_at ascending
     const sorted = [...placed].sort((a, b) => {
