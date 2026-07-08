@@ -73,16 +73,16 @@ export const CreateRequirement: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
 
   // Resolve team members (Associate Analysts / Senior Analysts)
-  const dbCurrentUser = users.find(u => u.email === currentUser?.email);
-  const myTeamIds = (dbCurrentUser?.teams || []).map((t: any) => String(t.id));
-  const teamMembers = users.filter(u => 
-    (u.role === 'ASSOCIATE_ANALYST' || u.role === 'SENIOR_ANALYST') && (
-      // Member belongs to one of this lead's teams
-      (u.teams && u.teams.some(t => myTeamIds.includes(String(t.id)))) ||
-      // OR member directly reports to this lead
-      (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
-    )
-  );
+  const teamMembers = users.filter(u => {
+    const isAssociate = u.role === 'ASSOCIATE_ANALYST' || u.role === 'SENIOR_ANALYST';
+    if (!isAssociate) return false;
+    
+    const isAdminOrCEO = currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO';
+    if (isAdminOrCEO) return true;
+    
+    const reportsToMe = u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase());
+    return reportsToMe;
+  });
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
 
   useEffect(() => {

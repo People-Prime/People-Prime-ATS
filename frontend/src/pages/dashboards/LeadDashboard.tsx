@@ -44,17 +44,13 @@ export const LeadDashboard: React.FC = () => {
   const { applications } = useAppSelector(state => state.applications);
 
   const dbCurrentUser = users.find(u => u.email === currentUser?.email);
-  // Get all teams the lead is associated with (via M2M)
-  const myTeamIds = (dbCurrentUser?.teams || currentUser?.teams || []).map((t: any) => String(t.id));
   const myTeamName = (dbCurrentUser?.teams || currentUser?.teams || [])[0]?.name || 'My Team';
   const teamMembers = users.filter(u => {
-    // Member belongs to one of this lead's teams
-    const inTeam = u.teams && u.teams.some(t => myTeamIds.includes(String(t.id)));
-    // OR member directly reports to this lead (reporting_to_list is the full array)
+    // Only show associates who report directly to this lead, and exclude the lead themselves
     const reportsToMe = u.reporting_to_list && u.reporting_to_list.some(
       (r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()
     );
-    return inTeam || reportsToMe;
+    return reportsToMe && u.email?.toLowerCase() !== currentUser?.email?.toLowerCase();
   });
 
 

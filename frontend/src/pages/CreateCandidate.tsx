@@ -48,16 +48,18 @@ export const CreateCandidate: React.FC = () => {
   }, [dispatch, applications.length]);
 
   // Resolve team members if the user is a Team Lead
-  const dbCurrentUser = useMemo(() => users.find(u => u.email === currentUser?.email), [users, currentUser]);
-  const myTeamIds = useMemo(() => (dbCurrentUser?.teams || []).map((t: any) => String(t.id)), [dbCurrentUser]);
   const teamMembers = useMemo(() =>
-    users.filter(u =>
-      ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(u.role) && (
-        (u.teams && u.teams.some(t => myTeamIds.includes(String(t.id)))) ||
-        (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
-      )
-    ),
-    [users, myTeamIds, currentUser]
+    users.filter(u => {
+      const isAssociate = u.role === 'ASSOCIATE_ANALYST' || u.role === 'SENIOR_ANALYST';
+      if (!isAssociate) return false;
+      
+      const isAdminOrCEO = currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO';
+      if (isAdminOrCEO) return true;
+      
+      const reportsToMe = u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase());
+      return reportsToMe;
+    }),
+    [users, currentUser]
   );
 
   const myApplications = useMemo(() => {
