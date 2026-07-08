@@ -287,7 +287,7 @@ export const Placements: React.FC = () => {
                       {getRemarkField(app.remarks, 'End Date')}
                     </TableCell>
                     <TableCell>
-                      {app.status === 'Submitted' ? 'Placed' : app.status}
+                      {app.status}
                     </TableCell>
                     <TableCell>
                       {app.recruiter || app.assigned_employee?.full_name || 'System'}

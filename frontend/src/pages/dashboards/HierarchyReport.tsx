@@ -791,7 +791,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        {app.status === 'Submitted' ? 'Placed' : app.status}
+                        {app.status}
                       </Typography>
                     </TableCell>
                   </TableRow>

@@ -443,7 +443,7 @@ export const Applications: React.FC = () => {
                             setStatusUpdateComment('');
                           }}
                         >
-                          {app.status === 'Submitted' ? 'Placed' : app.status}
+                          {app.status}
                         </Typography>
                       </td>
                       <td style={{ padding: '4px 8px' }}>
@@ -497,7 +497,7 @@ export const Applications: React.FC = () => {
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{getRemarkField(sub.remarks, 'Job Code')}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 700 }}>{sub.position}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{sub.recruiter || sub.assigned_employee?.full_name || 'System'}</TableCell>
-                                  <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 750, color: 'primary.main' }}>{sub.status === 'Submitted' ? 'Placed' : sub.status}</TableCell>
+                                  <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 750, color: 'primary.main' }}>{sub.status}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{sub.client_name}</TableCell>
                                 </TableRow>
                               ))}
@@ -617,7 +617,8 @@ export const Applications: React.FC = () => {
                   sx={{ borderRadius: '8px' }}
                 >
                   <MenuItem value="New">New</MenuItem>
-                  <MenuItem value="Submitted">Placed</MenuItem>
+                  <MenuItem value="Submitted">Submitted</MenuItem>
+                  <MenuItem value="Placed">Placed</MenuItem>
                   <MenuItem value="Under Review">Under Review</MenuItem>
                   <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                   <MenuItem value="Interview Completed">Interview Completed</MenuItem>

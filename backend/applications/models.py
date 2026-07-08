@@ -3,7 +3,8 @@ from django.conf import settings
 
 class ApplicationStatus(models.TextChoices):
     NEW = 'New', 'New'
-    SUBMITTED = 'Submitted', 'Placed'
+    SUBMITTED = 'Submitted', 'Submitted'
+    PLACED = 'Placed', 'Placed'
     UNDER_REVIEW = 'Under Review', 'Under Review'
     INTERVIEW_SCHEDULED = 'Interview Scheduled', 'Interview Scheduled'
     INTERVIEW_COMPLETED = 'Interview Completed', 'Interview Completed'

@@ -684,6 +684,7 @@ export const LeadDashboard: React.FC = () => {
                 >
                   <MenuItem value="New">New</MenuItem>
                   <MenuItem value="Submitted">Submitted</MenuItem>
+                  <MenuItem value="Placed">Placed</MenuItem>
                   <MenuItem value="Under Review">Under Review</MenuItem>
                   <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                   <MenuItem value="Interview Completed">Interview Completed</MenuItem>

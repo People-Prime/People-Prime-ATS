@@ -717,7 +717,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                                           {sub.assigned_employee?.full_name || sub.recruiter || 'System'}
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                          {sub.status === 'Submitted' ? 'Placed' : sub.status}
+                                          {sub.status}
                                         </TableCell>
                                         <TableCell>
                                           {new Date(sub.updated_at || sub.created_at || '').toLocaleDateString()}
@@ -925,7 +925,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                                           </TableCell>
                                           <TableCell>{applicant.candidate_email || '—'}</TableCell>
                                           <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                            {applicant.status === 'Submitted' ? 'Placed' : applicant.status}
+                                            {applicant.status}
                                           </TableCell>
                                           <TableCell>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
                                           {!readOnly && (

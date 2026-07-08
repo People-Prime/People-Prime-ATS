@@ -359,7 +359,7 @@ Remarks: ${candidateForm.remarks}`;
       technology: candidateForm.skills || selectedApp.technology,
       recruiter: candidateForm.recruiter,
       remarks: formattedRemarks,
-      status: 'New'
+      status: 'Submitted'
     };
 
     try {
@@ -1150,7 +1150,7 @@ Remarks: ${candidateForm.remarks}`;
                       Transition Pipeline Status
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {(['Submitted', 'Under Review', 'Interview Scheduled', 'Interview Completed', 'Selected', 'Rejected', 'On Hold', 'Closed'] as ApplicationStatus[]).map((statusOption) => (
+                       {(['New', 'Submitted', 'Placed', 'Under Review', 'Interview Scheduled', 'Interview Completed', 'Selected', 'Rejected', 'On Hold', 'Closed'] as ApplicationStatus[]).map((statusOption) => (
                         <Chip
                           key={statusOption}
                           label={statusOption}
@@ -1399,6 +1399,7 @@ Remarks: ${candidateForm.remarks}`;
                 >
                   <MenuItem value="New">New</MenuItem>
                   <MenuItem value="Submitted">Submitted</MenuItem>
+                  <MenuItem value="Placed">Placed</MenuItem>
                   <MenuItem value="Under Review">Under Review</MenuItem>
                   <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                   <MenuItem value="Interview Completed">Interview Completed</MenuItem>

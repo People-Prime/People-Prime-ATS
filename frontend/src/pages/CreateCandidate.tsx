@@ -321,7 +321,7 @@ Recruiter Remarks: ${formData.remarks}`;
         technology: formData.skills || (targetApp ? targetApp.technology : 'N/A'),
         recruiter: currentUser?.full_name || '',
         remarks: formattedRemarks,
-        status: 'New',
+        status: (targetApp || (formData.client && formData.client !== 'N/A' && formData.jobTitle && formData.jobTitle !== 'N/A')) ? 'Submitted' : 'New',
         assigned_employee_id: targetApp ? (targetApp.assigned_employee?.email || null) : (currentUser?.email || null)
       };
 
