@@ -104,7 +104,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     { label: 'Client Rejections',  value: clientRejections,   Icon: ThumbsDown,    border: '#db2777', darkColor: '#f472b6', lightColor: '#db2777', darkBg: 'rgba(219, 39, 119, 0.15)', lightBg: '#fdf2f8' },
     { label: 'Offer Sent',         value: offerSent,          Icon: MailCheck,     border: '#eab308', darkColor: '#facc15', lightColor: '#ca8a04', darkBg: 'rgba(234, 179, 8, 0.15)',   lightBg: '#fefce8' },
     { label: 'Offer Accepted',     value: offerAccepted,      Icon: BadgeCheck,    border: '#475569', darkColor: '#94a3b8', lightColor: '#475569', darkBg: 'rgba(71, 85, 105, 0.15)',   lightBg: '#f8fafc' },
-    { label: 'Placed',             value: placed,             Icon: Briefcase,     border: '#d946ef', darkColor: '#e879f9', lightColor: '#d946ef', darkBg: 'rgba(217, 70, 239, 0.15)',  lightBg: '#fae8ff' },
+    { label: 'Onboard',            value: placed,             Icon: Briefcase,     border: '#d946ef', darkColor: '#e879f9', lightColor: '#d946ef', darkBg: 'rgba(217, 70, 239, 0.15)',  lightBg: '#fae8ff' },
   ];
 
   const isDark = theme.palette.mode === 'dark';
