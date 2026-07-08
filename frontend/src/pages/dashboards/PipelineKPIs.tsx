@@ -116,7 +116,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
 
   const validApps = uniqueApps.filter(app => !app.candidate_name || getRemarkFieldVal(app.remarks, 'Job Code') !== 'N/A');
 
-  const submissions       = validApps.filter(app => app.candidate_name).length;
+  const submissions       = validApps.filter(app => app.candidate_name && app.status !== 'Interview Scheduled').length;
   const pendingFeedback   = validApps.filter(app => app.status === 'Under Review').length;
   const clientSubmissions = submissions;
   const clientInterviews  = validApps.filter(app =>
@@ -135,11 +135,11 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     if (value === 0) return;
     let filtered: any[] = [];
     if (label === 'Submissions') {
-      filtered = validApps.filter(app => app.candidate_name);
+      filtered = validApps.filter(app => app.candidate_name && app.status !== 'Interview Scheduled');
     } else if (label === 'Pending Feedback') {
       filtered = validApps.filter(app => app.status === 'Under Review');
     } else if (label === 'Client Submissions') {
-      filtered = validApps.filter(app => app.candidate_name);
+      filtered = validApps.filter(app => app.candidate_name && app.status !== 'Interview Scheduled');
     } else if (label === 'Client Interviews') {
       filtered = validApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));
     } else if (label === 'Client Rejections') {
