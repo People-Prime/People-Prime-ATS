@@ -714,7 +714,7 @@ Remarks: ${candidateForm.remarks}`;
                       })()}
                     </Typography>
                   </td>
-                  {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && (
+                  {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'TEAM_LEAD' && currentUser?.role !== 'SUB_LEAD' && (
                     <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                         <Typography 

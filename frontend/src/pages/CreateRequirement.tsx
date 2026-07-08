@@ -92,6 +92,10 @@ export const CreateRequirement: React.FC = () => {
   }, [teamMembers, assigneeIds, applicationId]);
 
   useEffect(() => {
+    if (applicationId && currentUser && (currentUser.role === 'TEAM_LEAD' || currentUser.role === 'SUB_LEAD')) {
+      navigate('/job-postings');
+      return;
+    }
     if (!applicationId) {
       const today = new Date().toISOString().split('T')[0];
       setFormData(prev => ({
@@ -101,7 +105,7 @@ export const CreateRequirement: React.FC = () => {
         endDate: today
       }));
     }
-  }, [applicationId]);
+  }, [applicationId, currentUser, navigate]);
 
   useEffect(() => {
     if (applicationId && applications.length > 0) {

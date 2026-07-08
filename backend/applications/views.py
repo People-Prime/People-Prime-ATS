@@ -106,26 +106,43 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        # Auto-close expired job requirements where End Date is past today
-        import datetime
+        # Auto-close expired job requirements
+        from django.utils import timezone
+        from datetime import timedelta
         import re
         try:
-            today = datetime.date.today()
             # Find active requirements (no candidate assigned yet)
             active_jobs = Application.objects.filter(candidate_name='', remarks__icontains='Job Status: Active')
             for job in active_jobs:
                 remarks = job.remarks or ''
-                end_date_match = re.search(r'End Date:\s*(\d{4}-\d{2}-\d{2})', remarks)
-                if end_date_match:
-                    end_date_str = end_date_match.group(1)
-                    try:
-                        end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-                        if today > end_date:
-                            new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
-                            job.remarks = new_remarks
-                            job.save(update_fields=['remarks'])
-                    except ValueError:
-                        pass
+                
+                # Check if created by a Team Lead / Sub Lead
+                is_team_lead_job = False
+                if job.recruiter:
+                    creator = User.objects.filter(Q(email__iexact=job.recruiter) | Q(full_name__iexact=job.recruiter)).first()
+                    if creator and creator.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+                         is_team_lead_job = True
+                
+                if is_team_lead_job:
+                    # TEAM LEAD EXPIRY: Exactly 24 hours from created_at
+                    if timezone.now() >= job.created_at + timedelta(hours=24):
+                        new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
+                        job.remarks = new_remarks
+                        job.save(update_fields=['remarks'])
+                else:
+                    # REGULAR EXPIRY: Based on End Date
+                    end_date_match = re.search(r'End Date:\s*(\d{4}-\d{2}-\d{2})', remarks)
+                    if end_date_match:
+                        end_date_str = end_date_match.group(1)
+                        try:
+                            import datetime
+                            end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+                            if timezone.now().date() > end_date:
+                                new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
+                                job.remarks = new_remarks
+                                job.save(update_fields=['remarks'])
+                        except ValueError:
+                            pass
         except Exception:
             pass
 
@@ -146,27 +163,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(recruiter=user.email)
             ).distinct().order_by('-created_at')
 
-        # 3. Team Lead & Sub Lead can see applications assigned to members of their team, plus their own
+        # 3. Team Lead & Sub Lead can see applications of members reporting to them, plus their own
         if user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
-            from teams.models import Team
-            # Query all teams where user is either the team lead or a member
-            led_teams = Team.objects.filter(team_lead=user)
-            user_teams = user.teams.all()
-            all_team_ids = list(led_teams.values_list('id', flat=True)) + list(user_teams.values_list('id', flat=True))
-
-            # Use Q() to combine team membership OR direct reporting in one query
-            all_accessible_users = User.objects.filter(
-                Q(teams__id__in=all_team_ids) | Q(reporting_to=user)
-            ).distinct()
-
+            # Get members who report to this lead
+            reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
             return Application.objects.filter(
-                Q(assigned_employee__in=all_accessible_users) |
+                Q(assigned_employee__in=reporters) |
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
             ).distinct().order_by('-created_at')
 
-        # 4. Associate Analyst / Senior Analyst (Team Member) can ONLY view and update applications assigned to them, or recruited by them
+        # 4. Associate Analyst & Senior Analyst can see only their assigned applications
         if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
             return Application.objects.filter(
                 Q(assigned_employee=user) |
@@ -182,11 +190,20 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return ApplicationSerializer
 
     def perform_create(self, serializer):
-        application = serializer.save()
+        recruiter_val = self.request.data.get('recruiter')
+        if not recruiter_val:
+            recruiter_val = self.request.user.email
+        application = serializer.save(recruiter=recruiter_val)
         check_and_send_assignment_email(application, self.request.user, is_new=True)
 
     def perform_update(self, serializer):
         instance = self.get_object()
+        # Block editing of Job Postings by Team Leads / Sub Leads
+        if not instance.candidate_name and not serializer.validated_data.get('candidate_name'):
+            if self.request.user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError("Team Leads are not allowed to edit Job Postings after creation.")
+
         old_assignee_email = instance.assigned_employee.email if instance.assigned_employee else None
         application = serializer.save()
         check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_email=old_assignee_email)
