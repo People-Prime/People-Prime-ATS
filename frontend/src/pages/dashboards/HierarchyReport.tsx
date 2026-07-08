@@ -189,6 +189,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     setCollapsedNodes({});
   };
 
+  const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
+    if (!remarks) return 'N/A';
+    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
+    const value = match ? match[1].trim() : 'N/A';
+    return value && value !== '' ? value : 'N/A';
+  };
+
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
     const userApps = deduplicatedApps.filter(app =>
@@ -202,13 +209,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       })
       : userApps;
 
-    const uniqueReqs = new Set(
-      dateFiltered.map(app =>
-        `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}|${app.experience}`
-      )
-    );
+    const seenJobs = new Set<string>();
+    dateFiltered.forEach(app => {
+      const jobCode = getRemarkField(app.remarks, 'Job Code');
+      if (jobCode === 'N/A' || !jobCode) return;
+      seenJobs.add(jobCode.toUpperCase().trim());
+    });
 
-    const jobsCount = uniqueReqs.size;
+    const jobsCount = seenJobs.size;
     const submissions = dateFiltered.filter(app =>
       ['Submitted', 'Placed', 'Under Review'].includes(app.status)
     ).length;
@@ -309,6 +317,45 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           is_active: true
         };
 
+        const collectAllEmails = (element: TreeElement): string[] => {
+          const emails: string[] = [];
+          if (!element.user.email.includes('_cwr') && !element.user.email.includes('_fte')) {
+            emails.push(element.user.email);
+          }
+          element.children.forEach(child => {
+            emails.push(...collectAllEmails(child));
+          });
+          return emails;
+        };
+
+        const computeUniqueJobsCountForTree = (individualEmails: string[], childrenList: TreeElement[]): number => {
+          const allEmails = [...individualEmails];
+          childrenList.forEach(child => {
+            allEmails.push(...collectAllEmails(child));
+          });
+
+          const descendantApps = deduplicatedApps.filter(app =>
+            app.assigned_employee?.email &&
+            allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
+          );
+
+          const dateFiltered = (effectiveStartDate && effectiveEndDate)
+            ? descendantApps.filter(app => {
+              const d = (app.updated_at || app.created_at || '').slice(0, 10);
+              return d >= effectiveStartDate && d <= effectiveEndDate;
+            })
+            : descendantApps;
+
+          const seen = new Set<string>();
+          dateFiltered.forEach(app => {
+            const jobCode = getRemarkField(app.remarks, 'Job Code');
+            if (jobCode === 'N/A' || !jobCode) return;
+            seen.add(jobCode.toUpperCase().trim());
+          });
+
+          return seen.size;
+        };
+
         const sumMetrics = (individualVal: CalculatedMetrics, childrenList: TreeElement[]): CalculatedMetrics => {
           return {
             jobsCount: individualVal.jobsCount + childrenList.reduce((acc, c) => acc + c.aggregatedMetrics.jobsCount, 0),
@@ -320,8 +367,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         };
 
         const zeroMetrics = { jobsCount: 0, submissions: 0, interviews: 0, offers: 0, onboard: 0 };
-        const cwrAggregated = sumMetrics(zeroMetrics, cwrChildren);
-        const fteAggregated = sumMetrics(zeroMetrics, fteChildren);
+        const cwrAggregated = {
+          ...sumMetrics(zeroMetrics, cwrChildren),
+          jobsCount: computeUniqueJobsCountForTree([], cwrChildren)
+        };
+        const fteAggregated = {
+          ...sumMetrics(zeroMetrics, fteChildren),
+          jobsCount: computeUniqueJobsCountForTree([], fteChildren)
+        };
 
         const cwrElement: TreeElement = {
           user: virtualUserCWR,
@@ -340,7 +393,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         const childrenElements = [cwrElement, fteElement];
 
         const aggregated = {
-          jobsCount: individual.jobsCount + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.jobsCount, 0),
+          jobsCount: computeUniqueJobsCountForTree([user.email], childrenElements),
           submissions: individual.submissions + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
@@ -356,8 +409,47 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       } else {
         const childrenElements = directReports.map(buildTreeElement);
 
+        const collectAllEmails = (element: TreeElement): string[] => {
+          const emails: string[] = [];
+          if (!element.user.email.includes('_cwr') && !element.user.email.includes('_fte')) {
+            emails.push(element.user.email);
+          }
+          element.children.forEach(child => {
+            emails.push(...collectAllEmails(child));
+          });
+          return emails;
+        };
+
+        const computeUniqueJobsCountForTree = (individualEmails: string[], childrenList: TreeElement[]): number => {
+          const allEmails = [...individualEmails];
+          childrenList.forEach(child => {
+            allEmails.push(...collectAllEmails(child));
+          });
+
+          const descendantApps = deduplicatedApps.filter(app =>
+            app.assigned_employee?.email &&
+            allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
+          );
+
+          const dateFiltered = (effectiveStartDate && effectiveEndDate)
+            ? descendantApps.filter(app => {
+              const d = (app.updated_at || app.created_at || '').slice(0, 10);
+              return d >= effectiveStartDate && d <= effectiveEndDate;
+            })
+            : descendantApps;
+
+          const seen = new Set<string>();
+          dateFiltered.forEach(app => {
+            const jobCode = getRemarkField(app.remarks, 'Job Code');
+            if (jobCode === 'N/A' || !jobCode) return;
+            seen.add(jobCode.toUpperCase().trim());
+          });
+
+          return seen.size;
+        };
+
         const aggregated = {
-          jobsCount: individual.jobsCount + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.jobsCount, 0),
+          jobsCount: computeUniqueJobsCountForTree([user.email], childrenElements),
           submissions: individual.submissions + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
