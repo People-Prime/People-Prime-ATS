@@ -116,38 +116,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             for job in active_jobs:
                 remarks = job.remarks or ''
                 
-                # Check if created by a Team Lead / Sub Lead
-                is_team_lead_job = False
-                if job.recruiter:
-                    creator = User.objects.filter(Q(email__iexact=job.recruiter) | Q(full_name__iexact=job.recruiter)).first()
-                    if creator and creator.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
-                         is_team_lead_job = True
-                
-                if is_team_lead_job:
-                    # TEAM LEAD EXPIRY: End of the creation day (11:59:59 PM)
-                    import datetime
-                    expiry_time = timezone.make_aware(
-                        datetime.datetime.combine(job.created_at.date(), datetime.time(23, 59, 59)),
-                        job.created_at.tzinfo
-                    )
-                    if timezone.now() >= expiry_time:
-                        new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
-                        job.remarks = new_remarks
-                        job.save(update_fields=['remarks'])
-                else:
-                    # REGULAR EXPIRY: Based on End Date
-                    end_date_match = re.search(r'End Date:\s*(\d{4}-\d{2}-\d{2})', remarks)
-                    if end_date_match:
-                        end_date_str = end_date_match.group(1)
-                        try:
-                            import datetime
-                            end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-                            if timezone.now().date() > end_date:
-                                new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
-                                job.remarks = new_remarks
-                                job.save(update_fields=['remarks'])
-                        except ValueError:
-                            pass
+                # ALL JOBS EXPIRY: End of the creation day (11:59:59 PM) based on created_at
+                import datetime
+                expiry_time = timezone.make_aware(
+                    datetime.datetime.combine(job.created_at.date(), datetime.time(23, 59, 59)),
+                    job.created_at.tzinfo
+                )
+                if timezone.now() >= expiry_time:
+                    new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
+                    job.remarks = new_remarks
+                    job.save(update_fields=['remarks'])
         except Exception:
             pass
 
