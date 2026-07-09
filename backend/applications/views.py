@@ -198,11 +198,22 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         instance = self.get_object()
-        # Block editing of Job Postings by Team Leads / Sub Leads
+        # Block editing of Job Code, Start Date, or End Date in Job Postings by Team Leads / Sub Leads
         if not instance.candidate_name and not serializer.validated_data.get('candidate_name'):
             if self.request.user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
-                from rest_framework.exceptions import ValidationError
-                raise ValidationError("Team Leads are not allowed to edit Job Postings after creation.")
+                def extract_field(remarks_str, field_name):
+                    import re
+                    match = re.search(field_name + r':\s*(.*)', remarks_str or '')
+                    return match.group(1).strip() if match else 'N/A'
+
+                old_remarks = instance.remarks or ''
+                new_remarks = serializer.validated_data.get('remarks') or ''
+                
+                if (extract_field(old_remarks, 'Job Code') != extract_field(new_remarks, 'Job Code') or
+                    extract_field(old_remarks, 'Start Date') != extract_field(new_remarks, 'Start Date') or
+                    extract_field(old_remarks, 'End Date') != extract_field(new_remarks, 'End Date')):
+                    from rest_framework.exceptions import ValidationError
+                    raise ValidationError("Team Leads are not allowed to change Job Code, Start Date, or End Date during edits.")
 
         old_assignee_email = instance.assigned_employee.email if instance.assigned_employee else None
         application = serializer.save()

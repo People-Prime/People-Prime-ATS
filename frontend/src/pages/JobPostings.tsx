@@ -572,7 +572,7 @@ Remarks: ${candidateForm.remarks}`;
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Status</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client Bill Rate / Salary</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Pay Rate / Salary</th>
-                {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'TEAM_LEAD' && currentUser?.role !== 'SUB_LEAD' && currentUser?.role !== 'REPORTING_TEAM' && (
+                {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'REPORTING_TEAM' && (
                   <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Action</th>
                 )}
               </tr>
@@ -714,7 +714,7 @@ Remarks: ${candidateForm.remarks}`;
                       })()}
                     </Typography>
                   </td>
-                  {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'TEAM_LEAD' && currentUser?.role !== 'SUB_LEAD' && currentUser?.role !== 'REPORTING_TEAM' && (
+                  {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'REPORTING_TEAM' && (
                     <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                         <Typography 

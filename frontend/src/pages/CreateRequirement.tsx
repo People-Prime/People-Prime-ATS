@@ -92,10 +92,6 @@ export const CreateRequirement: React.FC = () => {
   }, [teamMembers, assigneeIds, applicationId]);
 
   useEffect(() => {
-    if (applicationId && currentUser && (currentUser.role === 'TEAM_LEAD' || currentUser.role === 'SUB_LEAD')) {
-      navigate('/job-postings');
-      return;
-    }
     if (!applicationId) {
       const today = new Date().toISOString().split('T')[0];
       setFormData(prev => ({
@@ -390,7 +386,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 <TextField
                   label="Job Start Date"
                   type="date"
-                  disabled={!applicationId}
+                  disabled={!applicationId || currentUser?.role === 'TEAM_LEAD' || currentUser?.role === 'SUB_LEAD'}
                   fullWidth
                   inputProps={{ max: new Date().toISOString().split('T')[0] }}
                   value={formData.startDate}
