@@ -126,8 +126,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       filtered = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status));
       label = 'Offer Sent';
     } else if (metricType === 'ONBOARD') {
-      filtered = dateFiltered.filter(app => ['Offer Accepted', 'Selected'].includes(app.status));
-      label = 'Offer Accepted';
+      filtered = dateFiltered.filter(app => app.status === 'Placed');
+      label = 'Onboard';
     }
 
     const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${effectiveStartDate} to ${effectiveEndDate})`;
@@ -224,7 +224,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       ['Interview Scheduled', 'Interview Completed'].includes(app.status)
     ).length;
     const offers = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status)).length;
-    const onboard = dateFiltered.filter(app => ['Offer Accepted', 'Selected'].includes(app.status)).length;
+    const onboard = dateFiltered.filter(app => app.status === 'Placed').length;
 
     return { jobsCount, submissions, interviews, offers, onboard };
   };
