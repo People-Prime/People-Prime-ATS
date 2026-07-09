@@ -125,6 +125,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+
+  // Filter all org-wide applications by selected date
+  const dateFilteredApps = useMemo(() => {
+    if (!startDate || !endDate) return deduplicatedApps;
+    return deduplicatedApps.filter(app => {
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
+    });
+  }, [deduplicatedApps, startDate, endDate]);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogData, setDialogData] = useState<any[]>([]);
   const [dialogTitle, setDialogTitle] = useState('');
@@ -164,7 +173,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   // 1. APPLICANTS DATA PREPARATION (from all teams)
   const displayApplicants = useMemo(() => {
     // Applicants are applications with a candidate name
-    const apps = deduplicatedApps.filter(app => app.candidate_name);
+    const apps = dateFilteredApps.filter(app => app.candidate_name);
 
     // Filter by search term
     const filtered = apps.filter(app => {
@@ -197,12 +206,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         allSubmissions: apps
       };
     });
-  }, [deduplicatedApps, applicantsSearch]);
+  }, [dateFilteredApps, applicantsSearch]);
 
   // 2. JOB POSTINGS DATA PREPARATION (from all teams)
   const displayJobs = useMemo(() => {
     // Requirements: candidate_name is empty or has a job code
-    const reqs = deduplicatedApps.filter(app => {
+    const reqs = dateFilteredApps.filter(app => {
       return getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     });
 
@@ -246,11 +255,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
-  }, [deduplicatedApps, jobsSearch]);
+  }, [dateFilteredApps, jobsSearch]);
 
   // 3. PLACEMENTS DATA PREPARATION (from all teams)
   const displayPlacements = useMemo(() => {
-    const placed = deduplicatedApps.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
+    const placed = dateFilteredApps.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
 
     // Sort ascending for consistent Placement Code generation
     const sorted = [...placed].sort((a, b) => {
@@ -281,7 +290,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
-  }, [deduplicatedApps, placementsSearch]);
+  }, [dateFilteredApps, placementsSearch]);
 
 
 
@@ -337,13 +346,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     );
   };
 
-  // Filter all org-wide applications by selected date
-  const dateFilteredApps = (startDate && endDate)
-    ? deduplicatedApps.filter(app => {
-      const d = (app.updated_at || app.created_at || '').slice(0, 10);
-      return d >= startDate && d <= endDate;
-    })
-    : deduplicatedApps;
+
 
   return (
     <Box>
