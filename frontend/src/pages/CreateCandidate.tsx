@@ -140,11 +140,23 @@ export const CreateCandidate: React.FC = () => {
   const isDuplicateEmail = useMemo(() => {
     if (!formData.email) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
-    return applications.some(app =>
-      app.id !== targetApp?.id &&
-      app.candidate_email &&
-      app.candidate_email.toLowerCase() === formData.email.toLowerCase()
-    );
+    
+    const originalEmail = targetApp?.candidate_email;
+    const originalPhone = targetApp?.candidate_phone;
+
+    return applications.some(app => {
+      if (targetApp) {
+        const matchesOriginalEmail = originalEmail && app.candidate_email?.toLowerCase() === originalEmail.toLowerCase();
+        const matchesOriginalPhone = originalPhone && app.candidate_phone && app.candidate_phone.replace(/\D/g, '') === originalPhone.replace(/\D/g, '');
+        if (matchesOriginalEmail || matchesOriginalPhone || app.id === targetApp.id) {
+          return false;
+        }
+      }
+      return (
+        app.candidate_email &&
+        app.candidate_email.toLowerCase() === formData.email.toLowerCase()
+      );
+    });
   }, [formData.email, applications, selectedApp, applicationId, availableApplications]);
 
   const isDuplicatePhone = useMemo(() => {
@@ -152,8 +164,19 @@ export const CreateCandidate: React.FC = () => {
     const cleanPhone = formData.phone.replace(/\D/g, '');
     if (!cleanPhone) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
+    
+    const originalEmail = targetApp?.candidate_email;
+    const originalPhone = targetApp?.candidate_phone;
+
     return applications.some(app => {
-      if (app.id === targetApp?.id || !app.candidate_phone) return false;
+      if (targetApp) {
+        const matchesOriginalEmail = originalEmail && app.candidate_email?.toLowerCase() === originalEmail.toLowerCase();
+        const matchesOriginalPhone = originalPhone && app.candidate_phone && app.candidate_phone.replace(/\D/g, '') === originalPhone.replace(/\D/g, '');
+        if (matchesOriginalEmail || matchesOriginalPhone || app.id === targetApp.id) {
+          return false;
+        }
+      }
+      if (!app.candidate_phone) return false;
       const appCleanPhone = app.candidate_phone.replace(/\D/g, '');
       return appCleanPhone === cleanPhone;
     });
