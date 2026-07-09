@@ -124,8 +124,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                          is_team_lead_job = True
                 
                 if is_team_lead_job:
-                    # TEAM LEAD EXPIRY: Exactly 24 hours from created_at
-                    if timezone.now() >= job.created_at + timedelta(hours=24):
+                    # TEAM LEAD EXPIRY: End of the creation day (11:59:59 PM)
+                    import datetime
+                    expiry_time = timezone.make_aware(
+                        datetime.datetime.combine(job.created_at.date(), datetime.time(23, 59, 59)),
+                        job.created_at.tzinfo
+                    )
+                    if timezone.now() >= expiry_time:
                         new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
                         job.remarks = new_remarks
                         job.save(update_fields=['remarks'])
