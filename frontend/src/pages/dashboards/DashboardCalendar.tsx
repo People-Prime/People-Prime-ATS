@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Box, TextField, IconButton, Tooltip } from '@mui/material';
+import React, { useRef, useState, useEffect } from 'react';
+import { Box, TextField, IconButton, Tooltip, Button } from '@mui/material';
 import { CalendarDays } from 'lucide-react';
 
 interface DashboardCalendarProps {
@@ -27,6 +27,15 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
 }) => {
   const singleDateInputRef = useRef<HTMLInputElement>(null);
 
+  const [localStart, setLocalStart] = useState(startDate || todayStr());
+  const [localEnd, setLocalEnd] = useState(endDate || todayStr());
+
+  // Keep local state in sync when parent props change
+  useEffect(() => {
+    setLocalStart(startDate || todayStr());
+    setLocalEnd(endDate || todayStr());
+  }, [startDate, endDate]);
+
   const handleSingleDateIconClick = () => {
     if (singleDateInputRef.current) {
       if (typeof singleDateInputRef.current.showPicker === 'function') {
@@ -37,6 +46,10 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
     }
   };
 
+  const handleConfirm = () => {
+    onChange(localStart, localEnd);
+  };
+
   const maxDate = todayStr();
 
   return (
@@ -45,8 +58,8 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         label="From Date"
         type="date"
         size="small"
-        value={startDate || todayStr()}
-        onChange={(e) => onChange(e.target.value, endDate || todayStr())}
+        value={localStart}
+        onChange={(e) => setLocalStart(e.target.value)}
         InputLabelProps={{ shrink: true }}
         inputProps={{ max: maxDate }}
         sx={{ 
@@ -64,7 +77,8 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         onChange={(e) => {
           const val = e.target.value;
           if (val) {
-            onChange(val, val);
+            setLocalStart(val);
+            setLocalEnd(val);
           }
         }}
         style={{
@@ -97,8 +111,8 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         label="To Date"
         type="date"
         size="small"
-        value={endDate || todayStr()}
-        onChange={(e) => onChange(startDate || todayStr(), e.target.value)}
+        value={localEnd}
+        onChange={(e) => setLocalEnd(e.target.value)}
         InputLabelProps={{ shrink: true }}
         inputProps={{ max: maxDate }}
         sx={{ 
@@ -107,6 +121,22 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
           '& .MuiInputLabel-root': { fontSize: '0.75rem' }
         }}
       />
+
+      <Button
+        variant="contained"
+        size="small"
+        onClick={handleConfirm}
+        sx={{
+          height: '32px',
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          textTransform: 'none',
+          borderRadius: '8px',
+          px: 1.5
+        }}
+      >
+        OK
+      </Button>
     </Box>
   );
 };
