@@ -19,8 +19,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../../redux/store';
 import {
-  Users,
-  MessageSquare,
   Send,
   CalendarClock,
   ThumbsDown,
@@ -120,7 +118,6 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     app.candidate_name && 
     ['Submitted', 'Under Review', 'Placed'].includes(app.status)
   ).length;
-  const pendingFeedback   = validApps.filter(app => app.status === 'Under Review').length;
   const clientSubmissions = submissions;
   const clientInterviews  = validApps.filter(app =>
     ['Interview Scheduled', 'Interview Completed'].includes(app.status)
@@ -167,8 +164,6 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   };
 
   const cards = [
-    { label: 'Submissions',        value: submissions,        Icon: Users,         border: '#f59e0b', darkColor: '#fbbf24', lightColor: '#d97706', darkBg: 'rgba(245, 158, 11, 0.15)',  lightBg: '#fffbeb' },
-    { label: 'Pending Feedback',   value: pendingFeedback,    Icon: MessageSquare, border: '#0284c7', darkColor: '#38bdf8', lightColor: '#0284c7', darkBg: 'rgba(2, 132, 199, 0.15)',   lightBg: '#f0f9ff' },
     { label: 'Client Submissions', value: clientSubmissions,  Icon: Send,          border: '#7c3aed', darkColor: '#a78bfa', lightColor: '#7c3aed', darkBg: 'rgba(124, 58, 237, 0.15)',  lightBg: '#faf5ff' },
     { label: 'Client Interviews',  value: clientInterviews,   Icon: CalendarClock, border: '#16a34a', darkColor: '#4ade80', lightColor: '#16a34a', darkBg: 'rgba(22, 163, 74, 0.15)',   lightBg: '#f0fdf4' },
     { label: 'Client Rejections',  value: clientRejections,   Icon: ThumbsDown,    border: '#db2777', darkColor: '#f472b6', lightColor: '#db2777', darkBg: 'rgba(219, 39, 119, 0.15)', lightBg: '#fdf2f8' },
@@ -195,7 +190,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
           const iconColor = isDark ? '#3b82f6' : '#0062AD';
           const iconBg    = isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 98, 173, 0.08)';
           return (
-            <Grid item xs={6} sm={3} md={1.5} key={card.label}>
+            <Grid item xs={6} sm={4} md={2} key={card.label}>
               <Card
                 onClick={() => handleCardClick(card.label, card.value)}
                 sx={{
