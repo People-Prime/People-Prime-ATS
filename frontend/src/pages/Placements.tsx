@@ -12,7 +12,12 @@ import {
   TableHead,
   TableRow,
   Paper,
-  InputAdornment
+  InputAdornment,
+  Grid,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { Search } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../redux/store';
@@ -24,8 +29,30 @@ export const Placements: React.FC = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
   const { applications } = useAppSelector(state => state.applications);
+  const { users } = useAppSelector(state => state.users);
+  const { user: currentUser } = useAppSelector(state => state.auth);
+
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [loading, setLoading] = useState(false);
+
+  const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
+
+  const todayStr = (): string => {
+    const d = new Date();
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  };
+
+  const teamsList = useMemo(() => {
+    const unique = new Map();
+    users.flatMap(u => u.teams || []).filter(t => t && t.id).forEach(t => {
+      unique.set(String(t.id), t);
+    });
+    return Array.from(unique.values());
+  }, [users]);
 
   // Load applications from API
   useEffect(() => {
@@ -75,10 +102,26 @@ export const Placements: React.FC = () => {
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
     const uniqueApps = getUniqueSubmissions(applications);
-    const placed = uniqueApps.filter(app => 
-      app.status === 'Placed' && 
-      getRemarkField(app.remarks || '', 'Job Code') !== 'N/A'
-    );
+    const placed = uniqueApps.filter(app => {
+      if (app.status !== 'Placed' || getRemarkField(app.remarks || '', 'Job Code') === 'N/A') return false;
+
+      // 0. Date and Team Filter (only for ADMIN/CEO)
+      if (activeRole === 'ADMIN' || activeRole === 'CEO') {
+        const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
+        const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
+        const appDate = (app.updated_at || app.created_at || '').slice(0, 10);
+        if (appDate < savedStart || appDate > savedEnd) return false;
+
+        if (selectedTeamId !== 'ALL') {
+          const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+          if (!assignedEmail) return false;
+          const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
+          const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
+          if (!isMemberOfTeam) return false;
+        }
+      }
+      return true;
+    });
 
     // Sort by created_at ascending
     const sorted = [...placed].sort((a, b) => {
@@ -97,7 +140,7 @@ export const Placements: React.FC = () => {
         placementCode
       };
     });
-  }, [applications]);
+  }, [applications, selectedTeamId, users, activeRole]);
 
   // Filter based on search term
   const filteredCandidates = useMemo(() => {
@@ -141,21 +184,43 @@ export const Placements: React.FC = () => {
 
       {/* Filter and Search controls */}
       <Card sx={{ borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, mb: 4, p: 2.5 }}>
-        <TextField
-          placeholder="Search by candidate name, client, position, technology, placement code, or job code..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          size="small"
-          fullWidth
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search size={18} style={{ color: theme.palette.text.secondary }} />
-              </InputAdornment>
-            ),
-            style: { borderRadius: '8px' }
-          }}
-        />
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={(activeRole === 'ADMIN' || activeRole === 'CEO') ? 9 : 12}>
+            <TextField
+              placeholder="Search by candidate name, client, position, technology, placement code, or job code..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              size="small"
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search size={18} style={{ color: theme.palette.text.secondary }} />
+                  </InputAdornment>
+                ),
+                style: { borderRadius: '8px' }
+              }}
+            />
+          </Grid>
+          {(activeRole === 'ADMIN' || activeRole === 'CEO') && (
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Filter by Team</InputLabel>
+                <Select
+                  value={selectedTeamId}
+                  label="Filter by Team"
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  sx={{ borderRadius: '8px' }}
+                >
+                  <MenuItem value="ALL">All Teams</MenuItem>
+                  {teamsList.map(team => (
+                    <MenuItem key={team.id} value={String(team.id)}>{team.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+        </Grid>
       </Card>
 
       {/* Main Placements Table */}

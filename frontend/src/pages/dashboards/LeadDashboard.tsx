@@ -60,9 +60,14 @@ export const LeadDashboard: React.FC = () => {
     app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
   );
 
-  const [startDate, setStartDate] = useState(todayStr());
-  const [endDate, setEndDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+
+  React.useEffect(() => {
+    localStorage.setItem('dashboard_start_date', startDate);
+    localStorage.setItem('dashboard_end_date', endDate);
+  }, [startDate, endDate]);
   const dispatch = useAppDispatch();
   const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
   const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');

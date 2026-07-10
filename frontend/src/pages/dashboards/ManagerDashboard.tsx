@@ -31,9 +31,14 @@ export const ManagerDashboard: React.FC = () => {
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
 
-  const [startDate, setStartDate] = useState(todayStr());
-  const [endDate, setEndDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+
+  React.useEffect(() => {
+    localStorage.setItem('dashboard_start_date', startDate);
+    localStorage.setItem('dashboard_end_date', endDate);
+  }, [startDate, endDate]);
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogData, setDialogData] = useState<any[]>([]);
   const [dialogTitle, setDialogTitle] = useState('');

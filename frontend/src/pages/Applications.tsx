@@ -45,13 +45,23 @@ export const Applications: React.FC = () => {
 
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { applications } = useAppSelector(state => state.applications);
+  const { users } = useAppSelector(state => state.users);
 
   const [loading, setLoading] = useState(true);
 
   // Filter & Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
+
+  const todayStr = (): string => {
+    const d = new Date();
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  };
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -119,8 +129,32 @@ export const Applications: React.FC = () => {
     if (status !== null) setStatusFilter(status);
   }, [location.search]);
 
+  const teamsList = useMemo(() => {
+    const unique = new Map();
+    users.flatMap(u => u.teams || []).filter(t => t && t.id).forEach(t => {
+      unique.set(String(t.id), t);
+    });
+    return Array.from(unique.values());
+  }, [users]);
+
   // Filter applications based on search and selected filter and roles
   const filteredApps = applications.filter((app) => {
+    // 0. Date and Team Filter (only for ADMIN/CEO)
+    if (activeRole === 'ADMIN' || activeRole === 'CEO') {
+      const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
+      const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
+      const appDate = (app.updated_at || app.created_at || '').slice(0, 10);
+      if (appDate < savedStart || appDate > savedEnd) return false;
+
+      if (selectedTeamId !== 'ALL') {
+        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+        if (!assignedEmail) return false;
+        const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
+        const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
+        if (!isMemberOfTeam) return false;
+      }
+    }
+
     // 1. Role-based restrictions
     if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
       // Associates see items assigned to them OR recruited by them
@@ -284,7 +318,7 @@ export const Applications: React.FC = () => {
       {/* Filter panel */}
       <Card sx={{ p: 2, mb: 4 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={(activeRole === 'ADMIN' || activeRole === 'CEO') ? 6 : 9}>
             <TextField
               fullWidth
               size="small"
@@ -319,6 +353,23 @@ export const Applications: React.FC = () => {
               </Select>
             </FormControl>
           </Grid>
+          {(activeRole === 'ADMIN' || activeRole === 'CEO') && (
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Filter by Team</InputLabel>
+                <Select
+                  value={selectedTeamId}
+                  label="Filter by Team"
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                >
+                  <MenuItem value="ALL">All Teams</MenuItem>
+                  {teamsList.map(team => (
+                    <MenuItem key={team.id} value={String(team.id)}>{team.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
 
         </Grid>
       </Card>

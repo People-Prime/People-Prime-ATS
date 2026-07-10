@@ -122,9 +122,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
     .slice(0, 4);
 
-  const [startDate, setStartDate] = useState(todayStr());
-  const [endDate, setEndDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+
+  React.useEffect(() => {
+    localStorage.setItem('dashboard_start_date', startDate);
+    localStorage.setItem('dashboard_end_date', endDate);
+  }, [startDate, endDate]);
 
   // Filter all org-wide applications by selected date
   const dateFilteredApps = useMemo(() => {
@@ -407,31 +412,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       <PipelineKPIs applications={showAllTimeKPIs ? deduplicatedApps : dateFilteredApps} />
 
       {/* Tabs Menu */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, val) => setActiveTab(val)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            '& .MuiTab-root': {
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              textTransform: 'none',
-              minWidth: 100,
-              px: 3,
-            }
-          }}
-        >
-          <Tab icon={<TrendingUp size={16} />} iconPosition="start" label="Overview & Team Activity" />
-          <Tab icon={<Users size={16} />} iconPosition="start" label="Applicants" />
-          <Tab icon={<Briefcase size={16} />} iconPosition="start" label="Job Postings" />
-          <Tab icon={<Award size={16} />} iconPosition="start" label="Placements" />
-        </Tabs>
-      </Box>
+      {currentUser?.role === 'REPORTING_TEAM' && (
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 3 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, val) => setActiveTab(val)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTab-root': {
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                textTransform: 'none',
+                minWidth: 100,
+                px: 3,
+              }
+            }}
+          >
+            <Tab icon={<TrendingUp size={16} />} iconPosition="start" label="Overview & Team Activity" />
+            <Tab icon={<Users size={16} />} iconPosition="start" label="Applicants" />
+            <Tab icon={<Briefcase size={16} />} iconPosition="start" label="Job Postings" />
+            <Tab icon={<Award size={16} />} iconPosition="start" label="Placements" />
+          </Tabs>
+        </Box>
+      )}
 
       {/* Tab Panel 0: Overview & Teams */}
-      {activeTab === 0 && (
+      {(currentUser?.role !== 'REPORTING_TEAM' || activeTab === 0) && (
         <>
           {/* CEO / Admin Hierarchy Report – full org tree */}
           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
@@ -589,7 +596,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 1: Applicants Registry */}
-      {activeTab === 1 && (
+      {currentUser?.role === 'REPORTING_TEAM' && activeTab === 1 && (
         <Card sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>
@@ -764,7 +771,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 2: Job Postings */}
-      {activeTab === 2 && (
+      {currentUser?.role === 'REPORTING_TEAM' && activeTab === 2 && (
         <Card sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>
@@ -971,7 +978,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 3: Placements */}
-      {activeTab === 3 && (
+      {currentUser?.role === 'REPORTING_TEAM' && activeTab === 3 && (
         <Card sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>

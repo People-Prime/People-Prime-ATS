@@ -63,12 +63,30 @@ export const JobPostings: React.FC = () => {
 
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { applications, notes } = useAppSelector(state => state.applications);
+  const { users } = useAppSelector(state => state.users);
 
   const [loading, setLoading] = useState(true);
 
   // Filter & Search states
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [selectedTeamId, setSelectedTeamId] = useState('ALL');
+
+  const todayStr = (): string => {
+    const d = new Date();
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  };
+
+  const teamsList = React.useMemo(() => {
+    const unique = new Map();
+    users.flatMap(u => u.teams || []).filter(t => t && t.id).forEach(t => {
+      unique.set(String(t.id), t);
+    });
+    return Array.from(unique.values());
+  }, [users]);
 
   // Drawer detail states
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
@@ -262,6 +280,22 @@ export const JobPostings: React.FC = () => {
     // Only show applications associated with a real job requirement (Job Code is present and not N/A)
     const isJobPostingApp = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     if (!isJobPostingApp) return false;
+
+    // 0. Date and Team Filter (only for ADMIN/CEO)
+    if (activeRole === 'ADMIN' || activeRole === 'CEO') {
+      const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
+      const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
+      const appDate = (app.updated_at || app.created_at || '').slice(0, 10);
+      if (appDate < savedStart || appDate > savedEnd) return false;
+
+      if (selectedTeamId !== 'ALL') {
+        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+        if (!assignedEmail) return false;
+        const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
+        const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
+        if (!isMemberOfTeam) return false;
+      }
+    }
 
     // 1. Role-based restrictions
     if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
@@ -522,7 +556,7 @@ Remarks: ${candidateForm.remarks}`;
       {/* Filter panel */}
       <Card sx={{ p: 2, mb: 4 }}>
         <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={(currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO') ? 6 : 9}>
             <TextField
               fullWidth
               size="small"
@@ -555,6 +589,23 @@ Remarks: ${candidateForm.remarks}`;
               </Select>
             </FormControl>
           </Grid>
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO') && (
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Filter by Team</InputLabel>
+                <Select
+                  value={selectedTeamId}
+                  label="Filter by Team"
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                >
+                  <MenuItem value="ALL">All Teams</MenuItem>
+                  {teamsList.map(team => (
+                    <MenuItem key={team.id} value={String(team.id)}>{team.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
 
         </Grid>
       </Card>

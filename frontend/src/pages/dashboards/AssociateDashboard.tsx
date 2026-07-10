@@ -51,10 +51,15 @@ export const AssociateDashboard: React.FC = () => {
     )
   );
 
-  const [startDate, setStartDate] = useState(todayStr());
-  const [endDate, setEndDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+
+  React.useEffect(() => {
+    localStorage.setItem('dashboard_start_date', startDate);
+    localStorage.setItem('dashboard_end_date', endDate);
+  }, [startDate, endDate]);
 
   const getJobCandidates = (selectedApp: any) => {
     const matches = deduplicatedApps.filter(app =>
