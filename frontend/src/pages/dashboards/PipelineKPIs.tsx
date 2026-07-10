@@ -118,9 +118,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
 
   const submissions       = validApps.filter(app => 
     app.candidate_name && 
-    app.status !== 'Interview Scheduled' &&
-    app.status !== 'Offer Sent' &&
-    app.status !== 'Offer Accepted'
+    ['Submitted', 'Under Review', 'Placed'].includes(app.status)
   ).length;
   const pendingFeedback   = validApps.filter(app => app.status === 'Under Review').length;
   const clientSubmissions = submissions;
@@ -142,18 +140,14 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     if (label === 'Submissions') {
       filtered = validApps.filter(app => 
         app.candidate_name && 
-        app.status !== 'Interview Scheduled' &&
-        app.status !== 'Offer Sent' &&
-        app.status !== 'Offer Accepted'
+        ['Submitted', 'Under Review', 'Placed'].includes(app.status)
       );
     } else if (label === 'Pending Feedback') {
       filtered = validApps.filter(app => app.status === 'Under Review');
     } else if (label === 'Client Submissions') {
       filtered = validApps.filter(app => 
         app.candidate_name && 
-        app.status !== 'Interview Scheduled' &&
-        app.status !== 'Offer Sent' &&
-        app.status !== 'Offer Accepted'
+        ['Submitted', 'Under Review', 'Placed'].includes(app.status)
       );
     } else if (label === 'Client Interviews') {
       filtered = validApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));

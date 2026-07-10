@@ -476,7 +476,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     // Default CEO view: start from top-level roots
     const roots = filteredUsers.filter(u =>
-      !u.reporting_to || 
+      !u.reporting_to ||
       u.reporting_to.email?.toLowerCase() === u.email?.toLowerCase() ||
       u.role === 'CEO'
     );
