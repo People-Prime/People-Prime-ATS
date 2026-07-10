@@ -114,6 +114,14 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
 
   const validApps = uniqueApps.filter(app => !app.candidate_name || getRemarkFieldVal(app.remarks, 'Job Code') !== 'N/A');
 
+  const seenJobs = new Set<string>();
+  applications.forEach(app => {
+    const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
+    if (jobCode === 'N/A' || !jobCode) return;
+    seenJobs.add(jobCode.toUpperCase().trim());
+  });
+  const jobsCount = seenJobs.size;
+
   const submissions       = validApps.filter(app => 
     app.candidate_name && 
     ['Submitted', 'Under Review', 'Placed'].includes(app.status)
@@ -134,7 +142,23 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   const handleCardClick = (label: string, value: number) => {
     if (value === 0) return;
     let filtered: any[] = [];
-    if (label === 'Submissions') {
+    if (label === 'Jobs Count') {
+      const seen = new Set<string>();
+      applications.forEach(app => {
+        const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
+        if (jobCode === 'N/A' || !jobCode) return;
+        const key = jobCode.toUpperCase().trim();
+        if (!seen.has(key)) {
+          seen.add(key);
+          const group = applications.filter(a => {
+            const code = getRemarkFieldVal(a.remarks, 'Job Code');
+            return code && code.toUpperCase().trim() === key;
+          });
+          const reqRecord = group.find(a => !a.candidate_name);
+          filtered.push(reqRecord || group[0]);
+        }
+      });
+    } else if (label === 'Submissions') {
       filtered = validApps.filter(app => 
         app.candidate_name && 
         ['Submitted', 'Under Review', 'Placed'].includes(app.status)
@@ -164,6 +188,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   };
 
   const cards = [
+    { label: 'Jobs Count',         value: jobsCount,          Icon: Briefcase,     border: '#3b82f6', darkColor: '#60a5fa', lightColor: '#3b82f6', darkBg: 'rgba(59, 130, 246, 0.15)',  lightBg: '#eff6ff' },
     { label: 'Client Submissions', value: clientSubmissions,  Icon: Send,          border: '#7c3aed', darkColor: '#a78bfa', lightColor: '#7c3aed', darkBg: 'rgba(124, 58, 237, 0.15)',  lightBg: '#faf5ff' },
     { label: 'Client Interviews',  value: clientInterviews,   Icon: CalendarClock, border: '#16a34a', darkColor: '#4ade80', lightColor: '#16a34a', darkBg: 'rgba(22, 163, 74, 0.15)',   lightBg: '#f0fdf4' },
     { label: 'Client Rejections',  value: clientRejections,   Icon: ThumbsDown,    border: '#db2777', darkColor: '#f472b6', lightColor: '#db2777', darkBg: 'rgba(219, 39, 119, 0.15)', lightBg: '#fdf2f8' },
@@ -190,7 +215,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
           const iconColor = isDark ? '#3b82f6' : '#0062AD';
           const iconBg    = isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 98, 173, 0.08)';
           return (
-            <Grid item xs={6} sm={4} md={2} key={card.label}>
+            <Grid item xs={6} sm={3} md={1.7} key={card.label}>
               <Card
                 onClick={() => handleCardClick(card.label, card.value)}
                 sx={{
@@ -293,16 +318,18 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
                     </TableCell>
                     {currentUser?.role !== 'REPORTING_TEAM' && (
                       <TableCell sx={{ fontSize: '0.7rem', textAlign: 'center' }}>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                          onClick={() => {
-                            setOpen(false);
-                            navigate(`/candidates/create/${app.id}`);
-                          }}
-                        >
-                          Edit
-                        </Typography>
+                        {app.candidate_name && (
+                          <Typography
+                            variant="body2"
+                            sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                            onClick={() => {
+                              setOpen(false);
+                              navigate(`/candidates/create/${app.id}`);
+                            }}
+                          >
+                            Edit
+                          </Typography>
+                        )}
                       </TableCell>
                     )}
                   </TableRow>
