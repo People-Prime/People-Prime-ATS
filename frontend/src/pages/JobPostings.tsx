@@ -275,6 +275,92 @@ export const JobPostings: React.FC = () => {
     return val;
   };
 
+  const isCEOOroughReportingTeam = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
+
+  const getHierarchyInfo = (recruiterEmails: string[]) => {
+    const tls = new Set<string>();
+    const managers = new Set<string>();
+
+    recruiterEmails.forEach(email => {
+      const u = users.find(x => x.email?.toLowerCase() === email.toLowerCase());
+      if (!u) return;
+
+      let current = u;
+      let visited = new Set<string>();
+      let foundTL = false;
+      let foundMgr = false;
+
+      while (current && !visited.has(current.email)) {
+        visited.add(current.email);
+
+        if (!foundTL && (current.role === 'TEAM_LEAD' || current.role === 'SUB_LEAD')) {
+          tls.add(current.full_name || current.email);
+          foundTL = true;
+        }
+
+        if (!foundMgr && (current.role === 'JUNIOR_MANAGER' || current.role === 'SENIOR_MANAGER')) {
+          managers.add(current.full_name || current.email);
+          foundMgr = true;
+        }
+
+        const parentEmail = current.reporting_to?.email || (current.reporting_to_list && current.reporting_to_list[0]?.email);
+        if (parentEmail) {
+          const parentUser = users.find(x => x.email?.toLowerCase() === parentEmail.toLowerCase());
+          if (parentUser) {
+            current = parentUser;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    });
+
+    return {
+      tl: Array.from(tls).join(', ') || '—',
+      manager: Array.from(managers).join(', ') || '—'
+    };
+  };
+
+  const getSalaryInfo = (remarks: string) => {
+    const payRateStr = getRemarkField(remarks, 'Pay Rate');
+    const salaryStr = getRemarkField(remarks, 'Salary');
+    const rate = payRateStr !== 'N/A' ? payRateStr : (salaryStr !== 'N/A' ? salaryStr : '');
+
+    if (!rate) {
+      return { min: '—', max: '—', avg: '—' };
+    }
+
+    const matches = rate.match(/[\d,.]+/g);
+    if (matches && matches.length >= 2) {
+      const minVal = parseFloat(matches[0].replace(/,/g, ''));
+      const maxVal = parseFloat(matches[1].replace(/,/g, ''));
+      const avgVal = (minVal + maxVal) / 2;
+
+      const prefix = rate.trim().startsWith('$') ? '$' : '';
+      const suffix = rate.toLowerCase().includes('lpa') ? ' LPA' : '';
+
+      return {
+        min: `${prefix}${minVal}${suffix}`,
+        max: `${prefix}${maxVal}${suffix}`,
+        avg: `${prefix}${avgVal}${suffix}`
+      };
+    } else if (matches && matches.length === 1) {
+      const val = parseFloat(matches[0].replace(/,/g, ''));
+      const prefix = rate.trim().startsWith('$') ? '$' : '';
+      const suffix = rate.toLowerCase().includes('lpa') ? ' LPA' : '';
+
+      return {
+        min: `${prefix}${val}${suffix}`,
+        max: `${prefix}${val}${suffix}`,
+        avg: `${prefix}${val}${suffix}`
+      };
+    }
+
+    return { min: rate, max: rate, avg: rate };
+  };
+
   // Load applications from API
   useEffect(() => {
     setLoading(true);
@@ -655,9 +741,20 @@ Remarks: ${candidateForm.remarks}`;
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Location</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Status</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client Bill Rate / Salary</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Pay Rate / Salary</th>
+                <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Pay Rate / Salary</th>
+                {isCEOOroughReportingTeam && (
+                  <>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>TL</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Recruiter</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Created</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Min Sal</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Max Sal</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Avg Sal</th>
+                  </>
+                )}
                 {!shouldHideAction && (
-                  <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Action</th>
+                  <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Action</th>
                 )}
               </tr>
             </thead>
@@ -671,6 +768,16 @@ Remarks: ${candidateForm.remarks}`;
                   a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
                   a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
                 );
+
+                const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
+                const recruitersText = Array.from(new Set(
+                  app.associatedApps
+                    ?.map((a: any) => a.assigned_employee?.full_name || a.recruiter)
+                    .filter(Boolean)
+                )).join(', ');
+                const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+                const creationDateText = app.created_at ? new Date(app.created_at).toLocaleString('en-US', { hour12: true }) : '—';
+                const salaryInfo = getSalaryInfo(app.remarks || '');
                 const isExpanded = !!expandedJobs[jobCodeKey];
 
                 return (
@@ -795,6 +902,45 @@ Remarks: ${candidateForm.remarks}`;
                         })()}
                       </Typography>
                     </td>
+                    {isCEOOroughReportingTeam && (
+                      <>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(hierarchyInfo.manager, 110)}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(hierarchyInfo.tl, 110)}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(recruitersText, 120)}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(creationDateText, 140)}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(salaryInfo.min, 100)}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(salaryInfo.max, 100)}
+                          </Typography>
+                        </td>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 600 }}>
+                            {renderCellText(salaryInfo.avg, 100)}
+                          </Typography>
+                        </td>
+                      </>
+                    )}
                   {!shouldHideAction && (
                     <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
@@ -814,7 +960,7 @@ Remarks: ${candidateForm.remarks}`;
                 </tr>
                 {isExpanded && (
                   <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                    <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '12px 16px' }}>
+                    <td colSpan={shouldHideAction ? (isCEOOroughReportingTeam ? 15 : 8) : (isCEOOroughReportingTeam ? 16 : 9)} style={{ padding: '12px 16px' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
                         APPLICANTS ({jobApplicants.length})
                       </Typography>
