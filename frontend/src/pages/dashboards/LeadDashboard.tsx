@@ -458,8 +458,6 @@ export const LeadDashboard: React.FC = () => {
                   const groups: Record<string, any[]> = {};
                   dialogData.forEach(app => {
                     const jobCode = getRemarkField(app.remarks, 'Job Code');
-                    const isRequirement = !app.candidate_name;
-                    if (!isRequirement) return;
 
                     // Primary: job code. Fallback: position + client (handles pre-fix records)
                     const key = jobCode !== 'N/A' && jobCode
@@ -472,7 +470,7 @@ export const LeadDashboard: React.FC = () => {
                   });
                   Object.keys(groups).forEach(key => {
                     const group = groups[key];
-                    const rep = { ...group[0] };
+                    const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
                     rep.associatedApps = group;
                     groupedDialogApps.push(rep);
                   });
