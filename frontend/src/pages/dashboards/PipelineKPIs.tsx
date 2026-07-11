@@ -1,9 +1,9 @@
 import React from 'react';
-import { 
-  Grid, 
-  Card, 
-  Typography, 
-  useTheme, 
+import {
+  Grid,
+  Card,
+  Typography,
+  useTheme,
   Box,
   Dialog,
   DialogTitle,
@@ -122,18 +122,18 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   });
   const jobsCount = seenJobs.size;
 
-  const submissions       = validApps.filter(app => 
-    app.candidate_name && 
+  const submissions = validApps.filter(app =>
+    app.candidate_name &&
     ['Submitted', 'Under Review', 'Placed'].includes(app.status)
   ).length;
   const clientSubmissions = submissions;
-  const clientInterviews  = validApps.filter(app =>
+  const clientInterviews = validApps.filter(app =>
     ['Interview Scheduled', 'Interview Completed'].includes(app.status)
   ).length;
-  const clientRejections  = validApps.filter(app => app.status === 'Rejected').length;
-  const offerSent         = validApps.filter(app => app.status === 'Offer Sent').length;
-  const offerAccepted     = validApps.filter(app => app.status === 'Offer Accepted').length;
-  const placed            = validApps.filter(app => app.status === 'Placed').length;
+  const clientRejections = validApps.filter(app => app.status === 'Rejected').length;
+  const offerSent = validApps.filter(app => app.status === 'Offer Sent').length;
+  const offerAccepted = validApps.filter(app => app.status === 'Offer Accepted').length;
+  const placed = validApps.filter(app => app.status === 'Placed').length;
 
   const [open, setOpen] = React.useState(false);
   const [modalTitle, setModalTitle] = React.useState('');
@@ -159,15 +159,15 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
         }
       });
     } else if (label === 'Submissions') {
-      filtered = validApps.filter(app => 
-        app.candidate_name && 
+      filtered = validApps.filter(app =>
+        app.candidate_name &&
         ['Submitted', 'Under Review', 'Placed'].includes(app.status)
       );
     } else if (label === 'Pending Feedback') {
       filtered = validApps.filter(app => app.status === 'Under Review');
     } else if (label === 'Client Submissions') {
-      filtered = validApps.filter(app => 
-        app.candidate_name && 
+      filtered = validApps.filter(app =>
+        app.candidate_name &&
         ['Submitted', 'Under Review', 'Placed'].includes(app.status)
       );
     } else if (label === 'Client Interviews') {
@@ -188,13 +188,13 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   };
 
   const cards = [
-    { label: 'Jobs Count',         value: jobsCount,          Icon: Briefcase,     border: '#3b82f6', darkColor: '#60a5fa', lightColor: '#3b82f6', darkBg: 'rgba(59, 130, 246, 0.15)',  lightBg: '#eff6ff' },
-    { label: 'Client Submissions', value: clientSubmissions,  Icon: Send,          border: '#7c3aed', darkColor: '#a78bfa', lightColor: '#7c3aed', darkBg: 'rgba(124, 58, 237, 0.15)',  lightBg: '#faf5ff' },
-    { label: 'Client Interviews',  value: clientInterviews,   Icon: CalendarClock, border: '#16a34a', darkColor: '#4ade80', lightColor: '#16a34a', darkBg: 'rgba(22, 163, 74, 0.15)',   lightBg: '#f0fdf4' },
-    { label: 'Client Rejections',  value: clientRejections,   Icon: ThumbsDown,    border: '#db2777', darkColor: '#f472b6', lightColor: '#db2777', darkBg: 'rgba(219, 39, 119, 0.15)', lightBg: '#fdf2f8' },
-    { label: 'Offer Sent',         value: offerSent,          Icon: MailCheck,     border: '#eab308', darkColor: '#facc15', lightColor: '#ca8a04', darkBg: 'rgba(234, 179, 8, 0.15)',   lightBg: '#fefce8' },
-    { label: 'Offer Accepted',     value: offerAccepted,      Icon: BadgeCheck,    border: '#475569', darkColor: '#94a3b8', lightColor: '#475569', darkBg: 'rgba(71, 85, 105, 0.15)',   lightBg: '#f8fafc' },
-    { label: 'Onboard',            value: placed,             Icon: Briefcase,     border: '#d946ef', darkColor: '#e879f9', lightColor: '#d946ef', darkBg: 'rgba(217, 70, 239, 0.15)',  lightBg: '#fae8ff' },
+    { label: 'Jobs Count', value: jobsCount, Icon: Briefcase, border: '#3b82f6', darkColor: '#60a5fa', lightColor: '#3b82f6', darkBg: 'rgba(59, 130, 246, 0.15)', lightBg: '#eff6ff' },
+    { label: 'Client Submissions', value: clientSubmissions, Icon: Send, border: '#7c3aed', darkColor: '#a78bfa', lightColor: '#7c3aed', darkBg: 'rgba(124, 58, 237, 0.15)', lightBg: '#faf5ff' },
+    { label: 'Client Interviews', value: clientInterviews, Icon: CalendarClock, border: '#16a34a', darkColor: '#4ade80', lightColor: '#16a34a', darkBg: 'rgba(22, 163, 74, 0.15)', lightBg: '#f0fdf4' },
+    { label: 'Client Rejections', value: clientRejections, Icon: ThumbsDown, border: '#db2777', darkColor: '#f472b6', lightColor: '#db2777', darkBg: 'rgba(219, 39, 119, 0.15)', lightBg: '#fdf2f8' },
+    { label: 'Offer Sent', value: offerSent, Icon: MailCheck, border: '#eab308', darkColor: '#facc15', lightColor: '#ca8a04', darkBg: 'rgba(234, 179, 8, 0.15)', lightBg: '#fefce8' },
+    { label: 'Offer Accepted', value: offerAccepted, Icon: BadgeCheck, border: '#475569', darkColor: '#94a3b8', lightColor: '#475569', darkBg: 'rgba(71, 85, 105, 0.15)', lightBg: '#f8fafc' },
+    { label: 'Onboard', value: placed, Icon: Briefcase, border: '#d946ef', darkColor: '#e879f9', lightColor: '#d946ef', darkBg: 'rgba(217, 70, 239, 0.15)', lightBg: '#fae8ff' },
   ];
 
   const isDark = theme.palette.mode === 'dark';
@@ -213,7 +213,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
         {cards.map((card) => {
           const { Icon } = card;
           const iconColor = isDark ? '#3b82f6' : '#0062AD';
-          const iconBg    = isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 98, 173, 0.08)';
+          const iconBg = isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 98, 173, 0.08)';
           return (
             <Grid item xs={6} sm={3} md={1.7} key={card.label}>
               <Card
