@@ -83,6 +83,38 @@ export const Applications: React.FC = () => {
   const [statusUpdateApp, setStatusUpdateApp] = useState<Application | null>(null);
   const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
   const [statusUpdateComment, setStatusUpdateComment] = useState('');
+  const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
+
+  const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
+    const val = text || 'N/A';
+    if (activeRole === 'CEO') {
+      return (
+        <Box
+          onClick={(e) => {
+            e.stopPropagation();
+            setClickedTextValue(val);
+          }}
+          sx={{
+            maxWidth: maxWidth,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            fontSize: '0.7rem',
+            userSelect: 'none',
+            '&:hover': {
+              color: 'primary.main',
+              textDecoration: 'underline'
+            }
+          }}
+          title="Click to view full text"
+        >
+          {val}
+        </Box>
+      );
+    }
+    return val;
+  };
 
 
   const handleConfirmDelete = async () => {
@@ -98,6 +130,7 @@ export const Applications: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
   const isReadOnly = activeRole === 'REPORTING_TEAM';
+  const shouldHideAction = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
 
   // Load applications from API
   useEffect(() => {
@@ -390,7 +423,7 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant Status</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Title</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created By</th>
-                {!isReadOnly && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>}
+                {!shouldHideAction && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -453,35 +486,35 @@ export const Applications: React.FC = () => {
                           </Box>
                         </Box>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{app.id}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.id}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
                         <Typography
                           variant="body2"
-                          sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                          sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
                           onClick={() => handleAppSelect(app)}
                         >
-                          {app.candidate_name || 'N/A'}
+                          {renderCellText(app.candidate_name, 120)}
                         </Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{app.candidate_email || 'N/A'}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.candidate_email, 140)}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{getRemarkField(app.remarks, 'Job Code')}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Job Code'), 90)}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{app.city || 'N/A'}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.city, 90)}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{app.state || 'N/A'}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.state, 90)}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
                         <Typography
                           variant="body2"
                           sx={{ 
-                            fontSize: '0.75rem', 
+                            fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', 
                             fontWeight: 700, 
                             color: 'primary.main', 
                             cursor: isReadOnly ? 'default' : 'pointer', 
@@ -497,13 +530,13 @@ export const Applications: React.FC = () => {
                           {app.status}
                         </Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', fontWeight: 750 }}>{app.position}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="subtitle2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 750 }}>{renderCellText(app.position, 150)}</Typography>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>{app.recruiter || app.assigned_employee?.full_name || 'System'}</Typography>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
                       </td>
-                      {!isReadOnly && (
+                      {!shouldHideAction && (
                         <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                             <Typography
@@ -522,7 +555,7 @@ export const Applications: React.FC = () => {
                     </tr>
                     {isExpanded && (
                       <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                        <td colSpan={11} style={{ padding: '16px 24px' }}>
+                        <td colSpan={shouldHideAction ? 10 : 11} style={{ padding: '16px 24px' }}>
                           <Box sx={{ mb: 2 }}>
                             <Button
                               variant="contained"
@@ -562,7 +595,7 @@ export const Applications: React.FC = () => {
               })}
               {displayApps.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={shouldHideAction ? 10 : 11} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
                     No applications match the active filters or search terms.
                   </td>
                 </tr>
@@ -714,6 +747,19 @@ export const Applications: React.FC = () => {
           >
             Cancel
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* VIEW FULL VALUE DIALOG */}
+      <Dialog open={!!clickedTextValue} onClose={() => setClickedTextValue(null)}>
+        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>Full Value</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ wordBreak: 'break-word', userSelect: 'text' }}>
+            {clickedTextValue}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClickedTextValue(null)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

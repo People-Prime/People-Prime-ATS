@@ -241,6 +241,39 @@ export const JobPostings: React.FC = () => {
   });
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
+  const shouldHideAction = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'REPORTING_TEAM', 'CEO'].includes(activeRole);
+  const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
+
+  const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
+    const val = text || 'N/A';
+    if (activeRole === 'CEO') {
+      return (
+        <Box
+          onClick={(e) => {
+            e.stopPropagation();
+            setClickedTextValue(val);
+          }}
+          sx={{
+            maxWidth: maxWidth,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            fontSize: '0.7rem',
+            userSelect: 'none',
+            '&:hover': {
+              color: 'primary.main',
+              textDecoration: 'underline'
+            }
+          }}
+          title="Click to view full text"
+        >
+          {val}
+        </Box>
+      );
+    }
+    return val;
+  };
 
   // Load applications from API
   useEffect(() => {
@@ -623,7 +656,7 @@ Remarks: ${candidateForm.remarks}`;
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Status</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client Bill Rate / Salary</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Pay Rate / Salary</th>
-                {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'REPORTING_TEAM' && (
+                {!shouldHideAction && (
                   <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Action</th>
                 )}
               </tr>
@@ -696,76 +729,73 @@ Remarks: ${candidateForm.remarks}`;
                           </Box>
                         </Box>
                       </td>
-                      <td style={{ padding: '4px 8px' }}>
-                        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
-                          {jobCodeVal !== 'N/A' ? jobCodeVal : '—'}
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <Typography variant="subtitle2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
+                          {renderCellText(jobCodeVal !== 'N/A' ? jobCodeVal : '—', 95)}
                         </Typography>
                       </td>
-                  <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>{app.position}</Typography>
-                  </td>
-                  <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
-                      <Building size={14} /> {app.client_name}
-                    </Typography>
-                  </td>
-                  <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      {(() => {
-                        const loc = getRemarkField(app.remarks, 'Location');
-                        if (loc !== 'N/A') return loc;
-                        // Fallback: city or state from application fields
-                        const cityState = [app.city, app.state].filter(Boolean).join(', ');
-                        return cityState || '—';
-                      })()}
-                    </Typography>
-                  </td>
-                  <td style={{ padding: '4px 8px' }}>
-                    {currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST' ? (
-                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                        {getRemarkField(app.remarks, 'Job Status')}
+                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700 }}>{renderCellText(app.position, 140)}</Typography>
+                    </td>
+                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                        <Building size={14} /> {renderCellText(app.client_name, 120)}
                       </Typography>
-                    ) : (
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          fontSize: '0.75rem', 
-                          color: getRemarkField(app.remarks, 'Job Status') === 'Active' ? 'success.main' : 'text.secondary',
-                          cursor: 'pointer',
-                          '&:hover': { textDecoration: 'underline' }
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setJobStatusUpdateApp(app);
-                          setJobStatusUpdateValue(getRemarkField(app.remarks, 'Job Status') || 'Active');
-                        }}
-                      >
-                        {getRemarkField(app.remarks, 'Job Status')}
+                    </td>
+                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                        {(() => {
+                          const loc = getRemarkField(app.remarks, 'Location');
+                          const val = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
+                          return renderCellText(val, 120);
+                        })()}
                       </Typography>
-                    )}
-                  </td>
-                  <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      {(() => {
-                        const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
-                        if (billRate !== 'N/A') return billRate;
-                        const salary = getRemarkField(app.remarks, 'Salary');
-                        if (salary !== 'N/A') return salary;
-                        // fallback for old format using 'Pay' or direct numeric values in remarks
-                        return '—';
-                      })()}
-                    </Typography>
-                  </td>
-                  <td style={{ padding: '4px 8px' }}>
-                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                      {(() => {
-                        const payRate = getRemarkField(app.remarks, 'Pay Rate');
-                        if (payRate !== 'N/A') return payRate;
-                        return '—';
-                      })()}
-                    </Typography>
-                  </td>
-                  {currentUser?.role !== 'ASSOCIATE_ANALYST' && currentUser?.role !== 'SENIOR_ANALYST' && currentUser?.role !== 'REPORTING_TEAM' && (
+                    </td>
+                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      {currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST' ? (
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                          {getRemarkField(app.remarks, 'Job Status')}
+                        </Typography>
+                      ) : (
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', 
+                            color: getRemarkField(app.remarks, 'Job Status') === 'Active' ? 'success.main' : 'text.secondary',
+                            cursor: 'pointer',
+                            '&:hover': { textDecoration: 'underline' }
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setJobStatusUpdateApp(app);
+                            setJobStatusUpdateValue(getRemarkField(app.remarks, 'Job Status') || 'Active');
+                          }}
+                        >
+                          {getRemarkField(app.remarks, 'Job Status')}
+                        </Typography>
+                      )}
+                    </td>
+                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                        {(() => {
+                          const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
+                          if (billRate !== 'N/A') return renderCellText(billRate, 100);
+                          const salary = getRemarkField(app.remarks, 'Salary');
+                          if (salary !== 'N/A') return renderCellText(salary, 100);
+                          return '—';
+                        })()}
+                      </Typography>
+                    </td>
+                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
+                        {(() => {
+                          const payRate = getRemarkField(app.remarks, 'Pay Rate');
+                          if (payRate !== 'N/A') return renderCellText(payRate, 100);
+                          return '—';
+                        })()}
+                      </Typography>
+                    </td>
+                  {!shouldHideAction && (
                     <td style={{ padding: '4px 8px', textAlign: 'center' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                         <Typography 
@@ -784,7 +814,7 @@ Remarks: ${candidateForm.remarks}`;
                 </tr>
                 {isExpanded && (
                   <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                    <td colSpan={9} style={{ padding: '12px 16px' }}>
+                    <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '12px 16px' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
                         APPLICANTS ({jobApplicants.length})
                       </Typography>
@@ -805,21 +835,21 @@ Remarks: ${candidateForm.remarks}`;
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applicant Status</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Job Title</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Created By</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                              {!shouldHideAction && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>}
                             </tr>
                           </thead>
                           <tbody>
                             {jobApplicants.map((applicant) => (
                               <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.id}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>
-                                  {applicant.candidate_name || 'N/A'}
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{applicant.id}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>
+                                  {renderCellText(applicant.candidate_name, 120)}
                                 </td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.candidate_email || 'N/A'}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{getRemarkField(applicant.remarks, 'Job Code')}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.city || 'N/A'}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.state || 'N/A'}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.candidate_email, 130)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.city, 90)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.state, 90)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>
                                   <Typography
                                     variant="body2"
                                     sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
@@ -833,20 +863,22 @@ Remarks: ${candidateForm.remarks}`;
                                     {applicant.status}
                                   </Typography>
                                 </td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.position}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</td>
-                                <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigate(`/candidates/create/${applicant.id}`);
-                                    }}
-                                  >
-                                    Edit
-                                  </Typography>
-                                </td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.position, 140)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
+                                {!shouldHideAction && (
+                                  <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/candidates/create/${applicant.id}`);
+                                      }}
+                                    >
+                                      Edit
+                                    </Typography>
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
@@ -860,7 +892,7 @@ Remarks: ${candidateForm.remarks}`;
           })}
             {groupedApps.length === 0 && (
                 <tr>
-                  <td colSpan={currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST' ? 7 : 8} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
                     No applications match the active filters or search terms.
                   </td>
                 </tr>
@@ -1493,6 +1525,19 @@ Remarks: ${candidateForm.remarks}`;
           >
             Cancel
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* VIEW FULL VALUE DIALOG */}
+      <Dialog open={!!clickedTextValue} onClose={() => setClickedTextValue(null)}>
+        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>Full Value</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ wordBreak: 'break-word', userSelect: 'text' }}>
+            {clickedTextValue}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClickedTextValue(null)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>
