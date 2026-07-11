@@ -65,7 +65,10 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         sx={{ 
           width: 140,
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
-          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+          '& input::-webkit-calendar-picker-indicator': {
+            filter: 'invert(32%) sepia(86%) saturate(4564%) hue-rotate(236deg) brightness(96%) contrast(94%)'
+          }
         }}
       />
       
@@ -95,7 +98,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
           size="small" 
           onClick={handleSingleDateIconClick}
           sx={{ 
-            color: 'primary.main',
+            color: '#4F46E5',
             p: 0.5,
             border: '1px solid',
             borderColor: 'divider',
@@ -118,7 +121,10 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         sx={{ 
           width: 140,
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
-          '& .MuiInputLabel-root': { fontSize: '0.75rem' }
+          '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+          '& input::-webkit-calendar-picker-indicator': {
+            filter: 'invert(32%) sepia(86%) saturate(4564%) hue-rotate(236deg) brightness(96%) contrast(94%)'
+          }
         }}
       />
 
