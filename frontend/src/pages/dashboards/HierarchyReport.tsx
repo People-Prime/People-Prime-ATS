@@ -758,6 +758,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                   <TableCell sx={{ fontWeight: 700 }}>Position & Client</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Total Candidates</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Assigned To</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -794,11 +795,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                         {app.status}
                       </Typography>
                     </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {app.recruiter || app.assigned_employee?.full_name || 'System'}
+                      </Typography>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {dialogData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={3} sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>No data found.</TableCell>
+                    <TableCell colSpan={4} sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>No data found.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
