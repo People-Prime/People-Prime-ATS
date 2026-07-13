@@ -108,6 +108,11 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       const seen = new Set<string>();
       const unique: typeof dateFiltered = [];
       dateFiltered.forEach(app => {
+        const jobCode = getRemarkField(app.remarks, 'Job Code');
+        if (!jobCode || jobCode === 'N/A') return;
+        if (!app.position || app.position === 'N/A') return;
+        if (!app.client_name || app.client_name === 'N/A') return;
+
         const key = `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}|${app.experience}`;
         if (!seen.has(key)) {
           seen.add(key);
