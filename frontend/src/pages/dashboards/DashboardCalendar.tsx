@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Box, TextField, IconButton, Tooltip, Button } from '@mui/material';
+import { Box, TextField, IconButton, Tooltip, Button, useTheme } from '@mui/material';
 import { CalendarDays } from 'lucide-react';
 
 interface DashboardCalendarProps {
@@ -25,6 +25,12 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
   endDate,
   onChange
 }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const iconFilter = isDark
+    ? 'invert(53%) sepia(93%) saturate(1958%) hue-rotate(200deg) brightness(101%) contrast(97%)'
+    : 'invert(32%) sepia(86%) saturate(4564%) hue-rotate(236deg) brightness(96%) contrast(94%)';
+
   const singleDateInputRef = useRef<HTMLInputElement>(null);
 
   const [localStart, setLocalStart] = useState(startDate || todayStr());
@@ -67,7 +73,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
           '& .MuiInputLabel-root': { fontSize: '0.75rem' },
           '& input::-webkit-calendar-picker-indicator': {
-            filter: 'invert(32%) sepia(86%) saturate(4564%) hue-rotate(236deg) brightness(96%) contrast(94%)'
+            filter: iconFilter
           }
         }}
       />
@@ -98,7 +104,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
           size="small" 
           onClick={handleSingleDateIconClick}
           sx={{ 
-            color: '#4F46E5',
+            color: isDark ? '#3B82F6' : '#4F46E5',
             p: 0.5,
             border: '1px solid',
             borderColor: 'divider',
@@ -123,7 +129,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
           '& .MuiInputLabel-root': { fontSize: '0.75rem' },
           '& input::-webkit-calendar-picker-indicator': {
-            filter: 'invert(32%) sepia(86%) saturate(4564%) hue-rotate(236deg) brightness(96%) contrast(94%)'
+            filter: iconFilter
           }
         }}
       />
