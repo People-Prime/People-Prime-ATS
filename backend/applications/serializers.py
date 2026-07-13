@@ -43,9 +43,9 @@ class ApplicationSerializer(serializers.ModelSerializer):
             if instance:
                 qs = qs.exclude(id=instance.id)
             if qs.exists():
-                candidate_name = data.get('candidate_name') or (instance.candidate_name if instance else '')
-                # Allow duplicate email if the candidate name is the same (multi-job assignment flow)
-                if not qs.filter(candidate_name__iexact=candidate_name).exists():
+                phone = candidate_phone or (instance.candidate_phone if instance else '')
+                # Allow duplicate email if the phone number is the same (multi-job assignment flow)
+                if not qs.filter(candidate_phone=phone).exists():
                     raise serializers.ValidationError({
                         "candidate_email": "A candidate with this email address already exists in the system."
                     })
@@ -55,9 +55,9 @@ class ApplicationSerializer(serializers.ModelSerializer):
             if instance:
                 qs = qs.exclude(id=instance.id)
             if qs.exists():
-                candidate_name = data.get('candidate_name') or (instance.candidate_name if instance else '')
-                # Allow duplicate phone if the candidate name is the same (multi-job assignment flow)
-                if not qs.filter(candidate_name__iexact=candidate_name).exists():
+                email = candidate_email or (instance.candidate_email if instance else '')
+                # Allow duplicate phone if the email address is the same (multi-job assignment flow)
+                if not qs.filter(candidate_email__iexact=email).exists():
                     raise serializers.ValidationError({
                         "candidate_phone": "A candidate with this phone number already exists in the system."
                     })
