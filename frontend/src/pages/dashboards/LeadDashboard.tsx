@@ -183,7 +183,24 @@ export const LeadDashboard: React.FC = () => {
          else if (status === 'Offer Accepted') filtered = filtered.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
          else filtered = filtered.filter(a => a.status === status);
       } else {
-        filtered = getUniqueJobsList(filtered);
+        const seen = new Set<string>();
+        const groupedJobs: any[] = [];
+        filtered.forEach(app => {
+          const jobCode = getRemarkField(app.remarks, 'Job Code');
+          if (jobCode === 'N/A' || !jobCode) return;
+          const key = jobCode.toUpperCase().trim();
+          if (!seen.has(key)) {
+            seen.add(key);
+            const group = teamApplications.filter(a => {
+              const code = getRemarkField(a.remarks, 'Job Code');
+              return code && code.toUpperCase().trim() === key;
+            });
+            const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+            rep.associatedApps = group;
+            groupedJobs.push(rep);
+          }
+        });
+        filtered = groupedJobs;
       }
      
      let title = searchName ? `Applications for ${searchName}` : 'Team Applications';

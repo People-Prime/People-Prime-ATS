@@ -43,6 +43,7 @@ export const DrillDownPage: React.FC = () => {
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
 
   const isCEOOroughReportingTeam = currentUser?.role === 'CEO' || currentUser?.role === 'REPORTING_TEAM';
+  const showFullJobsLayout = isCEOOroughReportingTeam || ['TEAM_LEAD', 'SUB_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(currentUser?.role);
   const shouldHideAction = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'REPORTING_TEAM', 'CEO'].includes(currentUser?.role);
 
   const getRemarkFieldVal = (remarks: string | undefined | null, fieldName: string): string => {
@@ -229,7 +230,7 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Status</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Client Bill Rate / Salary</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Pay Rate / Salary</TableCell>
-                    {isCEOOroughReportingTeam && (
+                    {showFullJobsLayout && (
                       <>
                         <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Manager</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>TL</TableCell>
@@ -348,7 +349,7 @@ export const DrillDownPage: React.FC = () => {
                             })()}
                           </Typography>
                         </TableCell>
-                        {isCEOOroughReportingTeam && (
+                        {showFullJobsLayout && (
                           <>
                             <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                               <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>

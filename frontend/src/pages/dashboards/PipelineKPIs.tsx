@@ -200,8 +200,8 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
       state: {
         modalTitle: label,
         modalData: filtered,
-        isJobsType: label === 'Jobs Count' && (isTargetDashboard || isAssociate),
-        isApplicantsType: label === 'Client Submissions' && isTargetDashboard
+        isJobsType: label === 'Jobs Count',
+        isApplicantsType: label === 'Client Submissions' && (isTargetDashboard || isAssociate)
       }
     });
   };
