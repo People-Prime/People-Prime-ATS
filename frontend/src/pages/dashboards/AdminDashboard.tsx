@@ -19,9 +19,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Dialog,
-  DialogTitle,
-  DialogContent,
   IconButton,
   Tabs,
   Tab,
@@ -139,10 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       return d >= startDate && d <= endDate;
     });
   }, [deduplicatedApps, startDate, endDate]);
-  const [openDialog, setOpenDialog] = useState(false);
-  const [dialogData, setDialogData] = useState<any[]>([]);
-  const [dialogTitle, setDialogTitle] = useState('');
-  const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
+  // Local dialog states removed because we navigate to dedicated DrillDownPage
 
   // Tab control and search states
   const [activeTab, setActiveTab] = useState(0);
@@ -314,15 +308,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       });
     }
 
+    let isJobs = false;
+    let isApplicants = false;
+
     if (status !== 'ALL') {
-      if (status === 'HAS_CANDIDATE') teamApps = getUniqueCandidatesList(teamApps.filter(a => a.candidate_name));
+      if (status === 'HAS_CANDIDATE') {
+        teamApps = getUniqueCandidatesList(teamApps.filter(a => a.candidate_name));
+        isApplicants = true;
+      }
       else if (status === 'INTERVIEWS') teamApps = teamApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
       else if (status === 'Placed') teamApps = teamApps.filter(a => a.status === 'Placed');
       else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
       else if (status === 'Offer Accepted') teamApps = teamApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
       else teamApps = teamApps.filter(a => a.status === status);
     } else {
-      teamApps = getUniqueJobsList(teamApps);
+      const seen = new Set<string>();
+      const groupedJobs: any[] = [];
+      teamApps.forEach(app => {
+        const jobCode = getRemarkField(app.remarks, 'Job Code');
+        if (jobCode === 'N/A' || !jobCode) return;
+        const key = jobCode.toUpperCase().trim();
+        if (!seen.has(key)) {
+          seen.add(key);
+          const group = teamApps.filter(a => {
+            const code = getRemarkField(a.remarks, 'Job Code');
+            return code && code.toUpperCase().trim() === key;
+          });
+          const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+          rep.associatedApps = group;
+          groupedJobs.push(rep);
+        }
+      });
+      teamApps = groupedJobs;
+      isJobs = true;
     }
 
     let title = `Applications for Team ${teamName}`;
@@ -333,9 +351,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     else if (status === 'INTERVIEWS') title += ' - Client Interviews';
     else title += ' - Assigned Jobs';
 
-    setDialogTitle(title);
-    setDialogData(teamApps);
-    setOpenDialog(true);
+    navigate('/drill-down', {
+      state: {
+        modalTitle: title,
+        modalData: teamApps,
+        isJobsType: isJobs,
+        isApplicantsType: isApplicants,
+        isHierarchyType: false
+      }
+    });
   };
 
   const renderTeamMetric = (value: number, teamId: string, teamName: string, status: string) => {
@@ -1070,199 +1094,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
           </TableContainer>
         </Card>
       )}
-
-      {/* Dialog for Clickable Metrics */}
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          <Typography variant="h6" fontWeight={700}>{dialogTitle}</Typography>
-          <IconButton onClick={() => setOpenDialog(false)} size="small">
-            <X size={20} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers sx={{ p: 0 }}>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
-                  <TableCell sx={{ width: '50px' }}></TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Job Code</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Position & Client</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(() => {
-                  const groupedDialogApps: any[] = [];
-                  const groups: Record<string, any[]> = {};
-                  dialogData.forEach(app => {
-                    const jobCode = getRemarkField(app.remarks, 'Job Code');
-                    const isRequirement = !app.candidate_name || jobCode !== 'N/A';
-                    if (!isRequirement) return;
-
-                    const key = jobCode !== 'N/A' ? `${jobCode}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}` : `nocode-${app.id}`;
-                    if (!groups[key]) {
-                      groups[key] = [];
-                    }
-                    groups[key].push(app);
-                  });
-                  Object.keys(groups).forEach(key => {
-                    const group = groups[key];
-                    const rep = { ...group[0] };
-                    rep.associatedApps = group;
-                    groupedDialogApps.push(rep);
-                  });
-
-                  return groupedDialogApps.map(app => {
-                    const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
-                    const jobCodeKey = jobCodeVal !== 'N/A' ? `${jobCodeVal}|${app.position?.toLowerCase()}|${app.client_name?.toLowerCase()}` : `nocode-${app.id}`;
-                    const jobApplicants = dialogData.filter(a =>
-                      a.candidate_name &&
-                      (jobCodeVal !== 'N/A'
-                        ? (getRemarkField(a.remarks, 'Job Code') === jobCodeVal && a.position?.toLowerCase() === app.position?.toLowerCase() && a.client_name?.toLowerCase() === app.client_name?.toLowerCase())
-                        : (a.position?.toLowerCase() === app.position?.toLowerCase() && a.client_name?.toLowerCase() === app.client_name?.toLowerCase()))
-                    );
-                    const isExpanded = !!expandedJobs[jobCodeKey];
-
-                    return (
-                      <React.Fragment key={app.id}>
-                        <TableRow>
-                          <TableCell style={{ textAlign: 'center' }}>
-                            <Box
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedJobs(prev => ({ ...prev, [jobCodeKey]: !prev[jobCodeKey] }));
-                              }}
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                                gap: 0.5,
-                                userSelect: 'none'
-                              }}
-                            >
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 900,
-                                  color: 'primary.main',
-                                  fontSize: '1rem',
-                                  lineHeight: 1
-                                }}
-                              >
-                                {isExpanded ? '−' : '+'}
-                              </Typography>
-                              <Box
-                                sx={{
-                                  bgcolor: 'primary.main',
-                                  color: '#fff',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 700,
-                                  px: 0.5,
-                                  py: 0.1,
-                                  borderRadius: '3px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: 15,
-                                  height: 15
-                                }}
-                              >
-                                {jobApplicants.length}
-                              </Box>
-                            </Box>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={700}>{jobCodeVal}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={700}>{app.position}</Typography>
-                            <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                              <Building size={12} /> {app.client_name}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                              {app.status}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        {isExpanded && (
-                          <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                            <TableCell colSpan={4} style={{ padding: '12px 16px' }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
-                                APPLICANTS ({jobApplicants.length})
-                              </Typography>
-                              {jobApplicants.length === 0 ? (
-                                <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1 }}>
-                                  No applicants have been sourced for this job requirement.
-                                </Typography>
-                              ) : (
-                                <TableContainer sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '6px' }}>
-                                  <Table size="small" sx={{ backgroundColor: theme.palette.background.paper }}>
-                                    <TableHead>
-                                      <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Applicant ID</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Applicant Name</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Email</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Job Code</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>City</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>State</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Applicant Status</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Job Title</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary }}>Created By</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.68rem', color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</TableCell>
-                                      </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                      {jobApplicants.map((applicant) => (
-                                        <TableRow key={applicant.id}>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.id}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>
-                                            {applicant.candidate_name || 'N/A'}
-                                          </TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.candidate_email || 'N/A'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{getRemarkField(applicant.remarks, 'Job Code')}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.city || 'N/A'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.state || 'N/A'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>{applicant.status}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.position}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem' }}>{applicant.recruiter || applicant.assigned_employee?.full_name || 'System'}</TableCell>
-                                          <TableCell sx={{ fontSize: '0.7rem', textAlign: 'center' }}>
-                                            <Typography
-                                              variant="body2"
-                                              sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                navigate(`/candidates/create/${applicant.id}`);
-                                              }}
-                                            >
-                                              Edit
-                                            </Typography>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </TableContainer>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </React.Fragment>
-                    );
-                  });
-                })()}
-                {dialogData.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>No data found.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-      </Dialog>
-
 
     </Box>
 
