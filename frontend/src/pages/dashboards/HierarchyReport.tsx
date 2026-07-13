@@ -98,35 +98,50 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     let filtered = dateFiltered;
     let label = '';
+    let isJobs = false;
+    let isApplicants = false;
+    let isHierarchy = false;
+
     if (metricType === 'JOBS') {
       const seen = new Set<string>();
       const unique: typeof dateFiltered = [];
       dateFiltered.forEach(app => {
         const jobCode = getRemarkField(app.remarks, 'Job Code');
-        if (!jobCode || jobCode === 'N/A') return;
-        if (!app.position || app.position === 'N/A') return;
-        if (!app.client_name || app.client_name === 'N/A') return;
-
-        const key = `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}|${app.experience}`;
+        if (jobCode === 'N/A' || !jobCode) return;
+        const key = jobCode.toUpperCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
-          unique.push(app);
+          const group = dateFiltered.filter(a => {
+            const code = getRemarkField(a.remarks, 'Job Code');
+            return code && code.toUpperCase().trim() === key;
+          });
+          const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+          rep.associatedApps = group;
+          unique.push(rep);
         }
       });
       filtered = unique;
-      label = 'Assigned Jobs';
+      label = 'Jobs Count';
+      isJobs = true;
     } else if (metricType === 'SUBMISSIONS') {
-      filtered = dateFiltered.filter(app => ['Submitted', 'Placed', 'Under Review'].includes(app.status));
-      label = 'Placed/Submissions';
+      filtered = dateFiltered.filter(app =>
+        app.candidate_name &&
+        ['Submitted', 'Under Review', 'Placed'].includes(app.status)
+      );
+      label = 'Client Submissions';
+      isApplicants = true;
     } else if (metricType === 'INTERVIEWS') {
       filtered = dateFiltered.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));
       label = 'Interview Schedules';
+      isHierarchy = true;
     } else if (metricType === 'OFFERS') {
       filtered = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status));
       label = 'Offer Sent';
+      isHierarchy = true;
     } else if (metricType === 'ONBOARD') {
       filtered = dateFiltered.filter(app => app.status === 'Placed');
       label = 'Onboard';
+      isHierarchy = true;
     }
 
     const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${effectiveStartDate} to ${effectiveEndDate})`;
@@ -134,8 +149,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       state: {
         modalTitle: title,
         modalData: filtered,
-        isJobsType: metricType === 'JOBS',
-        isHierarchyType: metricType !== 'JOBS'
+        isJobsType: isJobs,
+        isApplicantsType: isApplicants,
+        isHierarchyType: isHierarchy
       }
     });
   };
