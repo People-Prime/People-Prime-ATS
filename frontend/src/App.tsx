@@ -18,6 +18,7 @@ import { CandidateDetails } from './pages/CandidateDetails';
 import { ViewCandidates } from './pages/ViewCandidates';
 import { JobPostings } from './pages/JobPostings';
 import { Placements } from './pages/Placements';
+import { DrillDownPage } from './pages/dashboards/DrillDownPage';
 
 // Helper component for Route Protection
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
@@ -205,6 +206,15 @@ export const App: React.FC = () => {
                       element={
                         <ProtectedRoute allowedRoles={['CEO']}>
                           <OrgHierarchy />
+                        </ProtectedRoute>
+                      } 
+                    />
+
+                    <Route 
+                      path="/drill-down" 
+                      element={
+                        <ProtectedRoute>
+                          <DrillDownPage />
                         </ProtectedRoute>
                       } 
                     />

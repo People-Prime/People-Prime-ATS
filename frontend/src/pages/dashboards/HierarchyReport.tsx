@@ -11,20 +11,15 @@ import {
   TableBody,
   TableCell,
   TableHead,
-  TableRow,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  TableContainer
+  TableRow
 } from '@mui/material';
 import {
   PlusSquare,
   MinusSquare,
-  FolderTree,
-  X,
-  Building
+  FolderTree
 } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
+import { useNavigate } from 'react-router-dom';
 import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { getUniqueSubmissions } from './PipelineKPIs';
@@ -66,6 +61,7 @@ interface HierarchyReportProps {
 
 export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, startDate, endDate }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
   const deduplicatedApps = getUniqueSubmissions(applications);
@@ -76,9 +72,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const [localEndDate, setLocalEndDate] = useState(todayStr());
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
 
-  const [openDialog, setOpenDialog] = useState(false);
-  const [dialogData, setDialogData] = useState<any[]>([]);
-  const [dialogTitle, setDialogTitle] = useState('');
+  // Local dialog states removed because we navigate to dedicated DrillDownPage
 
   const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
   const effectiveEndDate = endDate !== undefined ? endDate : localEndDate;
@@ -136,9 +130,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     }
 
     const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${effectiveStartDate} to ${effectiveEndDate})`;
-    setDialogTitle(title);
-    setDialogData(filtered);
-    setOpenDialog(true);
+    navigate('/drill-down', {
+      state: {
+        modalTitle: title,
+        modalData: filtered,
+        isJobsType: metricType === 'JOBS',
+        isHierarchyType: metricType !== 'JOBS'
+      }
+    });
   };
 
   const renderClickableMetric = (value: number, userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
@@ -747,79 +746,6 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           </Box>
         </CardContent>
       </Card>
-
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          <Typography variant="h6" fontWeight={700} sx={{ fontSize: '1rem' }}>{dialogTitle}</Typography>
-          <IconButton onClick={() => setOpenDialog(false)} size="small">
-            <X size={20} />
-          </IconButton>
-        </DialogTitle>
-        <DialogContent dividers sx={{ p: 0 }}>
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
-                  <TableCell sx={{ fontWeight: 700 }}>Position</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Client</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Total Candidates</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700 }}>Assigned To</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {dialogData.map(app => (
-                  <TableRow key={app.id}>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={700}>{app.position}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Building size={12} /> {app.client_name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" fontWeight={700}>
-                        {(() => {
-                          const matches = applications.filter(a =>
-                            a.candidate_name &&
-                            a.position?.toLowerCase() === app.position?.toLowerCase() &&
-                            a.client_name?.toLowerCase() === app.client_name?.toLowerCase() &&
-                            a.technology?.toLowerCase() === app.technology?.toLowerCase()
-                          );
-                          const seen = new Set<string>();
-                          const count = matches.filter(a => {
-                            const email = a.candidate_email?.toLowerCase() || '';
-                            if (!email || seen.has(email)) return false;
-                            seen.add(email);
-                            return true;
-                          }).length;
-                          return count;
-                        })()}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                        {app.status}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {app.recruiter || app.assigned_employee?.full_name || 'System'}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {dialogData.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>No data found.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </DialogContent>
-      </Dialog>
     </Box>
   );
 };
