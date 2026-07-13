@@ -756,11 +756,12 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           </IconButton>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 0 }}>
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
-                  <TableCell sx={{ fontWeight: 700 }}>Position & Client</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Position</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Client</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Total Candidates</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                   <TableCell sx={{ fontWeight: 700 }}>Assigned To</TableCell>
@@ -771,7 +772,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                   <TableRow key={app.id}>
                     <TableCell>
                       <Typography variant="body2" fontWeight={700}>{app.position}</Typography>
-                      <Typography variant="caption" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         <Building size={12} /> {app.client_name}
                       </Typography>
                     </TableCell>
@@ -809,7 +812,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                 ))}
                 {dialogData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>No data found.</TableCell>
+                    <TableCell colSpan={5} sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}>No data found.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
