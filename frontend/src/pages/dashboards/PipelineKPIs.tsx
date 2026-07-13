@@ -92,8 +92,10 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user: currentUser } = useAppSelector((state: any) => state.auth);
+  const { applications: allApps } = useAppSelector((state: any) => state.applications || { applications: [] });
 
   const isTargetDashboard = ['ADMIN', 'CEO', 'REPORTING_TEAM'].includes(currentUser?.role);
+  const isAssociate = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(currentUser?.role);
 
   const uniqueApps = getUniqueSubmissions(applications);
 
@@ -104,10 +106,30 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     return value && value !== '' ? value : 'N/A';
   };
 
+  const myAssignedApps = React.useMemo(() => {
+    if (!isAssociate) return [];
+    return allApps.filter((app: any) =>
+      app.assigned_employee?.email === currentUser?.email &&
+      getRemarkFieldVal(app.remarks, 'Job Code') !== 'N/A'
+    );
+  }, [allApps, currentUser, isAssociate]);
+
+  const dateFilteredAssigned = React.useMemo(() => {
+    if (!isAssociate) return [];
+    const startDate = localStorage.getItem('dashboard_start_date') || '';
+    const endDate = localStorage.getItem('dashboard_end_date') || '';
+    if (!startDate || !endDate) return myAssignedApps;
+    return myAssignedApps.filter((app: any) => {
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
+    });
+  }, [myAssignedApps, isAssociate]);
+
   const validApps = uniqueApps.filter(app => !app.candidate_name || getRemarkFieldVal(app.remarks, 'Job Code') !== 'N/A');
 
   const seenJobs = new Set<string>();
-  applications.forEach(app => {
+  const sourceAppsForCount = isAssociate ? dateFilteredAssigned : applications;
+  sourceAppsForCount.forEach((app: any) => {
     const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
     if (jobCode === 'N/A' || !jobCode) return;
     seenJobs.add(jobCode.toUpperCase().trim());
@@ -134,17 +156,18 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     let filtered: any[] = [];
     if (label === 'Jobs Count') {
       const seen = new Set<string>();
-      applications.forEach(app => {
+      const sourceApps = isAssociate ? dateFilteredAssigned : applications;
+      sourceApps.forEach((app: any) => {
         const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
         if (jobCode === 'N/A' || !jobCode) return;
         const key = jobCode.toUpperCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
-          const group = applications.filter(a => {
+          const group = allApps.filter((a: any) => {
             const code = getRemarkFieldVal(a.remarks, 'Job Code');
             return code && code.toUpperCase().trim() === key;
           });
-          const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+          const rep = { ...(group.find((a: any) => !a.candidate_name) || group[0]) };
           rep.associatedApps = group;
           filtered.push(rep);
         }
@@ -177,7 +200,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
       state: {
         modalTitle: label,
         modalData: filtered,
-        isJobsType: label === 'Jobs Count' && isTargetDashboard,
+        isJobsType: label === 'Jobs Count' && (isTargetDashboard || isAssociate),
         isApplicantsType: label === 'Client Submissions' && isTargetDashboard
       }
     });
