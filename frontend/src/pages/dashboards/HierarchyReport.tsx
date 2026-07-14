@@ -64,18 +64,26 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const navigate = useNavigate();
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
-  const deduplicatedApps = getUniqueSubmissions(applications);
-
   const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
 
   const [localStartDate, setLocalStartDate] = useState(todayStr());
   const [localEndDate, setLocalEndDate] = useState(todayStr());
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
 
-  // Local dialog states removed because we navigate to dedicated DrillDownPage
-
   const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
   const effectiveEndDate = endDate !== undefined ? endDate : localEndDate;
+
+  const dateFilteredRawApps = useMemo(() => {
+    if (!effectiveStartDate || !effectiveEndDate) return applications;
+    return applications.filter(app => {
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= effectiveStartDate && d <= effectiveEndDate;
+    });
+  }, [applications, effectiveStartDate, effectiveEndDate]);
+
+  const deduplicatedApps = useMemo(() => {
+    return getUniqueSubmissions(dateFilteredRawApps);
+  }, [dateFilteredRawApps]);
 
   const getDescendantEmails = (email: string): string[] => {
     const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
@@ -84,17 +92,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   const handleMetricClick = (userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
     const emails = isSelfRow ? [userEmail] : getDescendantEmails(userEmail);
-    const userApps = deduplicatedApps.filter(app =>
+    const dateFiltered = deduplicatedApps.filter(app =>
       app.assigned_employee?.email &&
       emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
     );
-
-    const dateFiltered = (effectiveStartDate && effectiveEndDate)
-      ? userApps.filter(app => {
-        const d = (app.updated_at || app.created_at || '').slice(0, 10);
-        return d >= effectiveStartDate && d <= effectiveEndDate;
-      })
-      : userApps;
 
     let filtered = dateFiltered;
     let label = '';
@@ -218,16 +219,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
-    const userApps = deduplicatedApps.filter(app =>
+    const dateFiltered = deduplicatedApps.filter(app =>
       app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
     );
-
-    const dateFiltered = (effectiveStartDate && effectiveEndDate)
-      ? userApps.filter(app => {
-        const d = (app.updated_at || app.created_at || '').slice(0, 10);
-        return d >= effectiveStartDate && d <= effectiveEndDate;
-      })
-      : userApps;
 
     const seenJobs = new Set<string>();
     dateFiltered.forEach(app => {
@@ -238,6 +232,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     const jobsCount = seenJobs.size;
     const submissions = dateFiltered.filter(app =>
+      app.candidate_name &&
       ['Submitted', 'Placed', 'Under Review'].includes(app.status)
     ).length;
     const interviews = dateFiltered.filter(app =>
@@ -354,17 +349,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             allEmails.push(...collectAllEmails(child));
           });
 
-          const descendantApps = deduplicatedApps.filter(app =>
+          const dateFiltered = deduplicatedApps.filter(app =>
             app.assigned_employee?.email &&
             allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
           );
-
-          const dateFiltered = (effectiveStartDate && effectiveEndDate)
-            ? descendantApps.filter(app => {
-              const d = (app.updated_at || app.created_at || '').slice(0, 10);
-              return d >= effectiveStartDate && d <= effectiveEndDate;
-            })
-            : descendantApps;
 
           const seen = new Set<string>();
           dateFiltered.forEach(app => {
