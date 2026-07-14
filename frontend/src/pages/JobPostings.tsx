@@ -24,7 +24,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  Tooltip
 } from '@mui/material';
 import { 
   Search, 
@@ -273,6 +274,29 @@ export const JobPostings: React.FC = () => {
       );
     }
     return val;
+  };
+
+  const renderNameColumn = (nameText: string, defaultWidth: number) => {
+    if (activeRole !== 'REPORTING_TEAM') return renderCellText(nameText, defaultWidth);
+    
+    const trimmed = (nameText || '').trim();
+    if (!trimmed || trimmed === '—') return '—';
+    
+    const words = trimmed.split(/\s+/);
+    const firstName = words[0];
+    const hasMore = words.length > 1 || trimmed.includes(',');
+    
+    if (hasMore) {
+      const displayName = `${firstName}...`;
+      return (
+        <Tooltip title={trimmed} arrow placement="top">
+          <span style={{ cursor: 'pointer', textDecoration: 'underline decoration-dotted' }}>
+            {displayName}
+          </span>
+        </Tooltip>
+      );
+    }
+    return trimmed;
   };
 
   const isCEOOroughReportingTeam = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
@@ -745,8 +769,8 @@ Remarks: ${candidateForm.remarks}`;
                 {isCEOOroughReportingTeam && (
                   <>
                     <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</th>
-                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>TL</th>
-                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Recruiter</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, width: activeRole === 'REPORTING_TEAM' ? '80px' : undefined }}>TL</th>
+                    <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, width: activeRole === 'REPORTING_TEAM' ? '100px' : undefined }}>Recruiter</th>
                     <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Created</th>
                     <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Min Sal</th>
                     <th style={{ padding: activeRole === 'CEO' ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Max Sal</th>
@@ -783,7 +807,7 @@ Remarks: ${candidateForm.remarks}`;
                 return (
                   <React.Fragment key={app.id}>
                     <tr 
-                      style={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, transition: 'background-color 0.2s' }}
+                      style={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, transition: 'background-color 0.2s', whiteSpace: activeRole === 'REPORTING_TEAM' ? 'nowrap' : undefined }}
                       onMouseEnter={(e) => {
                          e.currentTarget.style.backgroundColor = theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b';
                       }}
@@ -909,14 +933,14 @@ Remarks: ${candidateForm.remarks}`;
                             {renderCellText(hierarchyInfo.manager, 110)}
                           </Typography>
                         </td>
-                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', width: activeRole === 'REPORTING_TEAM' ? '80px' : undefined }}>
                           <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(hierarchyInfo.tl, 110)}
+                            {renderNameColumn(hierarchyInfo.tl, 110)}
                           </Typography>
                         </td>
-                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', width: activeRole === 'REPORTING_TEAM' ? '100px' : undefined }}>
                           <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(recruitersText, 120)}
+                            {renderNameColumn(recruitersText, 120)}
                           </Typography>
                         </td>
                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
