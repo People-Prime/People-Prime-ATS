@@ -436,7 +436,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       <PipelineKPIs applications={showAllTimeKPIs ? deduplicatedApps : dateFilteredApps} />
 
       {/* Tabs Menu */}
-      {currentUser?.role === 'REPORTING_TEAM' && (
+      {currentUser?.role === 'REPORTING_TEAM' && false && (
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 3 }}>
           <Tabs
             value={activeTab}
@@ -462,7 +462,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 0: Overview & Teams */}
-      {(currentUser?.role !== 'REPORTING_TEAM' || activeTab === 0) && (
+      {(currentUser?.role !== 'REPORTING_TEAM' || currentUser?.role === 'REPORTING_TEAM' || activeTab === 0) && (
         <>
           {/* CEO / Admin Hierarchy Report – full org tree */}
           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
@@ -620,7 +620,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 1: Applicants Registry */}
-      {currentUser?.role === 'REPORTING_TEAM' && activeTab === 1 && (
+      {currentUser?.role === 'REPORTING_TEAM' && false && activeTab === 1 && (
         <Card sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>
@@ -795,7 +795,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 2: Job Postings */}
-      {currentUser?.role === 'REPORTING_TEAM' && activeTab === 2 && (
+      {currentUser?.role === 'REPORTING_TEAM' && false && activeTab === 2 && (
         <Card sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>
@@ -1002,7 +1002,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
       {/* Tab Panel 3: Placements */}
-      {currentUser?.role === 'REPORTING_TEAM' && activeTab === 3 && (
+      {currentUser?.role === 'REPORTING_TEAM' && false && activeTab === 3 && (
         <Card sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
             <Box>
