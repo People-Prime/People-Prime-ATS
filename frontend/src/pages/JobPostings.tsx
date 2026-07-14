@@ -401,8 +401,8 @@ export const JobPostings: React.FC = () => {
     const isJobPostingApp = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     if (!isJobPostingApp) return false;
 
-    // 0. Date and Team Filter (only for ADMIN/CEO)
-    if (activeRole === 'ADMIN' || activeRole === 'CEO') {
+    // 0. Date and Team Filter (for ADMIN/CEO/REPORTING_TEAM)
+    if (activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') {
       const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
       const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
       const appDate = (app.updated_at || app.created_at || '').slice(0, 10);
@@ -733,7 +733,7 @@ Remarks: ${candidateForm.remarks}`;
               </Select>
             </FormControl>
           </Grid>
-          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO') && (
+          {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO' || currentUser?.role === 'REPORTING_TEAM') && (
             <Grid item xs={12} sm={6} md={3}>
               <FormControl fullWidth size="small">
                 <InputLabel>Filter by Team</InputLabel>
