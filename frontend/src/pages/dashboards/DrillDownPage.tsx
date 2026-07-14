@@ -17,7 +17,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Tooltip
 } from '@mui/material';
 import { ArrowLeft, Building } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
@@ -82,6 +83,29 @@ export const DrillDownPage: React.FC = () => {
       );
     }
     return val;
+  };
+
+  const renderNameColumn = (nameText: string, defaultWidth: number) => {
+    if (currentUser?.role !== 'REPORTING_TEAM') return renderCellText(nameText, defaultWidth);
+    
+    const trimmed = (nameText || '').trim();
+    if (!trimmed || trimmed === '—') return '—';
+    
+    const words = trimmed.split(/\s+/);
+    const firstName = words[0];
+    const hasMore = words.length > 1 || trimmed.includes(',');
+    
+    if (hasMore) {
+      const displayName = `${firstName}...`;
+      return (
+        <Tooltip title={trimmed} arrow placement="top">
+          <span style={{ cursor: 'pointer', textDecoration: 'underline decoration-dotted' }}>
+            {displayName}
+          </span>
+        </Tooltip>
+      );
+    }
+    return trimmed;
   };
 
   const getHierarchyInfo = (recruiterEmails: string[]) => {
@@ -233,8 +257,8 @@ export const DrillDownPage: React.FC = () => {
                     {showFullJobsLayout && (
                       <>
                         <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Manager</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>TL</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Recruiter</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', width: currentUser?.role === 'REPORTING_TEAM' ? '80px' : undefined }}>TL</TableCell>
+                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', width: currentUser?.role === 'REPORTING_TEAM' ? '100px' : undefined }}>Recruiter</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Created</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Min Sal</TableCell>
                         <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Max Sal</TableCell>
@@ -299,7 +323,7 @@ export const DrillDownPage: React.FC = () => {
                     const salaryInfo = getSalaryInfo(app.remarks || '');
 
                     return (
-                      <TableRow key={app.id}>
+                      <TableRow key={app.id} sx={{ whiteSpace: currentUser?.role === 'REPORTING_TEAM' ? 'nowrap' : undefined }}>
                         <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                           <Typography variant="subtitle2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
                             {renderCellText(jobCodeVal !== 'N/A' ? jobCodeVal : '—', 95)}
@@ -356,14 +380,14 @@ export const DrillDownPage: React.FC = () => {
                                 {renderCellText(hierarchyInfo.manager, 110)}
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px', width: currentUser?.role === 'REPORTING_TEAM' ? '80px' : undefined }}>
                               <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(hierarchyInfo.tl, 110)}
+                                {renderNameColumn(hierarchyInfo.tl, 110)}
                               </Typography>
                             </TableCell>
-                            <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px', width: currentUser?.role === 'REPORTING_TEAM' ? '100px' : undefined }}>
                               <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(recruitersText, 120)}
+                                {renderNameColumn(recruitersText, 120)}
                               </Typography>
                             </TableCell>
                             <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
