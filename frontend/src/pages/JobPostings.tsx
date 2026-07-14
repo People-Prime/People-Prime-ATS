@@ -471,36 +471,60 @@ export const JobPostings: React.FC = () => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  // Group ALL apps by position + client_name so records with and without job codes merge correctly
+  // Group ALL apps: by unique Job Code for Reporting Team, otherwise by position + client_name
   const groupedApps: any[] = [];
-  const groups: Record<string, Application[]> = {};
+  
+  if (activeRole === 'REPORTING_TEAM') {
+    const seen = new Set<string>();
+    displayApps.forEach(app => {
+      const jobCode = getRemarkField(app.remarks, 'Job Code');
+      if (jobCode === 'N/A' || !jobCode) return;
+      const key = jobCode.toUpperCase().trim();
+      if (!seen.has(key)) {
+        seen.add(key);
+        const group = applications.filter(a => {
+          const code = getRemarkField(a.remarks, 'Job Code');
+          return code && code.toUpperCase().trim() === key;
+        });
+        const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+        (rep as any).associatedIds = group.map(a => String(a.id));
+        (rep as any).associatedApps = group;
+        
+        const employeeNames = group
+          .map(a => a.assigned_employee?.full_name)
+          .filter(Boolean);
+        (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
+        
+        groupedApps.push(rep);
+      }
+    });
+  } else {
+    const groups: Record<string, Application[]> = {};
+    displayApps.forEach(app => {
+      const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(app);
+    });
 
-  displayApps.forEach(app => {
-    // Always group by position + client — this merges old-format records with PPW-coded ones
-    const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-    groups[key].push(app);
-  });
-
-  Object.keys(groups).forEach(key => {
-    const group = groups[key];
-    // Prefer the blank requirement as the representative if it exists, otherwise fall back to any record in the group
-    const rep = { ...(
-      group.find(a => !a.candidate_name) ||
-      group[0]
-    )};
-    (rep as any).associatedIds = group.map(a => String(a.id));
-    (rep as any).associatedApps = group;
-    
-    const employeeNames = group
-      .map(a => a.assigned_employee?.full_name)
-      .filter(Boolean);
-    (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
-    
-    groupedApps.push(rep);
-  });
+    Object.keys(groups).forEach(key => {
+      const group = groups[key];
+      const rep = { ...(
+        group.find(a => !a.candidate_name) ||
+        group[0]
+      )};
+      (rep as any).associatedIds = group.map(a => String(a.id));
+      (rep as any).associatedApps = group;
+      
+      const employeeNames = group
+        .map(a => a.assigned_employee?.full_name)
+        .filter(Boolean);
+      (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
+      
+      groupedApps.push(rep);
+    });
+  }
 
   // Handle redirection to edit candidate/requirement details
   const handleAppSelect = (app: Application) => {
