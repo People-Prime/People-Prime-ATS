@@ -38,13 +38,7 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   if (!remarks) return 'N/A';
   const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
   const value = match ? match[1].trim() : 'N/A';
-  const cleanVal = value && value !== '' ? value : 'N/A';
-  if (fieldName === 'Job Code' && cleanVal !== 'N/A') {
-    if (!cleanVal.toUpperCase().startsWith('PPW')) {
-      return 'N/A';
-    }
-  }
-  return cleanVal;
+  return value && value !== '' ? value : 'N/A';
 };
 
 const getUniqueJobsList = (apps: any[]): any[] => {
@@ -258,7 +252,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
 
   // 3. PLACEMENTS DATA PREPARATION (from all teams)
   const displayPlacements = useMemo(() => {
-    const placed = dateFilteredApps.filter(app => app.status === 'Selected' || app.status === 'Offer Accepted');
+    const placed = dateFilteredApps.filter(app => app.status === 'Placed');
 
     // Sort ascending for consistent Placement Code generation
     const sorted = [...placed].sort((a, b) => {
