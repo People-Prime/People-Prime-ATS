@@ -373,7 +373,8 @@ export const Applications: React.FC = () => {
               >
                 <MenuItem value="ALL">All Statuses</MenuItem>
                 <MenuItem value="New">New / Unassigned</MenuItem>
-                <MenuItem value="Submitted">Placed</MenuItem>
+                <MenuItem value="Submitted">Submitted</MenuItem>
+                <MenuItem value="Placed">Onboarded</MenuItem>
                 <MenuItem value="Under Review">Under Review</MenuItem>
                 <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                 <MenuItem value="Interview Completed">Interview Completed</MenuItem>
