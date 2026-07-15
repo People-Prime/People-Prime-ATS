@@ -182,7 +182,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
 
     const dateFilteredRawApps = allApps.filter((app: any) => {
-      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      const d = (app.created_at || '').slice(0, 10);
       return d >= startDate && d <= endDate;
     });
 

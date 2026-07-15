@@ -85,6 +85,18 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return getUniqueSubmissions(dateFilteredRawApps);
   }, [dateFilteredRawApps]);
 
+  const dateFilteredSubmissionsRawApps = useMemo(() => {
+    if (!effectiveStartDate || !effectiveEndDate) return applications;
+    return applications.filter(app => {
+      const d = (app.created_at || '').slice(0, 10);
+      return d >= effectiveStartDate && d <= effectiveEndDate;
+    });
+  }, [applications, effectiveStartDate, effectiveEndDate]);
+
+  const deduplicatedSubmissionsApps = useMemo(() => {
+    return getUniqueSubmissions(dateFilteredSubmissionsRawApps);
+  }, [dateFilteredSubmissionsRawApps]);
+
   const getDescendantEmails = (email: string): string[] => {
     const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
     return [email, ...direct.flatMap(d => getDescendantEmails(d.email))];
@@ -125,7 +137,11 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       label = 'Jobs Count';
       isJobs = true;
     } else if (metricType === 'SUBMISSIONS') {
-      filtered = dateFiltered.filter(app =>
+      const dateFilteredSub = deduplicatedSubmissionsApps.filter(app =>
+        app.assigned_employee?.email &&
+        emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
+      );
+      filtered = dateFilteredSub.filter(app =>
         app.candidate_name &&
         hasReachedSubmittedMilestone(app)
       );
@@ -231,7 +247,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     });
 
     const jobsCount = seenJobs.size;
-    const submissions = dateFiltered.filter(app =>
+    const dateFilteredSub = deduplicatedSubmissionsApps.filter(app =>
+      app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
+    );
+    const submissions = dateFilteredSub.filter(app =>
       app.candidate_name &&
       hasReachedSubmittedMilestone(app)
     ).length;
@@ -252,7 +271,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         return [email, ...direct.flatMap(d => getDescendantEmails(d.email))];
       };
       const emails = getDescendantEmails(userEmail);
-      const subApps = deduplicatedApps.filter(app => app.assigned_employee?.email && emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase()));
+      const subApps = deduplicatedSubmissionsApps.filter(app => app.assigned_employee?.email && emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase()));
 
       let cwrCount = 0;
       let fteCount = 0;
