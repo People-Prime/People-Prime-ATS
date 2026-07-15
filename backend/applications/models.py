@@ -36,7 +36,8 @@ class Application(models.Model):
     status = models.CharField(
         max_length=50,
         choices=ApplicationStatus.choices,
-        default=ApplicationStatus.NEW
+        default=ApplicationStatus.NEW,
+        db_index=True
     )
     remarks = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)

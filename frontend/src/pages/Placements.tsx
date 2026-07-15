@@ -54,9 +54,14 @@ export const Placements: React.FC = () => {
     return Array.from(unique.values());
   }, [users]);
 
-  // Load applications from API
+  // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
-    setLoading(true);
+    const hasData = applications && applications.length > 0;
+    if (hasData) {
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     api.get('applications/')
       .then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];

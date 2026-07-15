@@ -106,34 +106,37 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        # Auto-close expired job requirements
+        # Auto-close expired job requirements (Throttled to run at most once every 10 minutes)
+        from django.core.cache import cache
         from django.utils import timezone
-        from datetime import timedelta
         import re
-        try:
-            # Find active requirements (no candidate assigned yet)
-            active_jobs = Application.objects.filter(candidate_name='', remarks__icontains='Job Status: Active')
-            for job in active_jobs:
-                remarks = job.remarks or ''
-                
-                # ALL JOBS EXPIRY: End of the creation day (11:59:59 PM) based on created_at
-                import datetime
-                expiry_time = timezone.make_aware(
-                    datetime.datetime.combine(job.created_at.date(), datetime.time(23, 59, 59)),
-                    job.created_at.tzinfo
-                )
-                if timezone.now() >= expiry_time:
-                    new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
-                    job.remarks = new_remarks
-                    job.save(update_fields=['remarks'])
-        except Exception:
-            pass
+        
+        if cache.get('last_auto_close_time') is None:
+            cache.set('last_auto_close_time', timezone.now().isoformat(), 600)
+            try:
+                # Find active requirements (no candidate assigned yet)
+                active_jobs = Application.objects.filter(candidate_name='', remarks__icontains='Job Status: Active')
+                for job in active_jobs:
+                    remarks = job.remarks or ''
+                    
+                    # ALL JOBS EXPIRY: End of the creation day (11:59:59 PM) based on created_at
+                    import datetime
+                    expiry_time = timezone.make_aware(
+                        datetime.datetime.combine(job.created_at.date(), datetime.time(23, 59, 59)),
+                        job.created_at.tzinfo
+                    )
+                    if timezone.now() >= expiry_time:
+                        new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
+                        job.remarks = new_remarks
+                        job.save(update_fields=['remarks'])
+            except Exception:
+                pass
 
         user = self.request.user
         
         # 1. Admin, CEO, Senior Manager, and Reporting Team can see all requirements and candidates
         if user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER, Role.REPORTING_TEAM]:
-            return Application.objects.all().order_by('-created_at')
+            return Application.objects.all().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
         
         # 2. Junior Manager can see applications of teams/members reporting to them, plus their own
         if user.role == Role.JUNIOR_MANAGER:
@@ -144,7 +147,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
-            ).distinct().order_by('-created_at')
+            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
         # 3. Team Lead & Sub Lead can see applications of members reporting to them, plus their own
         if user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
@@ -155,7 +158,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
-            ).distinct().order_by('-created_at')
+            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
         # 4. Associate Analyst & Senior Analyst can see only their assigned applications
         if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
@@ -163,7 +166,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
-            ).distinct().order_by('-created_at')
+            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
         return Application.objects.none()
 

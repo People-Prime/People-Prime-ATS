@@ -132,9 +132,14 @@ export const Applications: React.FC = () => {
   const isReadOnly = activeRole === 'REPORTING_TEAM';
   const shouldHideAction = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
 
-  // Load applications from API
+  // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
-    setLoading(true);
+    const hasData = applications && applications.length > 0;
+    if (hasData) {
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     api.get('applications/').then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       dispatch(setApplications(list));
