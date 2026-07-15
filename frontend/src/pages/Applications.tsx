@@ -117,6 +117,40 @@ export const Applications: React.FC = () => {
   };
 
 
+  const getHierarchyInfo = (recruiterEmails: string[]) => {
+    const tls = new Set<string>();
+    const managers = new Set<string>();
+
+    recruiterEmails.forEach(email => {
+      let current = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+      while (current) {
+        if (current.role === 'TEAM_LEAD' || current.role === 'SUB_LEAD') {
+          tls.add(current.full_name || current.email);
+        }
+        if (current.role === 'JUNIOR_MANAGER' || current.role === 'SENIOR_MANAGER') {
+          managers.add(current.full_name || current.email);
+        }
+
+        const parentEmail = current.reporting_to?.email || (current.reporting_to_list && current.reporting_to_list[0]?.email);
+        if (parentEmail) {
+          const parentUser = users.find((x: any) => x.email?.toLowerCase() === parentEmail.toLowerCase());
+          if (parentUser) {
+            current = parentUser;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    });
+
+    return {
+      tl: Array.from(tls).join(', ') || 'N/A',
+      manager: Array.from(managers).join(', ') || 'N/A'
+    };
+  };
+
   const handleConfirmDelete = async () => {
     if (!deleteAppConfirm) return;
     try {
@@ -131,6 +165,7 @@ export const Applications: React.FC = () => {
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
   const isReadOnly = activeRole === 'REPORTING_TEAM';
   const shouldHideAction = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
+  const isCEOOroughReportingTeam = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
 
   // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
@@ -419,17 +454,28 @@ export const Applications: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#101726' }}>
-                <th style={{ width: '45px', padding: '6px 8px' }}></th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant ID</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant Name</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Email</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Code</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>City</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>State</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant Status</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Title</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created By</th>
-                {!shouldHideAction && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>}
+                <th style={{ width: '45px', padding: '6px 8px', whiteSpace: 'nowrap' }}></th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant ID</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Name</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Email</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Code</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>City</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>State</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Status</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
+                {isCEOOroughReportingTeam && (
+                  <>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Type</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Client Name</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Tentative Start Date</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Manager</th>
+                    <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Team Lead</th>
+                  </>
+                )}
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>
+                  {isCEOOroughReportingTeam ? 'Recruiter' : 'Created By'}
+                </th>
+                {!shouldHideAction && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -492,10 +538,10 @@ export const Applications: React.FC = () => {
                           </Box>
                         </Box>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.id}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography
                           variant="body2"
                           sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
@@ -504,19 +550,19 @@ export const Applications: React.FC = () => {
                           {renderCellText(app.candidate_name, 120)}
                         </Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.candidate_email, 140)}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Job Code'), 90)}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.city, 90)}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.state, 90)}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography
                           variant="body2"
                           sx={{ 
@@ -536,14 +582,45 @@ export const Applications: React.FC = () => {
                           {app.status}
                         </Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="subtitle2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 750 }}>{renderCellText(app.position, 150)}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                      {isCEOOroughReportingTeam && (() => {
+                        const jobCode = getRemarkField(app.remarks, 'Job Code');
+                        const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === jobCode);
+                        const jobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
+                        const clientName = jobPosting ? jobPosting.client_name : 'N/A';
+                        const startDateVal = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
+                        
+                        const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === jobCode);
+                        const recruiterEmails = siblingApps.map(a => a.assigned_employee?.email).filter(Boolean) as string[];
+                        const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+
+                        return (
+                          <>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(jobType, 110)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(clientName, 110)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(startDateVal, 110)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.manager, 110)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.tl, 110)}</Typography>
+                            </td>
+                          </>
+                        );
+                      })()}
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
                       </td>
                       {!shouldHideAction && (
-                        <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                        <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                             <Typography
                               variant="body2"
@@ -561,7 +638,7 @@ export const Applications: React.FC = () => {
                     </tr>
                     {isExpanded && (
                       <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                        <td colSpan={shouldHideAction ? 10 : 11} style={{ padding: '16px 24px' }}>
+                        <td colSpan={isCEOOroughReportingTeam ? (shouldHideAction ? 15 : 16) : (shouldHideAction ? 10 : 11)} style={{ padding: '16px 24px' }}>
                           <Box sx={{ mb: 2 }}>
                             <Button
                               variant="contained"
