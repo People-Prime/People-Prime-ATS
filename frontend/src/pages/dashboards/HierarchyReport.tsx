@@ -133,8 +133,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       isApplicants = true;
     } else if (metricType === 'INTERVIEWS') {
       filtered = dateFiltered.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));
-      label = 'Interview Schedules';
-      isHierarchy = true;
+      label = 'Client Interviews';
+      isHierarchy = false;
     } else if (metricType === 'OFFERS') {
       filtered = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status));
       label = 'Offer Sent';

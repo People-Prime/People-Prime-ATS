@@ -45,6 +45,7 @@ export const DrillDownPage: React.FC = () => {
   const isCEOOroughReportingTeam = currentUser?.role === 'CEO' || currentUser?.role === 'REPORTING_TEAM';
   const showFullJobsLayout = isCEOOroughReportingTeam || ['TEAM_LEAD', 'SUB_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(currentUser?.role);
   const shouldHideAction = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'REPORTING_TEAM', 'CEO'].includes(currentUser?.role);
+  const isClientInterviewsForCEO = currentUser?.role === 'CEO' && (modalTitle || '').toLowerCase().includes('interview');
 
   const getRemarkFieldVal = (remarks: string | undefined | null, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -279,7 +280,7 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Job Title</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Status</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Sourced By</TableCell>
-                    {currentUser?.role !== 'REPORTING_TEAM' && (
+                    {currentUser?.role !== 'REPORTING_TEAM' && !isClientInterviewsForCEO && (
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'center' }}>Actions</TableCell>
                     )}
                   </TableRow>
@@ -610,7 +611,7 @@ export const DrillDownPage: React.FC = () => {
                       <TableCell sx={{ fontSize: '0.7rem' }}>
                         {app.recruiter || app.assigned_employee?.full_name || 'System'}
                       </TableCell>
-                      {currentUser?.role !== 'REPORTING_TEAM' && (
+                      {currentUser?.role !== 'REPORTING_TEAM' && !isClientInterviewsForCEO && (
                         <TableCell sx={{ fontSize: '0.7rem', textAlign: 'center' }}>
                           {app.candidate_name && (
                             <Typography
@@ -633,12 +634,12 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell
                       colSpan={
                         isJobsType
-                          ? (shouldHideAction ? (isCEOOroughReportingTeam ? 14 : 7) : (isCEOOroughReportingTeam ? 15 : 8))
-                          : isApplicantsType
-                          ? (shouldHideAction ? 10 : 11)
-                          : isHierarchyType
-                          ? 5
-                          : (currentUser?.role !== 'REPORTING_TEAM' ? 8 : 7)
+                           ? (shouldHideAction ? (isCEOOroughReportingTeam ? 14 : 7) : (isCEOOroughReportingTeam ? 15 : 8))
+                           : isApplicantsType
+                           ? (shouldHideAction ? 10 : 11)
+                           : isHierarchyType
+                           ? 5
+                           : ((currentUser?.role !== 'REPORTING_TEAM' && !isClientInterviewsForCEO) ? 8 : 7)
                       }
                       sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}
                     >
