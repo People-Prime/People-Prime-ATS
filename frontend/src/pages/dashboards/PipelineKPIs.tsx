@@ -1,4 +1,5 @@
 import React from 'react';
+import { todayStr } from './DashboardCalendar';
 import {
   Grid,
   Card,
@@ -118,6 +119,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   const navigate = useNavigate();
   const { user: currentUser } = useAppSelector((state: any) => state.auth);
   const { applications: allApps } = useAppSelector((state: any) => state.applications || { applications: [] });
+  const { users } = useAppSelector((state: any) => state.users || { users: [] });
 
   const isTargetDashboard = ['ADMIN', 'CEO', 'REPORTING_TEAM'].includes(currentUser?.role);
   const isAssociate = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(currentUser?.role);
@@ -161,10 +163,44 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   });
   const jobsCount = seenJobs.size;
 
-  const submissions = validApps.filter(app =>
-    app.candidate_name &&
-    hasReachedSubmittedMilestone(app)
-  ).length;
+  const filteredUsers = React.useMemo(() => users.filter((u: any) => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
+
+  const getDescendantEmails = React.useCallback((email: string): string[] => {
+    const direct = filteredUsers.filter((u: any) => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
+    return [email, ...direct.flatMap((d: any) => getDescendantEmails(d.email))];
+  }, [filteredUsers]);
+
+  const scopeApps = React.useMemo(() => {
+    const isHierarchyRoot = ['CEO', 'ADMIN', 'REPORTING_TEAM'].includes(currentUser?.role);
+    const scopeEmails = isHierarchyRoot 
+      ? filteredUsers.map((u: any) => u.email)
+      : getDescendantEmails(currentUser?.email || '');
+
+    const scopeEmailsLower = scopeEmails.map((e: string) => e.toLowerCase());
+
+    const startDate = localStorage.getItem('dashboard_start_date') || todayStr();
+    const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
+
+    const dateFilteredRawApps = allApps.filter((app: any) => {
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
+    });
+
+    const deduplicatedApps = getUniqueSubmissions(dateFilteredRawApps);
+
+    return deduplicatedApps.filter((app: any) => 
+      app.assigned_employee?.email && 
+      scopeEmailsLower.includes(app.assigned_employee.email.toLowerCase())
+    );
+  }, [allApps, currentUser, filteredUsers, getDescendantEmails]);
+
+  const submissions = React.useMemo(() => {
+    return scopeApps.filter((app: any) =>
+      app.candidate_name &&
+      hasReachedSubmittedMilestone(app)
+    ).length;
+  }, [scopeApps]);
+
   const clientSubmissions = submissions;
   const clientInterviews = validApps.filter(app =>
     ['Interview Scheduled', 'Interview Completed'].includes(app.status)
@@ -198,14 +234,14 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
         }
       });
     } else if (label === 'Submissions') {
-      filtered = validApps.filter(app =>
+      filtered = scopeApps.filter(app =>
         app.candidate_name &&
         hasReachedSubmittedMilestone(app)
       );
     } else if (label === 'Pending Feedback') {
       filtered = validApps.filter(app => app.status === 'Under Review');
     } else if (label === 'Client Submissions') {
-      filtered = validApps.filter(app =>
+      filtered = scopeApps.filter(app =>
         app.candidate_name &&
         hasReachedSubmittedMilestone(app)
       );
