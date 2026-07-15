@@ -64,6 +64,31 @@ export const getUniqueSubmissions = (apps: any[]) => {
   return uniqueApps;
 };
 
+export const hasReachedSubmittedMilestone = (app: any): boolean => {
+  const postSubmissionStatuses = [
+    'Submitted',
+    'Under Review',
+    'Interview Scheduled',
+    'Interview Completed',
+    'Selected',
+    'Offer Sent',
+    'Offer Accepted',
+    'Placed'
+  ];
+  if (postSubmissionStatuses.includes(app.status)) {
+    return true;
+  }
+
+  if (app.notes && Array.isArray(app.notes)) {
+    return app.notes.some((note: any) => {
+      const content = (note.content || '').toLowerCase();
+      return content.includes('submitted') || content.includes('sourced');
+    });
+  }
+
+  return false;
+};
+
 interface PipelineKPIsProps {
   applications: Array<{
     id: string;
@@ -138,7 +163,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
 
   const submissions = validApps.filter(app =>
     app.candidate_name &&
-    ['Submitted', 'Under Review', 'Placed'].includes(app.status)
+    hasReachedSubmittedMilestone(app)
   ).length;
   const clientSubmissions = submissions;
   const clientInterviews = validApps.filter(app =>
@@ -175,14 +200,14 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     } else if (label === 'Submissions') {
       filtered = validApps.filter(app =>
         app.candidate_name &&
-        ['Submitted', 'Under Review', 'Placed'].includes(app.status)
+        hasReachedSubmittedMilestone(app)
       );
     } else if (label === 'Pending Feedback') {
       filtered = validApps.filter(app => app.status === 'Under Review');
     } else if (label === 'Client Submissions') {
       filtered = validApps.filter(app =>
         app.candidate_name &&
-        ['Submitted', 'Under Review', 'Placed'].includes(app.status)
+        hasReachedSubmittedMilestone(app)
       );
     } else if (label === 'Client Interviews') {
       filtered = validApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));

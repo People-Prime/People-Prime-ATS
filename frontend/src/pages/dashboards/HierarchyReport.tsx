@@ -22,7 +22,7 @@ import { useAppSelector } from '../../redux/store';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
-import { getUniqueSubmissions } from './PipelineKPIs';
+import { getUniqueSubmissions, hasReachedSubmittedMilestone } from './PipelineKPIs';
 
 interface CalculatedMetrics {
   jobsCount: number;
@@ -127,7 +127,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     } else if (metricType === 'SUBMISSIONS') {
       filtered = dateFiltered.filter(app =>
         app.candidate_name &&
-        ['Submitted', 'Under Review', 'Placed'].includes(app.status)
+        hasReachedSubmittedMilestone(app)
       );
       label = 'Client Submissions';
       isApplicants = true;
@@ -233,7 +233,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     const jobsCount = seenJobs.size;
     const submissions = dateFiltered.filter(app =>
       app.candidate_name &&
-      ['Submitted', 'Placed', 'Under Review'].includes(app.status)
+      hasReachedSubmittedMilestone(app)
     ).length;
     const interviews = dateFiltered.filter(app =>
       ['Interview Scheduled', 'Interview Completed'].includes(app.status)
