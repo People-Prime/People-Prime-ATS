@@ -242,6 +242,7 @@ export const JobPostings: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
   const shouldHideAction = activeRole !== 'ADMIN';
+  const showActionColumn = activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
   const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
   const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
@@ -517,6 +518,11 @@ export const JobPostings: React.FC = () => {
     e.preventDefault();
     if (!selectedApp) return;
 
+    if (candidateForm.expectedSalary.replace(/\D/g, '').length <= 4) {
+      alert('Expected Salary / Rate must be more than 4 digits.');
+      return;
+    }
+
     const fullName = `${candidateForm.firstName} ${candidateForm.lastName}`.trim();
 
     // Preserve the original job code so the candidate stays grouped under its parent job
@@ -778,7 +784,7 @@ Remarks: ${candidateForm.remarks}`;
                 <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Min Sal</th>
                 <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Max Sal</th>
                 <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Avg Sal</th>
-                {!shouldHideAction && (
+                {showActionColumn && (
                   <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Action</th>
                 )}
               </tr>
@@ -962,7 +968,7 @@ Remarks: ${candidateForm.remarks}`;
                           {renderCellText(salaryInfo.avg, 100)}
                         </Typography>
                       </td>
-                      {!shouldHideAction && (
+                      {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                             <Typography 
@@ -975,26 +981,28 @@ Remarks: ${candidateForm.remarks}`;
                             >
                               Edit
                             </Typography>
-                            <Typography 
-                              variant="body2" 
-                              sx={{ color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const group = app.associatedApps || [];
-                                if (window.confirm(`Are you sure you want to delete the job requirement "${app.position}" and all of its ${group.length} candidate submissions?`)) {
-                                  try {
-                                    for (const sub of group) {
-                                      await api.delete(`applications/${sub.id}/`);
-                                      dispatch(deleteApplication(String(sub.id)));
+                            {!shouldHideAction && (
+                              <Typography 
+                                variant="body2" 
+                                sx={{ color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const group = app.associatedApps || [];
+                                  if (window.confirm(`Are you sure you want to delete the job requirement "${app.position}" and all of its ${group.length} candidate submissions?`)) {
+                                    try {
+                                      for (const sub of group) {
+                                        await api.delete(`applications/${sub.id}/`);
+                                        dispatch(deleteApplication(String(sub.id)));
+                                      }
+                                    } catch (err) {
+                                      alert("Failed to delete some records.");
                                     }
-                                  } catch (err) {
-                                    alert("Failed to delete some records.");
                                   }
-                                }
-                              }}
-                            >
-                              Delete
-                            </Typography>
+                                }}
+                              >
+                                Delete
+                              </Typography>
+                            )}
                           </Box>
                         </td>
                       )}
@@ -1022,7 +1030,7 @@ Remarks: ${candidateForm.remarks}`;
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Status</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
-                              {!shouldHideAction && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
+                              {showActionColumn && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
                             </tr>
                           </thead>
                           <tbody>
@@ -1052,7 +1060,7 @@ Remarks: ${candidateForm.remarks}`;
                                 </td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.position, 140)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
-                                {!shouldHideAction && (
+                                {showActionColumn && (
                                   <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                     <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
                                       <Typography
@@ -1065,23 +1073,25 @@ Remarks: ${candidateForm.remarks}`;
                                       >
                                         Edit
                                       </Typography>
-                                      <Typography
-                                        variant="body2"
-                                        sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
-                                            try {
-                                              await api.delete(`applications/${applicant.id}/`);
-                                              dispatch(deleteApplication(String(applicant.id)));
-                                            } catch (err) {
-                                              alert("Failed to delete application.");
+                                      {!shouldHideAction && (
+                                        <Typography
+                                          variant="body2"
+                                          sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
+                                              try {
+                                                await api.delete(`applications/${applicant.id}/`);
+                                                dispatch(deleteApplication(String(applicant.id)));
+                                              } catch (err) {
+                                                alert("Failed to delete application.");
+                                              }
                                             }
-                                          }
-                                        }}
-                                      >
-                                        Delete
-                                      </Typography>
+                                          }}
+                                        >
+                                          Delete
+                                        </Typography>
+                                      )}
                                     </Box>
                                   </td>
                                 )}
@@ -1127,7 +1137,7 @@ Remarks: ${candidateForm.remarks}`;
                 {isEditing ? 'Edit Details' : 'Application Details'}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {!isEditing && activeRole === 'ADMIN' && (
+                {!isEditing && (activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && (
                   <Button 
                     variant="outlined" 
                     size="small" 
@@ -1323,8 +1333,8 @@ Remarks: ${candidateForm.remarks}`;
                       required
                       fullWidth
                       value={candidateForm.expectedSalary}
-                      onChange={(e) => setCandidateForm({ ...candidateForm, expectedSalary: e.target.value })}
-                      placeholder="e.g. $60/hr or $110,000/yr"
+                      onChange={(e) => setCandidateForm({ ...candidateForm, expectedSalary: e.target.value.replace(/\D/g, '') })}
+                      placeholder="e.g. 110000"
                       size="small"
                     />
                     <FormControl fullWidth size="small" required>

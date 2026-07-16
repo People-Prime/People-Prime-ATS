@@ -165,6 +165,7 @@ export const Applications: React.FC = () => {
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
   const isReadOnly = activeRole === 'REPORTING_TEAM';
   const shouldHideAction = activeRole !== 'ADMIN';
+  const showActionColumn = activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
 
   // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
@@ -468,7 +469,7 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Manager</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Team Lead</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
-                {!shouldHideAction && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
+                {showActionColumn && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -612,7 +613,7 @@ export const Applications: React.FC = () => {
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
                       </td>
-                      {!shouldHideAction && (
+                      {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
                             <Typography
@@ -625,23 +626,25 @@ export const Applications: React.FC = () => {
                             >
                               Edit
                             </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
-                                  try {
-                                    await api.delete(`applications/${app.id}/`);
-                                    dispatch(deleteApplication(String(app.id)));
-                                  } catch (err) {
-                                    alert("Failed to delete application.");
+                            {!shouldHideAction && (
+                              <Typography
+                                variant="body2"
+                                sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
+                                    try {
+                                      await api.delete(`applications/${app.id}/`);
+                                      dispatch(deleteApplication(String(app.id)));
+                                    } catch (err) {
+                                      alert("Failed to delete application.");
+                                    }
                                   }
-                                }
-                              }}
-                            >
-                              Delete
-                            </Typography>
+                                }}
+                              >
+                                Delete
+                              </Typography>
+                            )}
                           </Box>
                         </td>
                       )}

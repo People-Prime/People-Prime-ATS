@@ -282,6 +282,16 @@ export const CreateCandidate: React.FC = () => {
       return;
     }
 
+    if (formData.expectedSalary.replace(/\D/g, '').length <= 4) {
+      setError('Expected Salary / Rate must be more than 4 digits.');
+      return;
+    }
+
+    if (selectedFile && selectedFile.size > 1048576) {
+      setError('Resume size must be within 1 MB.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       let finalResumeLink = formData.resumeLink || 'N/A';
@@ -387,6 +397,10 @@ Recruiter Remarks: ${formData.remarks}`;
       setTimeout(() => navigate('/'), 1800);
     } catch (err: any) {
       console.error("Submission error details:", err);
+      if (err.response?.status === 413) {
+        setError('Resume size must be within 1 MB.');
+        return;
+      }
       const serverError = err.response?.data;
       let errMsg = "Failed to submit candidate to the database.";
       if (serverError) {
@@ -587,8 +601,8 @@ Recruiter Remarks: ${formData.remarks}`;
                     required
                     fullWidth
                     value={formData.expectedSalary}
-                    onChange={(e) => setFormData({ ...formData, expectedSalary: e.target.value })}
-                    placeholder="e.g. $60/hr or $110,000/yr"
+                    onChange={(e) => setFormData({ ...formData, expectedSalary: e.target.value.replace(/\D/g, '') })}
+                    placeholder="e.g. 110000"
                     size="small"
                   />
                 </Grid>

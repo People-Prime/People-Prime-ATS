@@ -164,8 +164,18 @@ export const CreateRequirement: React.FC = () => {
     setError('');
     setSuccess('');
 
-    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate) {
-      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate).');
+    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate || !formData.jobType) {
+      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate, Job Type).');
+      return;
+    }
+
+    if (formData.clientBillRate.replace(/\D/g, '').length <= 4) {
+      setError('Client Bill Rate must be more than 4 digits.');
+      return;
+    }
+
+    if (formData.payRate.replace(/\D/g, '').length <= 4) {
+      setError('Pay Rate / Salary must be more than 4 digits.');
       return;
     }
 
@@ -366,8 +376,8 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   required
                   fullWidth
                   value={formData.clientBillRate}
-                  onChange={(e) => setFormData({ ...formData, clientBillRate: e.target.value })}
-                  placeholder="e.g. $80/hr"
+                  onChange={(e) => setFormData({ ...formData, clientBillRate: e.target.value.replace(/\D/g, '') })}
+                  placeholder="e.g. 80"
                   size="small"
                 />
               </Grid>
@@ -377,8 +387,8 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   required
                   fullWidth
                   value={formData.payRate}
-                  onChange={(e) => setFormData({ ...formData, payRate: e.target.value })}
-                  placeholder="e.g. $120k/yr or $60/hr"
+                  onChange={(e) => setFormData({ ...formData, payRate: e.target.value.replace(/\D/g, '') })}
+                  placeholder="e.g. 60"
                   size="small"
                 />
               </Grid>
@@ -441,11 +451,12 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 </FormControl>
               </Grid>
               <Grid item xs={12} sm={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Job Type</InputLabel>
+                <FormControl fullWidth size="small" required>
+                  <InputLabel>Job Type *</InputLabel>
                   <Select
                     value={formData.jobType}
-                    label="Job Type"
+                    label="Job Type *"
+                    required
                     onChange={(e) => setFormData({ ...formData, jobType: e.target.value })}
                   >
                     <MenuItem value="Full-time">Full-time</MenuItem>

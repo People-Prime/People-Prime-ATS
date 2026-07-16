@@ -105,13 +105,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         from rest_framework.exceptions import PermissionDenied
-        if request.user.role != Role.ADMIN and not request.user.is_superuser:
+        if request.user.role not in [Role.ADMIN, Role.TEAM_LEAD, Role.SUB_LEAD] and not request.user.is_superuser:
             instance = self.get_object()
             if instance.status != 'New':
                 # Check if non-status fields are being modified
                 for field in ['candidate_name', 'candidate_email', 'candidate_phone', 'technology', 'position', 'client_name', 'experience', 'remarks']:
                     if field in request.data and request.data[field] != getattr(instance, field, None):
-                        raise PermissionDenied("Only Administrators are allowed to edit records.")
+                        raise PermissionDenied("Only Administrators and Team Leads are allowed to edit records.")
         return super().update(request, *args, **kwargs)
 
     def get_permissions(self):
