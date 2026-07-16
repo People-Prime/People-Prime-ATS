@@ -97,6 +97,23 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def destroy(self, request, *args, **kwargs):
+        from rest_framework.exceptions import PermissionDenied
+        if request.user.role != Role.ADMIN and not request.user.is_superuser:
+            raise PermissionDenied("Only Administrators are allowed to delete records.")
+        return super().destroy(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        from rest_framework.exceptions import PermissionDenied
+        if request.user.role != Role.ADMIN and not request.user.is_superuser:
+            instance = self.get_object()
+            if instance.status != 'New':
+                # Check if non-status fields are being modified
+                for field in ['candidate_name', 'candidate_email', 'candidate_phone', 'technology', 'position', 'client_name', 'experience', 'remarks']:
+                    if field in request.data and request.data[field] != getattr(instance, field, None):
+                        raise PermissionDenied("Only Administrators are allowed to edit records.")
+        return super().update(request, *args, **kwargs)
+
     def get_permissions(self):
         if self.request.method not in permissions.SAFE_METHODS:
             class IsNotReportingTeam(permissions.BasePermission):

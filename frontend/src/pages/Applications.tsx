@@ -164,7 +164,7 @@ export const Applications: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
   const isReadOnly = activeRole === 'REPORTING_TEAM';
-  const shouldHideAction = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
+  const shouldHideAction = activeRole !== 'ADMIN';
 
   // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
