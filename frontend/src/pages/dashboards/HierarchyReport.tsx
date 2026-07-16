@@ -257,7 +257,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     const interviews = dateFiltered.filter(app =>
       ['Interview Scheduled', 'Interview Completed'].includes(app.status)
     ).length;
-    const offers = dateFiltered.filter(app => ['Offer Sent', 'On Hold'].includes(app.status)).length;
+    const offers = dateFiltered.filter(app => app.status === 'Offer Sent').length;
     const onboard = dateFiltered.filter(app => app.status === 'Placed').length;
 
     return { jobsCount, submissions, interviews, offers, onboard };

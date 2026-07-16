@@ -61,20 +61,40 @@ export const ManagerDashboard: React.FC = () => {
     (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
   );
 
-  const deduplicatedApps = getUniqueSubmissions(applications);
+  // 1. Filter raw applications by date range first
+  const dateFilteredRawApps = React.useMemo(() => {
+    if (!startDate || !endDate) return applications;
+    return applications.filter((app: any) => {
+      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
+    });
+  }, [applications, startDate, endDate]);
 
-  // 4. Find all applications assigned to these team members
-  const myTeamApps = deduplicatedApps.filter(app => 
-    app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
-  );
+  // 2. Deduplicate the date-filtered applications
+  const deduplicatedAppsForCount = React.useMemo(() => {
+    return getUniqueSubmissions(dateFilteredRawApps);
+  }, [dateFilteredRawApps]);
 
-  // Apply date range filtering
-  const dateFilteredApps = (startDate && endDate)
-    ? myTeamApps.filter(app => {
-        const d = (app.updated_at || app.created_at || '').slice(0, 10);
-        return d >= startDate && d <= endDate;
-      })
-    : myTeamApps;
+  // 3. Find all applications assigned to team members
+  const dateFilteredApps = React.useMemo(() => {
+    return deduplicatedAppsForCount.filter((app: any) => 
+      app.assigned_employee && teamMembers.some((member: any) => member.email === app.assigned_employee?.email)
+    );
+  }, [deduplicatedAppsForCount, teamMembers]);
+
+  // 4. All-time fallback (no date filter)
+  const allTimeDeduplicated = React.useMemo(() => {
+    return getUniqueSubmissions(applications);
+  }, [applications]);
+
+  const myTeamApps = React.useMemo(() => {
+    return allTimeDeduplicated.filter((app: any) =>
+      app.assigned_employee && teamMembers.some((member: any) => member.email === app.assigned_employee?.email)
+    );
+  }, [allTimeDeduplicated, teamMembers]);
+
+  // Maintain deduplicatedApps reference for inline callbacks
+  const deduplicatedApps = allTimeDeduplicated;
 
   const getRemarkField = (remarks: string | undefined, fieldName: string): string => {
     if (!remarks) return 'N/A';

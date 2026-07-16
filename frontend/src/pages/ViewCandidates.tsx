@@ -87,6 +87,34 @@ export const ViewCandidates: React.FC = () => {
     );
   };
 
+  const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
+    if (!text) return '—';
+    if (text.length > maxWidth / 7) {
+      return (
+        <Box
+          component="span"
+          title={text}
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            alert(text);
+          }}
+          sx={{
+            cursor: 'pointer',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            display: 'inline-block',
+            maxWidth: maxWidth,
+            verticalAlign: 'middle'
+          }}
+        >
+          {text}
+        </Box>
+      );
+    }
+    return text;
+  };
+
   if (!selectedApp) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -181,18 +209,18 @@ export const ViewCandidates: React.FC = () => {
               </TableHead>
               <TableBody>
                 {jobCandidates.map((candidate) => (
-                  <TableRow key={candidate.id} hover sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <TableCell sx={{ fontWeight: 700, py: 2 }}>
-                      {candidate.candidate_name}
+                  <TableRow key={candidate.id} hover sx={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                    <TableCell sx={{ fontWeight: 700, py: 2, whiteSpace: 'nowrap' }}>
+                      {renderCellText(candidate.candidate_name, 120)}
                     </TableCell>
-                    <TableCell sx={{ py: 2 }}>
-                      <Typography variant="body2" fontWeight={500}>{candidate.candidate_email}</Typography>
-                      <Typography variant="caption" color="text.secondary">{candidate.candidate_phone}</Typography>
+                    <TableCell sx={{ py: 2, whiteSpace: 'nowrap' }}>
+                      <Typography variant="body2" fontWeight={500}>{renderCellText(candidate.candidate_email, 140)}</Typography>
+                      <Typography variant="caption" color="text.secondary">{renderCellText(candidate.candidate_phone, 110)}</Typography>
                     </TableCell>
-                    <TableCell sx={{ py: 2, color: 'text.secondary', fontSize: '0.875rem' }}>
-                      {candidate.recruiter || 'Self'}
+                    <TableCell sx={{ py: 2, color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                      {renderCellText(candidate.recruiter || 'Self', 110)}
                     </TableCell>
-                    <TableCell sx={{ py: 2 }}>
+                    <TableCell sx={{ py: 2, whiteSpace: 'nowrap' }}>
                       {getStatusChip(candidate.status)}
                     </TableCell>
                   </TableRow>

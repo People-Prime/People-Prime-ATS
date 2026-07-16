@@ -301,7 +301,7 @@ export const DrillDownPage: React.FC = () => {
                     const salaryInfo = getSalaryInfo(app.remarks || '');
 
                     return (
-                      <TableRow key={app.id} sx={{ whiteSpace: currentUser?.role === 'REPORTING_TEAM' ? 'nowrap' : undefined }}>
+                      <TableRow key={app.id} sx={{ whiteSpace: 'nowrap' }}>
                         <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
                           <Typography variant="subtitle2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
                             {renderCellText(jobCodeVal !== 'N/A' ? jobCodeVal : '—', 95)}
@@ -415,7 +415,7 @@ export const DrillDownPage: React.FC = () => {
                     const isExpanded = !!expandedCandidates[cand.key];
                     return (
                       <React.Fragment key={cand.key}>
-                        <TableRow sx={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}` }}>
+                        <TableRow sx={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                           <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>
                             <Box 
                               onClick={(e) => {

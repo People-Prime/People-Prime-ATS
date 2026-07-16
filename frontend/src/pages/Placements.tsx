@@ -104,6 +104,34 @@ export const Placements: React.FC = () => {
     return 'N/A';
   };
 
+  const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
+    if (!text) return '—';
+    if (text.length > maxWidth / 7) {
+      return (
+        <Box
+          component="span"
+          title={text}
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            alert(text);
+          }}
+          sx={{
+            cursor: 'pointer',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            display: 'inline-block',
+            maxWidth: maxWidth,
+            verticalAlign: 'middle'
+          }}
+        >
+          {text}
+        </Box>
+      );
+    }
+    return text;
+  };
+
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
     const uniqueApps = getUniqueSubmissions(applications);
@@ -308,70 +336,71 @@ export const Placements: React.FC = () => {
                     key={app.id}
                     sx={{
                       borderBottom: `1px solid ${theme.palette.divider}`,
+                      whiteSpace: 'nowrap',
                       '&:hover': {
                         bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b50'
                       }
                     }}
                   >
-                    <TableCell>
-                      {app.placementCode}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.placementCode, 100)}
                     </TableCell>
-                    <TableCell>
-                      {app.candidate_name || 'N/A'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.candidate_name, 120)}
                     </TableCell>
-                    <TableCell>
-                      {getRemarkField(app.remarks, 'Job Code')}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Job Code'), 90)}
                     </TableCell>
-                    <TableCell>
-                      {app.position || 'N/A'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.position, 140)}
                     </TableCell>
-                    <TableCell>
-                      {app.client_name || 'N/A'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.client_name, 120)}
                     </TableCell>
-                    <TableCell>
-                      {getRemarkField(app.remarks, 'Business Unit')}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Business Unit'), 120)}
                     </TableCell>
-                    <TableCell sx={{ textAlign: 'right' }}>
-                      {getRemarkField(app.remarks, 'Client Bill Rate')}
+                    <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Client Bill Rate'), 100)}
                     </TableCell>
-                    <TableCell sx={{ textAlign: 'right' }}>
-                      {getRemarkField(app.remarks, 'Pay Rate')}
+                    <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Pay Rate'), 100)}
                     </TableCell>
-                    <TableCell sx={{ textAlign: 'right' }}>
-                      {getProfitAmount(app.remarks)}
+                    <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {renderCellText(getProfitAmount(app.remarks), 100)}
                     </TableCell>
-                    <TableCell>
-                      {app.recruiter || app.assigned_employee?.full_name || 'System'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       {new Date(app.created_at).toLocaleDateString(undefined, {
                         year: 'numeric',
                         month: 'short',
                         day: 'numeric'
                       })}
                     </TableCell>
-                    <TableCell>
-                      {getRemarkField(app.remarks, 'Start Date')}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Start Date'), 110)}
                     </TableCell>
-                    <TableCell>
-                      {getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A'
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A'
                         ? getRemarkField(app.remarks, 'Actual Start Date')
-                        : getRemarkField(app.remarks, 'Start Date')}
+                        : getRemarkField(app.remarks, 'Start Date'), 110)}
                     </TableCell>
-                    <TableCell>
-                      {getRemarkField(app.remarks, 'End Date')}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'End Date'), 110)}
                     </TableCell>
-                    <TableCell>
-                      {app.status}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.status, 90)}
                     </TableCell>
-                    <TableCell>
-                      {app.recruiter || app.assigned_employee?.full_name || 'System'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}
                     </TableCell>
-                    <TableCell>
-                      {getRemarkField(app.remarks, 'Manager')}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(getRemarkField(app.remarks, 'Manager'), 110)}
                     </TableCell>
-                    <TableCell>
-                      {app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || 'N/A'}
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      {renderCellText(app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || 'N/A', 120)}
                     </TableCell>
                   </TableRow>
                 ))
