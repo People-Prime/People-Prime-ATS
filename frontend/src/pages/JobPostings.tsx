@@ -975,6 +975,26 @@ Remarks: ${candidateForm.remarks}`;
                             >
                               Edit
                             </Typography>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const group = app.associatedApps || [];
+                                if (window.confirm(`Are you sure you want to delete the job requirement "${app.position}" and all of its ${group.length} candidate submissions?`)) {
+                                  try {
+                                    for (const sub of group) {
+                                      await api.delete(`applications/${sub.id}/`);
+                                      dispatch(deleteApplication(String(sub.id)));
+                                    }
+                                  } catch (err) {
+                                    alert("Failed to delete some records.");
+                                  }
+                                }
+                              }}
+                            >
+                              Delete
+                            </Typography>
                           </Box>
                         </td>
                       )}
@@ -1034,16 +1054,35 @@ Remarks: ${candidateForm.remarks}`;
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
                                 {!shouldHideAction && (
                                   <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                    <Typography
-                                      variant="body2"
-                                      sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/candidates/create/${applicant.id}`);
-                                      }}
-                                    >
-                                      Edit
-                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                                      <Typography
+                                        variant="body2"
+                                        sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigate(`/candidates/create/${applicant.id}`);
+                                        }}
+                                      >
+                                        Edit
+                                      </Typography>
+                                      <Typography
+                                        variant="body2"
+                                        sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
+                                            try {
+                                              await api.delete(`applications/${applicant.id}/`);
+                                              dispatch(deleteApplication(String(applicant.id)));
+                                            } catch (err) {
+                                              alert("Failed to delete application.");
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        Delete
+                                      </Typography>
+                                    </Box>
                                   </td>
                                 )}
                               </tr>

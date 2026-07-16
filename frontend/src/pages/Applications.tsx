@@ -625,6 +625,23 @@ export const Applications: React.FC = () => {
                             >
                               Edit
                             </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
+                                  try {
+                                    await api.delete(`applications/${app.id}/`);
+                                    dispatch(deleteApplication(String(app.id)));
+                                  } catch (err) {
+                                    alert("Failed to delete application.");
+                                  }
+                                }
+                              }}
+                            >
+                              Delete
+                            </Typography>
                           </Box>
                         </td>
                       )}
