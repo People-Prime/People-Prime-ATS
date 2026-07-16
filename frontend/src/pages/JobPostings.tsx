@@ -276,7 +276,6 @@ export const JobPostings: React.FC = () => {
   };
 
 
-  const isCEOOroughReportingTeam = activeRole === 'CEO' || activeRole === 'REPORTING_TEAM';
 
   const getHierarchyInfo = (recruiterEmails: string[]) => {
     const tls = new Set<string>();
@@ -764,27 +763,23 @@ Remarks: ${candidateForm.remarks}`;
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#101726' }}>
-                <th style={{ width: '50px', padding: '6px 8px' }}></th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Code</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Title</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Location</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Status</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client Bill Rate / Salary</th>
-                <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Pay Rate / Salary</th>
-                {isCEOOroughReportingTeam && (
-                  <>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</th>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>TL</th>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Recruiter</th>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Created</th>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Min Sal</th>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Max Sal</th>
-                    <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary }}>Avg Sal</th>
-                  </>
-                )}
+                <th style={{ width: '50px', padding: '6px 8px', whiteSpace: 'nowrap' }}></th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Code</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Client</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Location</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Status</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Client Bill Rate / Salary</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Pay Rate / Salary</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Manager</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>TL</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Created</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Min Sal</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Max Sal</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Avg Sal</th>
                 {!shouldHideAction && (
-                  <th style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center' }}>Action</th>
+                  <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Action</th>
                 )}
               </tr>
             </thead>
@@ -812,16 +807,16 @@ Remarks: ${candidateForm.remarks}`;
 
                 return (
                   <React.Fragment key={app.id}>
-                    <tr 
-                      style={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, transition: 'background-color 0.2s', whiteSpace: activeRole === 'REPORTING_TEAM' ? 'nowrap' : undefined }}
+                     <tr 
+                      style={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, transition: 'background-color 0.2s', whiteSpace: 'nowrap' }}
                       onMouseEnter={(e) => {
                          e.currentTarget.style.backgroundColor = theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
+                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
-                      <td style={{ padding: '4px 8px', textAlign: 'center' }}>
+                      <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <Box 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -866,131 +861,127 @@ Remarks: ${candidateForm.remarks}`;
                           </Box>
                         </Box>
                       </td>
-                      <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                        <Typography variant="subtitle2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
                           {renderCellText(jobCodeVal !== 'N/A' ? jobCodeVal : '—', 95)}
                         </Typography>
                       </td>
-                    <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                      <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', fontWeight: 700 }}>{renderCellText(app.position, 140)}</Typography>
-                    </td>
-                    <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                      <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                        <Building size={14} /> {renderCellText(app.client_name, 120)}
-                      </Typography>
-                    </td>
-                    <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                      <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                        {(() => {
-                          const loc = getRemarkField(app.remarks, 'Location');
-                          const val = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
-              return renderCellText(val, 120);
-                        })()}
-                      </Typography>
-                    </td>
-                    <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                      {currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST' ? (
-                        <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                          {getRemarkField(app.remarks, 'Job Status')}
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>{renderCellText(app.position, 140)}</Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
+                          <Building size={14} /> {renderCellText(app.client_name, 120)}
                         </Typography>
-                      ) : (
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
-                            fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', 
-                            color: getRemarkField(app.remarks, 'Job Status') === 'Active' ? 'success.main' : 'text.secondary',
-                            cursor: 'pointer',
-                            '&:hover': { textDecoration: 'underline' }
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setJobStatusUpdateApp(app);
-                            setJobStatusUpdateValue(getRemarkField(app.remarks, 'Job Status') || 'Active');
-                          }}
-                        >
-                          {getRemarkField(app.remarks, 'Job Status')}
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {(() => {
+                            const loc = getRemarkField(app.remarks, 'Location');
+                            const val = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
+                            return renderCellText(val, 120);
+                          })()}
                         </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        {currentUser?.role === 'ASSOCIATE_ANALYST' || currentUser?.role === 'SENIOR_ANALYST' ? (
+                          <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                            {getRemarkField(app.remarks, 'Job Status')}
+                          </Typography>
+                        ) : (
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontSize: '0.75rem', 
+                              color: getRemarkField(app.remarks, 'Job Status') === 'Active' ? 'success.main' : 'text.secondary',
+                              cursor: 'pointer',
+                              '&:hover': { textDecoration: 'underline' }
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setJobStatusUpdateApp(app);
+                              setJobStatusUpdateValue(getRemarkField(app.remarks, 'Job Status') || 'Active');
+                            }}
+                          >
+                            {getRemarkField(app.remarks, 'Job Status')}
+                          </Typography>
+                        )}
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {(() => {
+                            const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
+                            if (billRate !== 'N/A') return renderCellText(billRate, 100);
+                            const salary = getRemarkField(app.remarks, 'Salary');
+                            if (salary !== 'N/A') return renderCellText(salary, 100);
+                            return '—';
+                          })()}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {(() => {
+                            const payRate = getRemarkField(app.remarks, 'Pay Rate');
+                            if (payRate !== 'N/A') return renderCellText(payRate, 100);
+                            return '—';
+                          })()}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(hierarchyInfo.manager, 110)}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(hierarchyInfo.tl, 110)}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(recruitersText, 120)}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(creationDateText, 140)}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(salaryInfo.min, 100)}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(salaryInfo.max, 100)}
+                        </Typography>
+                      </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                          {renderCellText(salaryInfo.avg, 100)}
+                        </Typography>
+                      </td>
+                      {!shouldHideAction && (
+                        <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAppSelect(app);
+                              }}
+                            >
+                              Edit
+                            </Typography>
+                          </Box>
+                        </td>
                       )}
-                    </td>
-                    <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                      <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                        {(() => {
-                          const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
-                          if (billRate !== 'N/A') return renderCellText(billRate, 100);
-                          const salary = getRemarkField(app.remarks, 'Salary');
-                          if (salary !== 'N/A') return renderCellText(salary, 100);
-                          return '—';
-                        })()}
-                      </Typography>
-                    </td>
-                    <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                      <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                        {(() => {
-                          const payRate = getRemarkField(app.remarks, 'Pay Rate');
-                          if (payRate !== 'N/A') return renderCellText(payRate, 100);
-                          return '—';
-                        })()}
-                      </Typography>
-                    </td>
-                    {isCEOOroughReportingTeam && (
-                      <>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(hierarchyInfo.manager, 110)}
-                          </Typography>
-                        </td>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(hierarchyInfo.tl, 110)}
-                          </Typography>
-                        </td>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(recruitersText, 120)}
-                          </Typography>
-                        </td>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(creationDateText, 140)}
-                          </Typography>
-                        </td>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(salaryInfo.min, 100)}
-                          </Typography>
-                        </td>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                            {renderCellText(salaryInfo.max, 100)}
-                          </Typography>
-                        </td>
-                        <td style={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', fontWeight: 600 }}>
-                            {renderCellText(salaryInfo.avg, 100)}
-                          </Typography>
-                        </td>
-                      </>
-                    )}
-                  {!shouldHideAction && (
-                    <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAppSelect(app);
-                          }}
-                        >
-                          Edit
-                        </Typography>
-                      </Box>
-                    </td>
-                  )}
-                </tr>
-                {isExpanded && (
-                  <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                    <td colSpan={shouldHideAction ? (isCEOOroughReportingTeam ? 15 : 8) : (isCEOOroughReportingTeam ? 16 : 9)} style={{ padding: '12px 16px' }}>
+                    </tr>
+                    {isExpanded && (
+                      <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
+                        <td colSpan={shouldHideAction ? 15 : 16} style={{ padding: '12px 16px' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
                         APPLICANTS ({jobApplicants.length})
                       </Typography>
@@ -1002,30 +993,30 @@ Remarks: ${candidateForm.remarks}`;
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
                           <thead>
                             <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applicant ID</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applicant Name</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Job Code</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applicant Status</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Job Title</th>
-                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Created By</th>
-                              {!shouldHideAction && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>}
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant ID</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Name</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Email</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Code</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>City</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>State</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Status</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
+                              {!shouldHideAction && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
                             </tr>
                           </thead>
                           <tbody>
                             {jobApplicants.map((applicant) => (
-                              <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{applicant.id}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main }}>
+                              <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap' }}>
                                   {renderCellText(applicant.candidate_name, 120)}
                                 </td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.candidate_email, 130)}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.city, 90)}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.state, 90)}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.candidate_email, 130)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.city, 90)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.state, 90)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                                   <Typography
                                     variant="body2"
                                     sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
@@ -1039,10 +1030,10 @@ Remarks: ${candidateForm.remarks}`;
                                     {applicant.status}
                                   </Typography>
                                 </td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.position, 140)}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.position, 140)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
                                 {!shouldHideAction && (
-                                  <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                  <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                     <Typography
                                       variant="body2"
                                       sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
