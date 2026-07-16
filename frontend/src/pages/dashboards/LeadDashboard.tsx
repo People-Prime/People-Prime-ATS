@@ -31,6 +31,7 @@ import { api } from '../../services/api';
 import { ApplicationStatus } from '../../types';
 import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { HierarchyReport } from './HierarchyReport';
 
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
 
@@ -294,6 +295,12 @@ export const LeadDashboard: React.FC = () => {
       </Box>
 
       <PipelineKPIs applications={showAllTimeKPIs ? teamApplications : dateFilteredTeamApps} />
+
+      {currentUser && (currentUser.full_name?.toLowerCase() === 'balamoorthi tamilselvam' || currentUser.email?.toLowerCase().includes('balamoorthi')) && (
+        <Box sx={{ mt: 3, mb: 3 }}>
+          <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+        </Box>
+      )}
 
       {/* Recruitment Activity - By Team */}
       <Grid container spacing={3}>
