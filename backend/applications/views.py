@@ -219,6 +219,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     raise ValidationError("Team Leads are not allowed to change Job Code, Start Date, or End Date during edits.")
 
         old_assignee_email = instance.assigned_employee.email if instance.assigned_employee else None
+        
+        # Keep original recruiter value if it exists
+        if instance.recruiter:
+            serializer.validated_data['recruiter'] = instance.recruiter
+            
         application = serializer.save()
         check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_email=old_assignee_email)
 
