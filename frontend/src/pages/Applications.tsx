@@ -550,22 +550,13 @@ export const Applications: React.FC = () => {
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.id}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        {activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM' ? (
-                          <Typography
-                            variant="body2"
-                            sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700 }}
-                          >
-                            {renderCellText(app.candidate_name, 120)}
-                          </Typography>
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                            onClick={() => handleAppSelect(app)}
-                          >
-                            {renderCellText(app.candidate_name, 120, () => handleAppSelect(app))}
-                          </Typography>
-                        )}
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                          onClick={() => handleAppSelect(app)}
+                        >
+                          {renderCellText(app.candidate_name, 120, () => handleAppSelect(app))}
+                        </Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.candidate_email, 140)}</Typography>
