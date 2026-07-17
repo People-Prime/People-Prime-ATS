@@ -875,7 +875,22 @@ Remarks: ${candidateForm.remarks}`;
                         </Typography>
                       </td>
                       <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>{renderCellText(app.position, 140)}</Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: 'primary.main',
+                            cursor: 'pointer',
+                            '&:hover': { textDecoration: 'underline' }
+                          }}
+                          onClick={() => {
+                            const desc = getRemarkField(app.remarks, 'Remarks') || app.remarks || 'No description available.';
+                            setClickedTextValue(desc);
+                          }}
+                        >
+                          {app.position}
+                        </Typography>
                       </td>
                       <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
