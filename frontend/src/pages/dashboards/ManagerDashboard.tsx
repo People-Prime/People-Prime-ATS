@@ -15,7 +15,7 @@ import {
   Button
 } from '@mui/material';
 import { useAppSelector } from '../../redux/store';
-import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
+import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -26,8 +26,8 @@ export const ManagerDashboard: React.FC = () => {
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   React.useEffect(() => {
@@ -55,11 +55,6 @@ export const ManagerDashboard: React.FC = () => {
     }
   });
 
-  // 3. Find all users belonging to these teams or reporting directly to this manager
-  const teamMembers = users.filter(u => 
-    (u.teams && u.teams.some(t => myTeams.some(mt => String(mt.id) === String(t.id)))) ||
-    (u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase()))
-  );
 
   // 1. Filter raw applications by date range first
   const dateFilteredRawApps = React.useMemo(() => {
@@ -75,26 +70,7 @@ export const ManagerDashboard: React.FC = () => {
     return getUniqueSubmissions(dateFilteredRawApps);
   }, [dateFilteredRawApps]);
 
-  // 3. Find all applications assigned to team members
-  const dateFilteredApps = React.useMemo(() => {
-    return deduplicatedAppsForCount.filter((app: any) => 
-      app.assigned_employee && teamMembers.some((member: any) => member.email === app.assigned_employee?.email)
-    );
-  }, [deduplicatedAppsForCount, teamMembers]);
 
-  // 4. All-time fallback (no date filter)
-  const allTimeDeduplicated = React.useMemo(() => {
-    return getUniqueSubmissions(applications);
-  }, [applications]);
-
-  const myTeamApps = React.useMemo(() => {
-    return allTimeDeduplicated.filter((app: any) =>
-      app.assigned_employee && teamMembers.some((member: any) => member.email === app.assigned_employee?.email)
-    );
-  }, [allTimeDeduplicated, teamMembers]);
-
-  // Maintain deduplicatedApps reference for inline callbacks
-  const deduplicatedApps = allTimeDeduplicated;
 
   const getRemarkField = (remarks: string | undefined, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -134,13 +110,13 @@ export const ManagerDashboard: React.FC = () => {
 
   const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
     const members = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
-    let teamApps = deduplicatedApps.filter(app => 
-      app.assigned_employee && members.some(member => member.email === app.assigned_employee?.email)
+    let teamApps = deduplicatedAppsForCount.filter((app: any) => 
+      app.assigned_employee && members.some((member: any) => member.email === app.assigned_employee?.email)
     );
 
-    if (!showAllTimeKPIs && startDate && endDate) {
-      teamApps = teamApps.filter(app => {
-        const d = (app.updated_at || app.created_at || '').slice(0, 10);
+    if (startDate && endDate) {
+      teamApps = teamApps.filter((app: any) => {
+        const d = (app.created_at || '').slice(0, 10);
         return d >= startDate && d <= endDate;
       });
     }
@@ -219,8 +195,6 @@ export const ManagerDashboard: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Pipeline KPIs */}
-      <PipelineKPIs applications={showAllTimeKPIs ? myTeamApps : dateFilteredApps} />
 
       {/* Hierarchy Report – starts from this Senior Manager's own node */}
       {currentUser && <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />}
@@ -234,7 +208,7 @@ export const ManagerDashboard: React.FC = () => {
                 Recruitment Activity - Under Your Management
               </Typography>
             </Box>
-            <TableContainer sx={{ overflowX: 'auto' }}>
+            <TableContainer sx={{ overflowX: 'auto', maxHeight: '500px' }}>
               <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap', padding: '4px 8px', fontSize: '0.75rem' } }}>
                 <TableHead>
                   <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>

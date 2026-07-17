@@ -220,8 +220,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         old_assignee_email = instance.assigned_employee.email if instance.assigned_employee else None
         
-        # Keep original recruiter value if it exists
-        if instance.recruiter:
+        # Keep original recruiter value if it exists and a new one isn't provided in the request data
+        recruiter_provided = 'recruiter' in self.request.data and self.request.data['recruiter']
+        if instance.recruiter and not recruiter_provided:
             serializer.validated_data['recruiter'] = instance.recruiter
             
         application = serializer.save()

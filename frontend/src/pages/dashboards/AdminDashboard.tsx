@@ -24,13 +24,17 @@ import {
   Tab,
   TextField,
   InputAdornment,
-  Chip
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { deleteApplication } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
-import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
+import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -113,8 +117,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
     .slice(0, 4);
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   React.useEffect(() => {
@@ -139,6 +143,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   const [placementsSearch, setPlacementsSearch] = useState('');
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
   const [expandedGroupedJobs, setExpandedGroupedJobs] = useState<Record<string, boolean>>({});
+  const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
   // Helper to extract numeric profit based on rates
   const getProfitAmount = (remarks: string) => {
@@ -192,7 +197,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     });
 
     return Object.entries(groups).map(([key, apps]) => {
-      const sorted = [...apps].sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+      // Sort to prioritize applications with actual candidate details/remarks (specifically containing Resume Link or Location details)
+      const sorted = [...apps].sort((a, b) => {
+        const aHasResume = (a.remarks || '').toLowerCase().includes('resume link');
+        const bHasResume = (b.remarks || '').toLowerCase().includes('resume link');
+        if (aHasResume !== bHasResume) return aHasResume ? -1 : 1;
+
+        return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+      });
       return {
         key,
         primaryApp: sorted[0],
@@ -426,8 +438,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       )}
 
 
-      {/* Pipeline KPIs – org-wide counts filtered by date or all-time */}
-      <PipelineKPIs applications={showAllTimeKPIs ? deduplicatedApps : dateFilteredApps} />
 
       {/* Tabs Menu */}
       {currentUser?.role === 'REPORTING_TEAM' && false && (
@@ -646,7 +656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
             />
           </Box>
 
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto', maxHeight: '500px' }}>
             <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.72rem' } }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>
@@ -821,7 +831,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
             />
           </Box>
 
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto', maxHeight: '500px' }}>
             <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.72rem' } }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>
@@ -875,8 +885,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                           <TableCell sx={{ fontWeight: 700 }}>
                             {jobCodeVal !== 'N/A' ? jobCodeVal : '—'}
                           </TableCell>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontSize: '0.72rem', fontWeight: 650 }}>{app.position}</Typography>
+                          <TableCell sx={{ cursor: 'pointer' }} onClick={() => {
+                            const desc = getRemarkField(app.remarks, 'Remarks') || app.remarks || 'No description available.';
+                            setClickedTextValue(desc);
+                          }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.72rem', fontWeight: 650, color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}>{app.position}</Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{app.client_name}</Typography>
                           </TableCell>
                           <TableCell>
@@ -1089,7 +1102,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         </Card>
       )}
 
+      {/* VIEW FULL VALUE DIALOG */}
+      <Dialog open={!!clickedTextValue} onClose={() => setClickedTextValue(null)}>
+        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>Full Value</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ wordBreak: 'break-word', userSelect: 'text' }}>
+            {clickedTextValue}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClickedTextValue(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
-
   );
 };

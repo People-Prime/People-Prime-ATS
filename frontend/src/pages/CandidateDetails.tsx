@@ -24,7 +24,7 @@ import { api } from '../services/api';
 
 const extractField = (remarks: string, fieldName: string): string => {
   if (!remarks) return '';
-  const regex = new RegExp(`${fieldName}:\\s*(.*)`);
+  const regex = new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im');
   const match = remarks.match(regex);
   return match ? match[1].trim() : '';
 };

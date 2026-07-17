@@ -191,9 +191,15 @@ export const DrillDownPage: React.FC = () => {
       if (!candidateGroups[key]) return;
       const group = candidateGroups[key];
       if (app.id === group[0].id) {
+        const sortedGroup = [...group].sort((a, b) => {
+          const aHasResume = (a.remarks || '').toLowerCase().includes('resume link');
+          const bHasResume = (b.remarks || '').toLowerCase().includes('resume link');
+          if (aHasResume !== bHasResume) return aHasResume ? -1 : 1;
+          return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+        });
         unique.push({
           key,
-          primaryApp: app,
+          primaryApp: sortedGroup[0],
           allSubmissions: group
         });
       }
@@ -308,8 +314,21 @@ export const DrillDownPage: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', fontWeight: 700 }}>
-                            {renderCellText(app.position, 140)}
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem',
+                              fontWeight: 700,
+                              color: 'primary.main',
+                              cursor: 'pointer',
+                              '&:hover': { textDecoration: 'underline' }
+                            }}
+                            onClick={() => {
+                              const jobDesc = getRemarkFieldVal(app.remarks, 'Remarks') || app.remarks || 'No description available.';
+                              setClickedTextValue(jobDesc);
+                            }}
+                          >
+                            {app.position}
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>

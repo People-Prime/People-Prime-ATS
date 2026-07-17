@@ -29,7 +29,7 @@ import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { changeApplicationStatus, addApplicationNote } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
 import { ApplicationStatus } from '../../types';
-import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
+import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -56,13 +56,17 @@ export const LeadDashboard: React.FC = () => {
 
 
   // Applications assigned to team members (deduplicated)
-  const teamApplications = getUniqueSubmissions(applications).filter(app =>
-    app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
-  );
+  const teamApplications = getUniqueSubmissions(applications).filter(app => {
+    const isAssigned = app.assigned_employee && teamMembers.some(member => member.email?.toLowerCase() === app.assigned_employee?.email?.toLowerCase());
+    const isRecruited = app.recruiter && teamMembers.some(member => 
+      (member.full_name && app.recruiter.toLowerCase() === member.full_name.toLowerCase()) ||
+      (member.email && app.recruiter.toLowerCase() === member.email.toLowerCase())
+    );
+    return isAssigned || isRecruited;
+  });
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
-  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
 
   React.useEffect(() => {
     localStorage.setItem('dashboard_start_date', startDate);
@@ -156,7 +160,7 @@ export const LeadDashboard: React.FC = () => {
   };
 
   const handleMetricClick = (searchName: string, status: string) => {
-    let filtered = showAllTimeKPIs ? teamApplications : dateFilteredTeamApps;
+    let filtered = dateFilteredTeamApps;
     if (searchName) {
        filtered = filtered.filter(a => {
          const member = users.find(u => u.full_name === searchName || u.email === searchName);
@@ -253,14 +257,7 @@ export const LeadDashboard: React.FC = () => {
           Team Management: <span style={{ color: theme.palette.primary.main }}>{myTeamName}</span>
         </Typography>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant={showAllTimeKPIs ? "contained" : "outlined"}
-            size="small"
-            onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
-            sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.5, fontWeight: 700 }}
-          >
-            {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
-          </Button>
+
           <DashboardCalendar
             startDate={startDate}
             endDate={endDate}
@@ -294,11 +291,9 @@ export const LeadDashboard: React.FC = () => {
         </Button>
       </Box>
 
-      <PipelineKPIs applications={showAllTimeKPIs ? teamApplications : dateFilteredTeamApps} />
-
       {currentUser && (currentUser.full_name?.toLowerCase() === 'balamoorthi tamilselvam' || currentUser.email?.toLowerCase().includes('balamoorthi')) && (
         <Box sx={{ mt: 3, mb: 3 }}>
-          <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+          <HierarchyReport rootEmail={currentUser.email} startDate={startDate} endDate={endDate} />
         </Box>
       )}
 
@@ -311,7 +306,7 @@ export const LeadDashboard: React.FC = () => {
                 Recruitment Activity - By Team
               </Typography>
             </Box>
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto', maxHeight: '500px' }}>
               <Table 
                 sx={{ 
                   minWidth: 650,

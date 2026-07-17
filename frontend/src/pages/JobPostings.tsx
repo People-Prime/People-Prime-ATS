@@ -241,8 +241,8 @@ export const JobPostings: React.FC = () => {
   });
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
-  const shouldHideAction = activeRole !== 'ADMIN';
-  const showActionColumn = activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
+  const shouldHideAction = activeRole !== 'ADMIN' && activeRole !== 'CEO';
+  const showActionColumn = activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
   const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
   const renderCellText = (text: string | null | undefined, _maxWidth?: number, customOnClick?: () => void) => {
@@ -1158,7 +1158,7 @@ Remarks: ${candidateForm.remarks}`;
                 {isEditing ? 'Edit Details' : 'Application Details'}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {!isEditing && (activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && (
+                {!isEditing && (activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && (
                   <Button 
                     variant="outlined" 
                     size="small" 

@@ -167,8 +167,8 @@ export const Applications: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
   const isReadOnly = activeRole === 'REPORTING_TEAM';
-  const shouldHideAction = activeRole !== 'ADMIN';
-  const showActionColumn = activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
+  const shouldHideAction = activeRole !== 'ADMIN' && activeRole !== 'CEO';
+  const showActionColumn = activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
 
   // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
@@ -275,8 +275,7 @@ export const Applications: React.FC = () => {
 
   const uniqueCandidates = useMemo(() => {
     return Object.entries(candidateGroups).map(([key, apps]) => {
-      const sorted = [...apps].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-      
+
       // Filter out 'N/A' job codes from submissions IF there is at least one real job code assigned
       const hasRealJob = apps.some(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A');
       const filteredSubmissions = hasRealJob 
@@ -295,7 +294,15 @@ export const Applications: React.FC = () => {
 
       return {
         key,
-        primaryApp: sorted[0],
+        primaryApp: (() => {
+          const sortedByResume = [...apps].sort((a, b) => {
+            const aHasResume = (a.remarks || '').toLowerCase().includes('resume link');
+            const bHasResume = (b.remarks || '').toLowerCase().includes('resume link');
+            if (aHasResume !== bHasResume) return aHasResume ? -1 : 1;
+            return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+          });
+          return sortedByResume[0];
+        })(),
         allSubmissions: uniqueSubmissions
       };
     });

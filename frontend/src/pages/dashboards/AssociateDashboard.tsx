@@ -14,7 +14,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
-import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
+import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
@@ -44,17 +44,10 @@ export const AssociateDashboard: React.FC = () => {
     getRemarkField(app.remarks, 'Job Code') !== 'N/A'
   );
 
-  const recruitedApps = deduplicatedApps.filter(app =>
-    app.candidate_name && (
-      app.recruiter?.toLowerCase() === currentUser?.full_name?.toLowerCase() ||
-      app.recruiter?.toLowerCase() === currentUser?.email?.toLowerCase()
-    )
-  );
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
-  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   React.useEffect(() => {
     localStorage.setItem('dashboard_start_date', startDate);
@@ -85,12 +78,6 @@ export const AssociateDashboard: React.FC = () => {
     })
     : myApplications;
 
-  const dateFilteredRecruitedApps = (startDate && endDate)
-    ? recruitedApps.filter(app => {
-      const d = (app.updated_at || app.created_at || '').slice(0, 10);
-      return d >= startDate && d <= endDate;
-    })
-    : recruitedApps;
 
   const uniqueJobOpenings = React.useMemo(() => {
     const seen = new Set<string>();
@@ -135,14 +122,7 @@ export const AssociateDashboard: React.FC = () => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant={showAllTimeKPIs ? "contained" : "outlined"}
-            size="small"
-            onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
-            sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.5, fontWeight: 700 }}
-          >
-            {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
-          </Button>
+
           <DashboardCalendar
             startDate={startDate}
             endDate={endDate}
@@ -154,7 +134,6 @@ export const AssociateDashboard: React.FC = () => {
         </Box>
       </Box>
 
-      <PipelineKPIs applications={showAllTimeKPIs ? recruitedApps : dateFilteredRecruitedApps} />
 
 
       {/* Assigned Job Requirement Openings for the analyst */}
@@ -185,7 +164,7 @@ export const AssociateDashboard: React.FC = () => {
               </Box>
             </Box>
 
-            <Box sx={{ overflowX: 'auto' }}>
+            <Box sx={{ overflowX: 'auto', maxHeight: '500px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
