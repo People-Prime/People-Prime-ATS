@@ -85,7 +85,7 @@ export const Applications: React.FC = () => {
   const [statusUpdateComment, setStatusUpdateComment] = useState('');
   const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
-  const renderCellText = (text: string | null | undefined, _maxWidth?: number) => {
+  const renderCellText = (text: string | null | undefined, _maxWidth?: number, customOnClick?: () => void) => {
     const val = text || 'N/A';
     if (val !== 'N/A' && val.length > 10) {
       const truncated = val.substring(0, 10) + '...';
@@ -93,7 +93,11 @@ export const Applications: React.FC = () => {
         <Box
           onClick={(e) => {
             e.stopPropagation();
-            setClickedTextValue(val);
+            if (customOnClick) {
+              customOnClick();
+            } else {
+              setClickedTextValue(val);
+            }
           }}
           sx={{
             cursor: 'pointer',
@@ -106,7 +110,7 @@ export const Applications: React.FC = () => {
               textDecoration: 'underline'
             }
           }}
-          title="Click to view full text"
+          title={customOnClick ? "Click to view details" : "Click to view full text"}
         >
           {truncated}
         </Box>
@@ -545,7 +549,7 @@ export const Applications: React.FC = () => {
                           sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
                           onClick={() => handleAppSelect(app)}
                         >
-                          {renderCellText(app.candidate_name, 120)}
+                          {renderCellText(app.candidate_name, 120, () => handleAppSelect(app))}
                         </Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>

@@ -245,7 +245,7 @@ export const JobPostings: React.FC = () => {
   const showActionColumn = activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
   const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
-  const renderCellText = (text: string | null | undefined, _maxWidth?: number) => {
+  const renderCellText = (text: string | null | undefined, _maxWidth?: number, customOnClick?: () => void) => {
     const val = text || 'N/A';
     if (val !== 'N/A' && val.length > 10) {
       const truncated = val.substring(0, 10) + '...';
@@ -253,7 +253,11 @@ export const JobPostings: React.FC = () => {
         <Box
           onClick={(e) => {
             e.stopPropagation();
-            setClickedTextValue(val);
+            if (customOnClick) {
+              customOnClick();
+            } else {
+              setClickedTextValue(val);
+            }
           }}
           sx={{
             cursor: 'pointer',
@@ -266,7 +270,7 @@ export const JobPostings: React.FC = () => {
               textDecoration: 'underline'
             }
           }}
-          title="Click to view full text"
+          title={customOnClick ? "Click to view details" : "Click to view full text"}
         >
           {truncated}
         </Box>
@@ -1041,9 +1045,12 @@ Remarks: ${candidateForm.remarks}`;
                             {jobApplicants.map((applicant) => (
                               <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap' }}>
-                                  {renderCellText(applicant.candidate_name, 120)}
-                                </td>
+                                <td 
+                                   style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                                   onClick={() => navigate(`/candidates/${applicant.id}/details`)}
+                                 >
+                                   {renderCellText(applicant.candidate_name, 120, () => navigate(`/candidates/${applicant.id}/details`))}
+                                 </td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.candidate_email, 130)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.city, 90)}</td>
