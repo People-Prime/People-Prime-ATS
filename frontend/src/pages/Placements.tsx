@@ -266,7 +266,7 @@ export const Placements: React.FC = () => {
           overflow: 'hidden'
         }}
       >
-        <Box sx={{ overflowX: 'auto' }}>
+        <Box sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
           <Table
             sx={{
               minWidth: 2000,

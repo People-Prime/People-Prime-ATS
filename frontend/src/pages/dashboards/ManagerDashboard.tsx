@@ -208,7 +208,7 @@ export const ManagerDashboard: React.FC = () => {
                 Recruitment Activity - Under Your Management
               </Typography>
             </Box>
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
               <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap', padding: '4px 8px', fontSize: '0.75rem' } }}>
                 <TableHead>
                   <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>

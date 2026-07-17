@@ -226,7 +226,7 @@ export const DrillDownPage: React.FC = () => {
 
       <Card sx={{ borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>
         <CardContent sx={{ p: 0 }}>
-          <TableContainer sx={{ overflowX: 'auto' }}>
+          <TableContainer sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
             <Table size="small">
               <TableHead>
                 {isJobsType ? (

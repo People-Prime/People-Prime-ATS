@@ -656,7 +656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
             />
           </Box>
 
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
             <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.72rem' } }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>
@@ -831,7 +831,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
             />
           </Box>
 
-          <TableContainer>
+          <TableContainer sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
             <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '0.72rem' } }}>
               <TableHead>
                 <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>

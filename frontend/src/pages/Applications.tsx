@@ -459,7 +459,7 @@ export const Applications: React.FC = () => {
 
       {/* Main Table view */}
       <Card>
-        <Box sx={{ overflowX: 'auto' }}>
+        <Box sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#101726' }}>

@@ -164,7 +164,7 @@ export const AssociateDashboard: React.FC = () => {
               </Box>
             </Box>
 
-            <Box>
+            <Box sx={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '550px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
