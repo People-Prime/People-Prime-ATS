@@ -409,20 +409,19 @@ export const JobPostings: React.FC = () => {
     const isJobPostingApp = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     if (!isJobPostingApp) return false;
 
-    // 0. Date and Team Filter (for ADMIN/CEO/REPORTING_TEAM)
-    if (activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') {
-      const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
-      const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
-      const appDate = (app.updated_at || app.created_at || '').slice(0, 10);
-      if (appDate < savedStart || appDate > savedEnd) return false;
+    // 0. Date Filter (for all roles)
+    const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
+    const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
+    const appDate = (app.created_at || '').slice(0, 10);
+    if (appDate < savedStart || appDate > savedEnd) return false;
 
-      if (selectedTeamId !== 'ALL') {
-        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-        if (!assignedEmail) return false;
-        const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
-        const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
-        if (!isMemberOfTeam) return false;
-      }
+    // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
+    if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
+      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+      if (!assignedEmail) return false;
+      const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
+      const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
+      if (!isMemberOfTeam) return false;
     }
 
     // 1. Role-based restrictions
