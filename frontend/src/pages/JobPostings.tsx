@@ -885,8 +885,7 @@ Remarks: ${candidateForm.remarks}`;
                             '&:hover': { textDecoration: 'underline' }
                           }}
                           onClick={() => {
-                            const desc = getRemarkField(app.remarks, 'Remarks') || app.remarks || 'No description available.';
-                            setClickedTextValue(desc);
+                            navigate(`/jobs/${app.id}/details`);
                           }}
                         >
                           {app.position}

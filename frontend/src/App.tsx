@@ -16,6 +16,7 @@ import { CreateRequirement } from './pages/CreateRequirement';
 import { CreateCandidate } from './pages/CreateCandidate';
 import { CandidateDetails } from './pages/CandidateDetails';
 import { ViewCandidates } from './pages/ViewCandidates';
+import { JobDetails } from './pages/JobDetails';
 import { JobPostings } from './pages/JobPostings';
 import { Placements } from './pages/Placements';
 import { DrillDownPage } from './pages/dashboards/DrillDownPage';
@@ -187,6 +188,15 @@ export const App: React.FC = () => {
                       element={
                         <ProtectedRoute>
                           <CandidateDetails />
+                        </ProtectedRoute>
+                      } 
+                    />
+
+                    <Route 
+                      path="/jobs/:applicationId/details" 
+                      element={
+                        <ProtectedRoute>
+                          <JobDetails />
                         </ProtectedRoute>
                       } 
                     />

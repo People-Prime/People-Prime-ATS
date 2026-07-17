@@ -324,8 +324,7 @@ export const DrillDownPage: React.FC = () => {
                               '&:hover': { textDecoration: 'underline' }
                             }}
                             onClick={() => {
-                              const jobDesc = getRemarkFieldVal(app.remarks, 'Remarks') || app.remarks || 'No description available.';
-                              setClickedTextValue(jobDesc);
+                              navigate(`/jobs/${app.id}/details`);
                             }}
                           >
                             {app.position}

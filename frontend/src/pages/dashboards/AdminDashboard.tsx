@@ -886,8 +886,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                             {jobCodeVal !== 'N/A' ? jobCodeVal : '—'}
                           </TableCell>
                           <TableCell sx={{ cursor: 'pointer' }} onClick={() => {
-                            const desc = getRemarkField(app.remarks, 'Remarks') || app.remarks || 'No description available.';
-                            setClickedTextValue(desc);
+                            navigate(`/jobs/${app.id}/details`);
                           }}>
                             <Typography variant="body2" sx={{ fontSize: '0.72rem', fontWeight: 650, color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}>{app.position}</Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>{app.client_name}</Typography>
