@@ -1045,12 +1045,18 @@ Remarks: ${candidateForm.remarks}`;
                             {jobApplicants.map((applicant) => (
                               <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
-                                <td 
-                                   style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap', cursor: 'pointer' }}
-                                   onClick={() => navigate(`/candidates/${applicant.id}/details`)}
-                                 >
-                                   {renderCellText(applicant.candidate_name, 120, () => navigate(`/candidates/${applicant.id}/details`))}
-                                 </td>
+                                {activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM' ? (
+                                   <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.primary, whiteSpace: 'nowrap' }}>
+                                     {renderCellText(applicant.candidate_name, 120)}
+                                   </td>
+                                 ) : (
+                                   <td 
+                                     style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                                     onClick={() => navigate(`/candidates/${applicant.id}/details`)}
+                                   >
+                                     {renderCellText(applicant.candidate_name, 120, () => navigate(`/candidates/${applicant.id}/details`))}
+                                   </td>
+                                 )}
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.candidate_email, 130)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.city, 90)}</td>
