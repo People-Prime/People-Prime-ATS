@@ -306,7 +306,7 @@ export const LeadDashboard: React.FC = () => {
                 Recruitment Activity - By Team
               </Typography>
             </Box>
-            <TableContainer sx={{ overflowX: 'auto', maxHeight: '500px' }}>
+            <TableContainer>
               <Table 
                 sx={{ 
                   minWidth: 650,
