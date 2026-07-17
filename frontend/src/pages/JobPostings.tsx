@@ -888,7 +888,7 @@ Remarks: ${candidateForm.remarks}`;
                             navigate(`/jobs/${app.id}/details`);
                           }}
                         >
-                          {app.position}
+                          {renderCellText(app.position, 140, () => navigate(`/jobs/${app.id}/details`))}
                         </Typography>
                       </td>
                       <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
