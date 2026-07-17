@@ -40,6 +40,11 @@ class Application(models.Model):
         db_index=True
     )
     remarks = models.TextField(blank=True, default='')
+    pan_card = models.CharField(max_length=50, blank=True, default='')
+    aadhaar = models.CharField(max_length=50, blank=True, default='')
+    alternate_mobile_number = models.CharField(max_length=50, blank=True, default='')
+    source = models.CharField(max_length=255, blank=True, default='')
+    interest_to_work_for_client = models.CharField(max_length=50, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

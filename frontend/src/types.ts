@@ -85,6 +85,11 @@ export interface Application {
   } | null;
   status: ApplicationStatus;
   remarks: string;
+  pan_card?: string;
+  aadhaar?: string;
+  alternate_mobile_number?: string;
+  source?: string;
+  interest_to_work_for_client?: string;
   created_at: string;
   updated_at: string;
 }

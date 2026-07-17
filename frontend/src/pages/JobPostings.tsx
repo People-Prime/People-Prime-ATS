@@ -245,9 +245,10 @@ export const JobPostings: React.FC = () => {
   const showActionColumn = activeRole === 'ADMIN' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
   const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
-  const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
+  const renderCellText = (text: string | null | undefined, _maxWidth?: number) => {
     const val = text || 'N/A';
-    if (activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') {
+    if (val !== 'N/A' && val.length > 10) {
+      const truncated = val.substring(0, 10) + '...';
       return (
         <Box
           onClick={(e) => {
@@ -255,13 +256,11 @@ export const JobPostings: React.FC = () => {
             setClickedTextValue(val);
           }}
           sx={{
-            maxWidth: maxWidth,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
             cursor: 'pointer',
-            fontSize: '0.7rem',
+            fontSize: '0.75rem',
+            fontWeight: 500,
             userSelect: 'none',
+            display: 'inline-block',
             '&:hover': {
               color: 'primary.main',
               textDecoration: 'underline'
@@ -269,7 +268,7 @@ export const JobPostings: React.FC = () => {
           }}
           title="Click to view full text"
         >
-          {val}
+          {truncated}
         </Box>
       );
     }
@@ -1030,6 +1029,11 @@ Remarks: ${candidateForm.remarks}`;
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Status</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>PAN Card</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Aadhaar</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Alt Mobile</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Source</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
                               {showActionColumn && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
                             </tr>
                           </thead>
@@ -1060,6 +1064,11 @@ Remarks: ${candidateForm.remarks}`;
                                 </td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.position, 140)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.pan_card, 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.aadhaar, 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.alternate_mobile_number, 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.source, 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.interest_to_work_for_client, 110)}</td>
                                 {showActionColumn && (
                                   <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                     <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>

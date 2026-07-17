@@ -85,9 +85,10 @@ export const Applications: React.FC = () => {
   const [statusUpdateComment, setStatusUpdateComment] = useState('');
   const [clickedTextValue, setClickedTextValue] = useState<string | null>(null);
 
-  const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
+  const renderCellText = (text: string | null | undefined, _maxWidth?: number) => {
     const val = text || 'N/A';
-    if (activeRole === 'CEO') {
+    if (val !== 'N/A' && val.length > 10) {
+      const truncated = val.substring(0, 10) + '...';
       return (
         <Box
           onClick={(e) => {
@@ -95,13 +96,11 @@ export const Applications: React.FC = () => {
             setClickedTextValue(val);
           }}
           sx={{
-            maxWidth: maxWidth,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
             cursor: 'pointer',
-            fontSize: '0.7rem',
+            fontSize: '0.75rem',
+            fontWeight: 500,
             userSelect: 'none',
+            display: 'inline-block',
             '&:hover': {
               color: 'primary.main',
               textDecoration: 'underline'
@@ -109,7 +108,7 @@ export const Applications: React.FC = () => {
           }}
           title="Click to view full text"
         >
-          {val}
+          {truncated}
         </Box>
       );
     }
@@ -469,6 +468,11 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Manager</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Team Lead</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>PAN Card</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Aadhaar</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Alt Mobile</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Source</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
                 {showActionColumn && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
               </tr>
             </thead>
@@ -612,6 +616,21 @@ export const Applications: React.FC = () => {
                       })()}
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.pan_card, 110)}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.aadhaar, 110)}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.alternate_mobile_number, 110)}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.source, 110)}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.interest_to_work_for_client, 110)}</Typography>
                       </td>
                       {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>

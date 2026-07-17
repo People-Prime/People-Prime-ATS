@@ -102,6 +102,11 @@ export const CreateCandidate: React.FC = () => {
     skills: '',
     experience: '',
     remarks: '',
+    panCard: '',
+    aadhaar: '',
+    alternateMobileNumber: '',
+    source: '',
+    interestToWorkForClient: 'Yes', // Default option can be 'Yes'
 
     // Job Details
     jobCode: '',
@@ -216,6 +221,11 @@ export const CreateCandidate: React.FC = () => {
       skills: app.technology || '',
       experience: String(app.experience) || '',
       remarks: '',
+      panCard: app.pan_card || '',
+      aadhaar: app.aadhaar || '',
+      alternateMobileNumber: app.alternate_mobile_number || '',
+      source: app.source || '',
+      interestToWorkForClient: app.interest_to_work_for_client || 'Yes',
 
       // Job Details
       jobCode: extractField('Job Code') || `PPW-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -357,16 +367,21 @@ Recruiter Remarks: ${formData.remarks}`;
         recruiter: currentUser?.full_name || '',
         remarks: formattedRemarks,
         status: (targetApp || (formData.client && formData.client !== 'N/A' && formData.jobTitle && formData.jobTitle !== 'N/A')) ? 'Submitted' : 'New',
-        assigned_employee_id: targetApp ? (targetApp.assigned_employee?.email || null) : (currentUser?.email || null)
+        assigned_employee_id: targetApp ? (targetApp.assigned_employee?.email || null) : (currentUser?.email || null),
+        pan_card: formData.panCard,
+        aadhaar: formData.aadhaar,
+        alternate_mobile_number: formData.alternateMobileNumber,
+        source: formData.source,
+        interest_to_work_for_client: formData.interestToWorkForClient
       };
 
       let res;
       let isNewRecord = false;
-      if (applicationId && targetApp && targetApp.id && !targetApp.candidate_name) {
-        // We are explicitly filling a blank requirement - update it in place
+      if (applicationId && targetApp && targetApp.id) {
+        // We are explicitly updating a requirement or candidate in place
         res = await api.put(`applications/${applicationId}/`, payload);
       } else {
-        // The requirement is already filled, or we are creating standalone - POST a new record
+        // We are creating a standalone candidate - POST a new record
         res = await api.post('applications/', payload);
         isNewRecord = true;
       }
@@ -520,6 +535,55 @@ Recruiter Remarks: ${formData.remarks}`;
                   onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                   size="small"
                 />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="PAN Card"
+                  fullWidth
+                  value={formData.panCard}
+                  onChange={(e) => setFormData({ ...formData, panCard: e.target.value })}
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Aadhaar"
+                  fullWidth
+                  value={formData.aadhaar}
+                  onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value })}
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Alternate Mobile Number"
+                  fullWidth
+                  value={formData.alternateMobileNumber}
+                  onChange={(e) => setFormData({ ...formData, alternateMobileNumber: e.target.value })}
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Source"
+                  fullWidth
+                  value={formData.source}
+                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Interest to Work for Client</InputLabel>
+                  <Select
+                    value={formData.interestToWorkForClient}
+                    label="Interest to Work for Client"
+                    onChange={(e) => setFormData({ ...formData, interestToWorkForClient: e.target.value })}
+                  >
+                    <MenuItem value="Yes">Yes</MenuItem>
+                    <MenuItem value="No">No</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
             </Grid>
 
