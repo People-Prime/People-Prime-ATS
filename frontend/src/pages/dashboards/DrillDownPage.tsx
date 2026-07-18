@@ -456,8 +456,8 @@ export const DrillDownPage: React.FC = () => {
                         {!shouldHideAction && (
                           <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>
                             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
-                              <Typography 
-                                variant="body2" 
+                              <Typography
+                                variant="body2"
                                 sx={{ color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -480,38 +480,38 @@ export const DrillDownPage: React.FC = () => {
                       <React.Fragment key={cand.key}>
                         <TableRow sx={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                           <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>
-                            <Box 
+                            <Box
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setExpandedCandidates(prev => ({ ...prev, [cand.key]: !prev[cand.key] }));
                               }}
-                              sx={{ 
-                                display: 'inline-flex', 
-                                alignItems: 'center', 
-                                cursor: 'pointer', 
+                              sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                cursor: 'pointer',
                                 gap: 0.5,
                                 userSelect: 'none'
                               }}
                             >
-                              <Typography 
-                                variant="body2" 
-                                sx={{ 
-                                  fontWeight: 900, 
-                                  color: 'primary.main', 
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 900,
+                                  color: 'primary.main',
                                   fontSize: '1rem',
                                   lineHeight: 1
                                 }}
                               >
                                 {isExpanded ? '−' : '+'}
                               </Typography>
-                              <Box 
-                                sx={{ 
-                                  bgcolor: 'primary.main', 
-                                  color: '#fff', 
-                                  fontSize: '0.65rem', 
-                                  fontWeight: 700, 
-                                  px: 0.5, 
-                                  py: 0.1, 
+                              <Box
+                                sx={{
+                                  bgcolor: 'primary.main',
+                                  color: '#fff',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 700,
+                                  px: 0.5,
+                                  py: 0.1,
                                   borderRadius: '3px',
                                   display: 'flex',
                                   alignItems: 'center',
@@ -746,12 +746,12 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell
                       colSpan={
                         isJobsType
-                           ? (shouldHideAction ? (isCEOOroughReportingTeam ? 14 : 7) : (isCEOOroughReportingTeam ? 15 : 8))
-                           : isApplicantsType
-                           ? (shouldHideAction ? 10 : 11)
-                           : isHierarchyType
-                           ? 5
-                           : ((currentUser?.role !== 'REPORTING_TEAM' && !isClientInterviewsForCEO) ? 8 : 7)
+                          ? (shouldHideAction ? (isCEOOroughReportingTeam ? 14 : 7) : (isCEOOroughReportingTeam ? 15 : 8))
+                          : isApplicantsType
+                            ? (shouldHideAction ? 10 : 11)
+                            : isHierarchyType
+                              ? 5
+                              : ((currentUser?.role !== 'REPORTING_TEAM' && !isClientInterviewsForCEO) ? 8 : 7)
                       }
                       sx={{ textAlign: 'center', py: 3, color: 'text.secondary' }}
                     >
