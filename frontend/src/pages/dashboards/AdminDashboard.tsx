@@ -45,34 +45,9 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   return value && value !== '' ? value : 'N/A';
 };
 
-const getUniqueJobsList = (apps: any[]): any[] => {
-  const seenKeys = new Set<string>();
-  const uniqueJobs: any[] = [];
-  apps.forEach(app => {
-    const jobCode = getRemarkField(app.remarks, 'Job Code');
-    if (jobCode === 'N/A' || !jobCode) return;
-    const key = jobCode.toUpperCase().trim();
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      uniqueJobs.push(app);
-    }
-  });
-  return uniqueJobs;
-};
 
-const getUniqueCandidatesList = (apps: any[]): any[] => {
-  const seenKeys = new Set<string>();
-  const uniqueCandidates: any[] = [];
-  apps.forEach(app => {
-    if (!app.candidate_name) return;
-    const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      uniqueCandidates.push(app);
-    }
-  });
-  return uniqueCandidates;
-};
+
+
 
 const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4', '#8b5cf6'];
 
@@ -302,88 +277,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
 
 
 
-  const handleTeamMetricClick = (teamId: string, teamName: string, status: string) => {
-    const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(teamId)));
-    let teamApps = deduplicatedApps.filter(app =>
-      app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
-    );
-
-    // Apply date filter if not showAllTimeKPIs
-    if (!showAllTimeKPIs && startDate && endDate) {
-      teamApps = teamApps.filter(app => {
-        const d = (app.updated_at || app.created_at || '').slice(0, 10);
-        return d >= startDate && d <= endDate;
-      });
-    }
-
-    let isJobs = false;
-    let isApplicants = false;
-
-    if (status !== 'ALL') {
-      if (status === 'HAS_CANDIDATE') {
-        teamApps = getUniqueCandidatesList(teamApps.filter(a => a.candidate_name));
-        isApplicants = true;
-      }
-      else if (status === 'INTERVIEWS') teamApps = teamApps.filter(a => a.status === 'Interview Scheduled' || a.status === 'Interview Completed');
-      else if (status === 'Placed') teamApps = teamApps.filter(a => a.status === 'Placed');
-      else if (status === 'Offer Sent') teamApps = teamApps.filter(a => a.status === 'Offer Sent' || a.status === 'On Hold');
-      else if (status === 'Offer Accepted') teamApps = teamApps.filter(a => a.status === 'Offer Accepted' || a.status === 'Selected');
-      else teamApps = teamApps.filter(a => a.status === status);
-    } else {
-      const seen = new Set<string>();
-      const groupedJobs: any[] = [];
-      teamApps.forEach(app => {
-        const jobCode = getRemarkField(app.remarks, 'Job Code');
-        if (jobCode === 'N/A' || !jobCode) return;
-        const key = jobCode.toUpperCase().trim();
-        if (!seen.has(key)) {
-          seen.add(key);
-          const group = teamApps.filter(a => {
-            const code = getRemarkField(a.remarks, 'Job Code');
-            return code && code.toUpperCase().trim() === key;
-          });
-          const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
-          rep.associatedApps = group;
-          groupedJobs.push(rep);
-        }
-      });
-      teamApps = groupedJobs;
-      isJobs = true;
-    }
-
-    let title = `Applications for Team ${teamName}`;
-    if (status !== 'ALL' && status !== 'HAS_CANDIDATE' && status !== 'INTERVIEWS') {
-      title += ` - ${status === 'Placed' ? 'Placed' : status}`;
-    }
-    else if (status === 'HAS_CANDIDATE') title += ' - Submissions';
-    else if (status === 'INTERVIEWS') title += ' - Client Interviews';
-    else title += ' - Assigned Jobs';
-
-    navigate('/drill-down', {
-      state: {
-        modalTitle: title,
-        modalData: teamApps,
-        isJobsType: isJobs,
-        isApplicantsType: isApplicants,
-        isHierarchyType: false
-      }
-    });
-  };
-
-  const renderTeamMetric = (value: number, teamId: string, teamName: string, status: string) => {
-    if (value === 0) return <Typography variant="body2" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>0</Typography>;
-    return (
-      <Typography
-        variant="body2"
-        sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { color: 'primary.dark', textDecoration: 'underline' } }}
-        onClick={() => handleTeamMetricClick(teamId, teamName, status)}
-      >
-        {value}
-      </Typography>
-    );
-  };
-
-
 
   return (
     <Box>
@@ -478,97 +371,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
           {/* Senior Manager Hierarchy Report – starts from their own node */}
           {currentUser?.role === 'SENIOR_MANAGER' && (
             <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
-          )}
-
-          {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
-            <Grid container spacing={3} sx={{ mt: 1, mb: 3 }}>
-              <Grid item xs={12}>
-                <Card sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '12px', boxShadow: 'none' }}>
-                  <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="h6" fontWeight={750} sx={{ fontSize: '0.95rem' }}>
-                      Recruitment Activity - By Every Team
-                    </Typography>
-                  </Box>
-                  <TableContainer sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ '& .MuiTableCell-root': { whiteSpace: 'nowrap', padding: '4px 8px', fontSize: '0.75rem' } }}>
-                      <TableHead>
-                        <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#edf5fd' : '#1e293b' }}>
-                          <TableCell sx={{ fontWeight: 800 }}>Team Name</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Assigned Jobs</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Submissions</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Pending Feedback</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Interviews</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Client Rejections</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offer Sent</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Offer Accepted</TableCell>
-                          <TableCell sx={{ fontWeight: 800, textAlign: 'center' }}>Placed</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {(() => {
-                          const uniqueTeams = Array.from(
-                            new Map(
-                              users
-                                .flatMap(u => u.teams || [])
-                                .filter(t => t && t.id)
-                                .map(t => [String(t.id), t] as [string, any])
-                            ).values()
-                          );
-
-                          if (uniqueTeams.length === 0) {
-                            return (
-                              <TableRow>
-                                <TableCell colSpan={10} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                                  No active teams found.
-                                </TableCell>
-                              </TableRow>
-                            );
-                          }
-
-                          return uniqueTeams.map((team: any) => {
-                            const teamMembers = users.filter(u => u.teams && u.teams.some(t => String(t.id) === String(team.id)));
-                            let teamApps = deduplicatedApps.filter(app =>
-                              app.assigned_employee && teamMembers.some(member => member.email === app.assigned_employee?.email)
-                            );
-
-                            if (!showAllTimeKPIs && startDate && endDate) {
-                              teamApps = teamApps.filter(app => {
-                                const d = (app.updated_at || app.created_at || '').slice(0, 10);
-                                return d >= startDate && d <= endDate;
-                              });
-                            }
-
-                            const assigned = getUniqueJobsList(teamApps).length;
-                            const subs = getUniqueCandidatesList(teamApps.filter(app => app.candidate_name)).length;
-                            const pending = teamApps.filter(app => app.status === 'Under Review').length;
-                            const placed = teamApps.filter(app => app.status === 'Placed').length;
-                            const ints = teamApps.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status)).length;
-                            const rejections = teamApps.filter(app => app.status === 'Rejected').length;
-                            const offerSent = teamApps.filter(app => app.status === 'Offer Sent' || app.status === 'On Hold').length;
-                            const offerAccepted = teamApps.filter(app => app.status === 'Offer Accepted' || app.status === 'Selected').length;
-
-                            return (
-                              <TableRow key={team.id} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
-                                <TableCell sx={{ fontWeight: 650 }}>{team.name}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(assigned, team.id, team.name, 'ALL')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(subs, team.id, team.name, 'HAS_CANDIDATE')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(pending, team.id, team.name, 'Under Review')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(ints, team.id, team.name, 'INTERVIEWS')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(rejections, team.id, team.name, 'Rejected')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerSent, team.id, team.name, 'Offer Sent')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(offerAccepted, team.id, team.name, 'Offer Accepted')}</TableCell>
-                                <TableCell sx={{ textAlign: 'center' }}>{renderTeamMetric(placed, team.id, team.name, 'Placed')}</TableCell>
-                              </TableRow>
-                            );
-                          });
-                        })()}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Card>
-              </Grid>
-            </Grid>
-          )}
+            )}
 
           {/* Recent Employee Onboardings */}
           <Grid container spacing={3}>
