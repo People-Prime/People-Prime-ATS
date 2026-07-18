@@ -22,4 +22,7 @@ ats_db_backup.sql
 .idea/
 Thumbs.db
 .DS_Store
-.gemini/
+# Media folders (resumes and uploads)
+media/
+downloaded_resumes/
+
