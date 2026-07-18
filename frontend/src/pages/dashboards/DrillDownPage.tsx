@@ -43,7 +43,6 @@ export const DrillDownPage: React.FC = () => {
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
 
   const isCEOOroughReportingTeam = currentUser?.role === 'CEO' || currentUser?.role === 'REPORTING_TEAM';
-  const showFullJobsLayout = isCEOOroughReportingTeam || ['TEAM_LEAD', 'SUB_LEAD', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(currentUser?.role);
   const shouldHideAction = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'REPORTING_TEAM', 'CEO'].includes(currentUser?.role);
   const isClientInterviewsForCEO = currentUser?.role === 'CEO' && (modalTitle || '').toLowerCase().includes('interview');
 
@@ -231,6 +230,7 @@ export const DrillDownPage: React.FC = () => {
               <TableHead>
                 {isJobsType ? (
                   <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
+                    <TableCell sx={{ width: '50px', padding: '6px 8px' }}></TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Job Code</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Job Title</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Client</TableCell>
@@ -238,17 +238,13 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Job Status</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Client Bill Rate / Salary</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Pay Rate / Salary</TableCell>
-                    {showFullJobsLayout && (
-                      <>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Manager</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>TL</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Recruiter</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Job Created</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Min Sal</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Max Sal</TableCell>
-                        <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Avg Sal</TableCell>
-                      </>
-                    )}
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Manager</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>TL</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Recruiter</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Created Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Min Sal</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Max Sal</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px' }}>Avg Sal</TableCell>
                     {!shouldHideAction && (
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: isCEOOroughReportingTeam ? '2px 4px' : '6px 8px', textAlign: 'center' }}>Action</TableCell>
                     )}
@@ -264,7 +260,17 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>State</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Applicant Status</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Title</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Created By</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Type</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Client Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Tentative Start Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Manager</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Team Lead</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Recruiter</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>PAN Card</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Aadhaar</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Alt Mobile</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Source</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Interest to Work</TableCell>
                     {!shouldHideAction && (
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', textAlign: 'center' }}>Actions</TableCell>
                     )}
@@ -308,6 +314,7 @@ export const DrillDownPage: React.FC = () => {
 
                     return (
                       <TableRow key={app.id} sx={{ whiteSpace: 'nowrap' }}>
+                        <TableCell sx={{ padding: '6px 8px' }}></TableCell>
                         <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
                           <Typography variant="subtitle2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
                             {renderCellText(jobCodeVal !== 'N/A' ? jobCodeVal : '—', 95)}
@@ -369,45 +376,41 @@ export const DrillDownPage: React.FC = () => {
                             })()}
                           </Typography>
                         </TableCell>
-                        {showFullJobsLayout && (
-                          <>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(hierarchyInfo.manager, 110)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(hierarchyInfo.tl, 110)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(recruitersText, 120)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(creationDateText, 140)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(salaryInfo.min, 100)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
-                                {renderCellText(salaryInfo.max, 100)}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
-                              <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', fontWeight: 600 }}>
-                                {renderCellText(salaryInfo.avg, 100)}
-                              </Typography>
-                            </TableCell>
-                          </>
-                        )}
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(hierarchyInfo.manager, 110)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(hierarchyInfo.tl, 110)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(recruitersText, 120)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(creationDateText, 140)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(salaryInfo.min, 100)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem' }}>
+                            {renderCellText(salaryInfo.max, 100)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={{ padding: isCEOOroughReportingTeam ? '2px 4px' : '4px 8px' }}>
+                          <Typography variant="body2" sx={{ fontSize: isCEOOroughReportingTeam ? '0.7rem' : '0.75rem', fontWeight: 600 }}>
+                            {renderCellText(salaryInfo.avg, 100)}
+                          </Typography>
+                        </TableCell>
                         {!shouldHideAction && (
                           <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>
                             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
@@ -516,6 +519,55 @@ export const DrillDownPage: React.FC = () => {
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
                           </TableCell>
+                          {(() => {
+                            const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
+                            const jobPosting = applications.find((a: any) => !a.candidate_name && getRemarkFieldVal(a.remarks, 'Job Code') === jobCode);
+                            const jobType = jobPosting ? getRemarkFieldVal(jobPosting.remarks, 'Job Type') : 'N/A';
+                            const clientName = jobPosting ? jobPosting.client_name : 'N/A';
+                            const startDateVal = jobPosting ? getRemarkFieldVal(jobPosting.remarks, 'Start Date') : 'N/A';
+
+                            const siblingApps = applications.filter((a: any) => !a.candidate_name && getRemarkFieldVal(a.remarks, 'Job Code') === jobCode);
+                            const recruiterEmails = siblingApps.map((a: any) => a.assigned_employee?.email).filter(Boolean) as string[];
+                            const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+
+                            return (
+                              <>
+                                <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(jobType, 110)}</Typography>
+                                </TableCell>
+                                <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(clientName, 110)}</Typography>
+                                </TableCell>
+                                <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(startDateVal, 110)}</Typography>
+                                </TableCell>
+                                <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.manager, 110)}</Typography>
+                                </TableCell>
+                                <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.tl, 110)}</Typography>
+                                </TableCell>
+                              </>
+                            );
+                          })()}
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.pan_card, 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.aadhaar, 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.alternate_mobile_number, 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.source, 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Interest to Work'), 110)}</Typography>
+                          </TableCell>
                           {!shouldHideAction && (
                             <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>
                               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
@@ -534,7 +586,7 @@ export const DrillDownPage: React.FC = () => {
                         </TableRow>
                         {isExpanded && (
                           <TableRow sx={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                            <TableCell colSpan={shouldHideAction ? 10 : 11} sx={{ padding: '16px 24px' }}>
+                            <TableCell colSpan={shouldHideAction ? 20 : 21} sx={{ padding: '16px 24px' }}>
                               <Box sx={{ mb: 2 }}>
                                 <Button
                                   variant="contained"
