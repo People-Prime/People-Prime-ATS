@@ -65,13 +65,15 @@ export const LeadDashboard: React.FC = () => {
     return isAssigned || isRecruited;
   });
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
 
   React.useEffect(() => {
-    localStorage.setItem('dashboard_start_date', startDate);
-    localStorage.setItem('dashboard_end_date', endDate);
-  }, [startDate, endDate]);
+    if (currentUser?.email) {
+      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
   const dispatch = useAppDispatch();
   const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
   const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');

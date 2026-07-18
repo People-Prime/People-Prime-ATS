@@ -45,14 +45,16 @@ export const AssociateDashboard: React.FC = () => {
   );
 
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
 
   React.useEffect(() => {
-    localStorage.setItem('dashboard_start_date', startDate);
-    localStorage.setItem('dashboard_end_date', endDate);
-  }, [startDate, endDate]);
+    if (currentUser?.email) {
+      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
 
   const getJobCandidates = (selectedApp: any) => {
     const matches = deduplicatedApps.filter(app =>

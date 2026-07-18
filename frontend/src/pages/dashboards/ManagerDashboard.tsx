@@ -26,14 +26,16 @@ export const ManagerDashboard: React.FC = () => {
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications);
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   React.useEffect(() => {
-    localStorage.setItem('dashboard_start_date', startDate);
-    localStorage.setItem('dashboard_end_date', endDate);
-  }, [startDate, endDate]);
+    if (currentUser?.email) {
+      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
   // Local dialog states removed because we navigate to dedicated DrillDownPage
 
 

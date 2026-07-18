@@ -117,14 +117,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
     .slice(0, 4);
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   React.useEffect(() => {
-    localStorage.setItem('dashboard_start_date', startDate);
-    localStorage.setItem('dashboard_end_date', endDate);
-  }, [startDate, endDate]);
+    if (currentUser?.email) {
+      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
 
   // Filter all org-wide applications by selected date
   const dateFilteredApps = useMemo(() => {
