@@ -170,7 +170,7 @@ export const CreateRequirement: React.FC = () => {
     }
 
     if (formData.description.trim().length < 100) {
-      setError('Detailed Job Description must be at least 100 characters long.');
+      setError('Job description is less than 100 characters.');
       return;
     }
 
