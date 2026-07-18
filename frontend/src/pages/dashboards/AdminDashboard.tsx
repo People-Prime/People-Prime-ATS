@@ -117,8 +117,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
     .slice(0, 4);
 
-  const [startDate, setStartDate] = useState(todayStr);
-  const [endDate, setEndDate] = useState(todayStr);
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
   const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
 
   React.useEffect(() => {

@@ -45,8 +45,8 @@ export const AssociateDashboard: React.FC = () => {
   );
 
 
-  const [startDate, setStartDate] = useState(todayStr);
-  const [endDate, setEndDate] = useState(todayStr);
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
 
   React.useEffect(() => {

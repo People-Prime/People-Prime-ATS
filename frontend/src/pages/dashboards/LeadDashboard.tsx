@@ -65,8 +65,8 @@ export const LeadDashboard: React.FC = () => {
     return isAssigned || isRecruited;
   });
 
-  const [startDate, setStartDate] = useState(todayStr);
-  const [endDate, setEndDate] = useState(todayStr);
+  const [startDate, setStartDate] = useState(() => localStorage.getItem('dashboard_start_date') || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem('dashboard_end_date') || todayStr());
 
   React.useEffect(() => {
     localStorage.setItem('dashboard_start_date', startDate);
