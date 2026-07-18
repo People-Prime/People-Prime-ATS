@@ -164,8 +164,13 @@ export const CreateRequirement: React.FC = () => {
     setError('');
     setSuccess('');
 
-    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate || !formData.jobType) {
-      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate, Job Type).');
+    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate || !formData.jobType || !formData.description) {
+      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate, Job Type, Detailed Job Description).');
+      return;
+    }
+
+    if (formData.description.trim().length < 100) {
+      setError('Detailed Job Description must be at least 100 characters long.');
       return;
     }
 
@@ -534,6 +539,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               <Grid item xs={12}>
                 <TextField
                   label="Detailed Job Description"
+                  required
                   fullWidth
                   multiline
                   rows={4}
