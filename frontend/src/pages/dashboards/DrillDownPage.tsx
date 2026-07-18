@@ -321,21 +321,42 @@ export const DrillDownPage: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ padding: '4px 8px' }}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontSize: '0.75rem',
-                              fontWeight: 700,
-                              color: 'primary.main',
-                              cursor: 'pointer',
-                              '&:hover': { textDecoration: 'underline' }
-                            }}
-                            onClick={() => {
-                              navigate(`/jobs/${app.id}/details`);
-                            }}
-                          >
-                            {app.position}
-                          </Typography>
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                color: 'primary.main',
+                                cursor: 'pointer',
+                                '&:hover': { textDecoration: 'underline' }
+                              }}
+                              onClick={() => {
+                                navigate(`/jobs/${app.id}/details`);
+                              }}
+                            >
+                              {app.position && app.position.length > 20 ? `${app.position.slice(0, 20)}` : app.position}
+                            </Typography>
+                            {app.position && app.position.length > 20 && (
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  color: 'primary.main',
+                                  cursor: 'pointer',
+                                  ml: 0.5,
+                                  '&:hover': { textDecoration: 'underline' }
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClickedTextValue(app.position);
+                                }}
+                              >
+                                ...
+                              </Typography>
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell sx={{ padding: '4px 8px' }}>
                           <Typography variant="body2" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: '0.75rem' }}>
@@ -387,9 +408,30 @@ export const DrillDownPage: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ padding: '4px 8px' }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                            {renderCellText(recruitersText, 120)}
-                          </Typography>
+                          <Box sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                              {recruitersText && recruitersText.length > 20 ? `${recruitersText.slice(0, 20)}` : recruitersText}
+                            </Typography>
+                            {recruitersText && recruitersText.length > 20 && (
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  color: 'primary.main',
+                                  cursor: 'pointer',
+                                  ml: 0.5,
+                                  '&:hover': { textDecoration: 'underline' }
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClickedTextValue(recruitersText);
+                                }}
+                              >
+                                ...
+                              </Typography>
+                            )}
+                          </Box>
                         </TableCell>
                         <TableCell sx={{ padding: '4px 8px' }}>
                           <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
