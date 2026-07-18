@@ -291,7 +291,7 @@ export const LeadDashboard: React.FC = () => {
         </Button>
       </Box>
 
-      {currentUser && (currentUser.full_name?.toLowerCase() === 'balamoorthi tamilselvam' || currentUser.email?.toLowerCase().includes('balamoorthi')) && (
+      {currentUser && (
         <Box sx={{ mt: 3, mb: 3 }}>
           <HierarchyReport rootEmail={currentUser.email} startDate={startDate} endDate={endDate} />
         </Box>
