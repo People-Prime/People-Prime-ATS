@@ -139,8 +139,8 @@ export const Placements: React.FC = () => {
       if (app.status !== 'Placed' || getRemarkField(app.remarks || '', 'Job Code') === 'N/A') return false;
 
       // 0. Date Filter (for all roles)
-      const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
-      const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
+      const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
+      const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
       const appDate = (app.created_at || '').slice(0, 10);
       if (appDate < savedStart || appDate > savedEnd) return false;
 

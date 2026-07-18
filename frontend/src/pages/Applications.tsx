@@ -216,8 +216,8 @@ export const Applications: React.FC = () => {
   // Filter applications based on search and selected filter and roles
   const filteredApps = applications.filter((app) => {
     // 0. Date Filter (for all roles)
-    const savedStart = localStorage.getItem('dashboard_start_date') || todayStr();
-    const savedEnd = localStorage.getItem('dashboard_end_date') || todayStr();
+    const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
+    const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
     const appDate = (app.created_at || '').slice(0, 10);
     if (appDate < savedStart || appDate > savedEnd) return false;
 
