@@ -165,14 +165,16 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
-# Cloudinary Media Storage Configurations
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME', 'ggdlbhrf'),
-    'API_KEY': os.getenv('CLOUDINARY_API_KEY', '154731121199677'),
-    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET', 'dquFbWva1EO_bTI__FbKiCieRrs'),
-}
+# AWS S3 Media Storage Configurations
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', 'ats-resumestorage')
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'ap-south-1')
 
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Allow direct public view of objects
+AWS_QUERYSTRING_AUTH = False
+
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 MEDIA_URL = '/media/'
 # Local fallback root
