@@ -298,8 +298,9 @@ export const CandidateDetails: React.FC = () => {
                             try {
                               const res: any = await api.post('applications/generate-resume-url/', { url: resumeUrl });
                               window.open(res.data.url, '_blank', 'noopener,noreferrer');
-                            } catch {
-                              alert('Failed to load resume. Please try again.');
+                            } catch (err: any) {
+                              const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                              alert(`Failed to load resume: ${errMsg}`);
                             } finally {
                               setResumeLoading(false);
                             }
