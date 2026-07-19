@@ -92,6 +92,7 @@ export interface Application {
   interest_to_work_for_client?: string;
   created_at: string;
   updated_at: string;
+  modified_by?: string;
 }
 
 export interface ApplicationNote {

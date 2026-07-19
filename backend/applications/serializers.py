@@ -30,9 +30,9 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'client_name', 'city', 'state', 'position', 'technology', 'experience', 'recruiter',
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
-            'created_at', 'updated_at', 'notes'
+            'modified_by', 'created_at', 'updated_at', 'notes'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'modified_by']
 
     def validate(self, data):
         candidate_email = data.get('candidate_email')

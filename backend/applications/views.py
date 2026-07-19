@@ -281,7 +281,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if instance.recruiter and not recruiter_provided:
             serializer.validated_data['recruiter'] = instance.recruiter
             
-        application = serializer.save()
+        user = self.request.user
+        modified_by_val = user.full_name or user.email
+        application = serializer.save(modified_by=modified_by_val)
         check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_email=old_assignee_email)
 
     # Append a coordinator review note to the application

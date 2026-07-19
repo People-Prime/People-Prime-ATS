@@ -786,6 +786,7 @@ Remarks: ${candidateForm.remarks}`;
                 <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Min Sal</th>
                 <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Max Sal</th>
                 <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Avg Sal</th>
+                <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Modified By</th>
                 {showActionColumn && (
                   <th style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Action</th>
                 )}
@@ -984,6 +985,11 @@ Remarks: ${candidateForm.remarks}`;
                           {renderCellText(salaryInfo.avg, 100)}
                         </Typography>
                       </td>
+                      <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {renderCellText(app.modified_by || 'N/A', 110)}
+                        </Typography>
+                      </td>
                       {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
@@ -1025,7 +1031,7 @@ Remarks: ${candidateForm.remarks}`;
                     </tr>
                     {isExpanded && (
                       <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                        <td colSpan={shouldHideAction ? 15 : 16} style={{ padding: '12px 16px' }}>
+                        <td colSpan={shouldHideAction ? 16 : 17} style={{ padding: '12px 16px' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
                         APPLICANTS ({jobApplicants.length})
                       </Typography>
@@ -1051,6 +1057,7 @@ Remarks: ${candidateForm.remarks}`;
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Alt Mobile</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Source</th>
                               <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
+                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Modified By</th>
                               {showActionColumn && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
                             </tr>
                           </thead>
@@ -1095,6 +1102,7 @@ Remarks: ${candidateForm.remarks}`;
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.alternate_mobile_number, 110)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.source, 110)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.interest_to_work_for_client, 110)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.modified_by || 'N/A', 110)}</td>
                                 {showActionColumn && (
                                   <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                     <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>

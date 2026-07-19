@@ -483,6 +483,7 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Alt Mobile</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Source</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Modified By</th>
                 {showActionColumn && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
               </tr>
             </thead>
@@ -642,6 +643,9 @@ export const Applications: React.FC = () => {
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.interest_to_work_for_client, 110)}</Typography>
                       </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.modified_by || 'N/A', 110)}</Typography>
+                      </td>
                       {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
@@ -680,7 +684,7 @@ export const Applications: React.FC = () => {
                     </tr>
                     {isExpanded && (
                       <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                        <td colSpan={shouldHideAction ? 15 : 16} style={{ padding: '16px 24px' }}>
+                        <td colSpan={shouldHideAction ? 16 : 17} style={{ padding: '16px 24px' }}>
                           <Box sx={{ mb: 2 }}>
                             <Button
                               variant="contained"
