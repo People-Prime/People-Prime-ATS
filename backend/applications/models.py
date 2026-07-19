@@ -62,6 +62,18 @@ class Application(models.Model):
                 self.status = 'Submitted'
 
         super().save(*args, **kwargs)
+
+        # Propagate status changes to all other applications for this candidate globally
+        if not getattr(self, '_saving_related_statuses', False) and self.candidate_name and self.candidate_email and self.candidate_phone:
+            other_apps = Application.objects.exclude(id=self.id).filter(
+                candidate_email__iexact=self.candidate_email.strip(),
+                candidate_phone=self.candidate_phone.strip()
+            )
+            for app in other_apps:
+                if app.status != self.status:
+                    app.status = self.status
+                    app._saving_related_statuses = True
+                    app.save(update_fields=['status'])
         
         if is_new and not self.candidate_name and has_placeholder:
             job_code = f"PPW - {self.id:04d}"
