@@ -140,10 +140,50 @@ export const CreateCandidate: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [existingCandidateId, setExistingCandidateId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const email = formData.email?.trim();
+    const phone = formData.phone?.trim();
+    if (email && phone) {
+      api.get(`applications/check-candidate/?email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}`)
+        .then((res: any) => {
+          if (res.data?.exists) {
+            const data = res.data;
+            setExistingCandidateId(String(data.id));
+            setFormData(prev => ({
+              ...prev,
+              firstName: prev.firstName || data.first_name || '',
+              lastName: prev.lastName || data.last_name || '',
+              city: prev.city || data.city || '',
+              state: prev.state || data.state || '',
+              panCard: prev.panCard || data.pan_card || '',
+              aadhaar: prev.aadhaar || data.aadhaar || '',
+              alternateMobileNumber: prev.alternateMobileNumber || data.alternate_mobile_number || '',
+              source: prev.source || data.source || '',
+              interestToWorkForClient: prev.interestToWorkForClient || data.interest_to_work_for_client || 'Yes',
+              experience: prev.experience || data.experience || '',
+              skills: prev.skills || data.technology || '',
+              degree: prev.degree || data.degree || '',
+              location: prev.location || data.location || '',
+              expectedSalary: prev.expectedSalary || data.expected_salary || '',
+              noticePeriod: prev.noticePeriod || data.notice_period || '',
+              resumeLink: prev.resumeLink || data.resume_link || '',
+            }));
+          } else {
+            setExistingCandidateId(null);
+          }
+        })
+        .catch(() => {
+          setExistingCandidateId(null);
+        });
+    } else {
+      setExistingCandidateId(null);
+    }
+  }, [formData.email, formData.phone]);
 
   const isDuplicateEmail = useMemo(() => {
-    if (!formData.email) return false;
+    if (!formData.email || !formData.phone) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
     
     const originalEmail = targetApp?.candidate_email;
@@ -159,13 +199,14 @@ export const CreateCandidate: React.FC = () => {
       }
       return (
         app.candidate_email &&
-        app.candidate_email.toLowerCase() === formData.email.toLowerCase()
+        app.candidate_email.toLowerCase() === formData.email.toLowerCase() &&
+        app.candidate_phone !== formData.phone
       );
     });
-  }, [formData.email, applications, selectedApp, applicationId, availableApplications]);
+  }, [formData.email, formData.phone, applications, selectedApp, applicationId, availableApplications]);
 
   const isDuplicatePhone = useMemo(() => {
-    if (!formData.phone) return false;
+    if (!formData.phone || !formData.email) return false;
     const cleanPhone = formData.phone.replace(/\D/g, '');
     if (!cleanPhone) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
@@ -183,9 +224,9 @@ export const CreateCandidate: React.FC = () => {
       }
       if (!app.candidate_phone) return false;
       const appCleanPhone = app.candidate_phone.replace(/\D/g, '');
-      return appCleanPhone === cleanPhone;
+      return appCleanPhone === cleanPhone && app.candidate_email?.toLowerCase() !== formData.email.toLowerCase();
     });
-  }, [formData.phone, applications, selectedApp, applicationId, availableApplications]);
+  }, [formData.phone, formData.email, applications, selectedApp, applicationId, availableApplications]);
 
   const isDuplicate = isDuplicateEmail || isDuplicatePhone;
 
@@ -380,6 +421,9 @@ Recruiter Remarks: ${formData.remarks}`;
       if (applicationId && targetApp && targetApp.id) {
         // We are explicitly updating a requirement or candidate in place
         res = await api.put(`applications/${applicationId}/`, payload);
+      } else if (existingCandidateId) {
+        // Reuse the existing candidate record globally by updating it in place
+        res = await api.put(`applications/${existingCandidateId}/`, payload);
       } else {
         // We are creating a standalone candidate - POST a new record
         res = await api.post('applications/', payload);

@@ -192,6 +192,62 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return ApplicationCreateSerializer
         return ApplicationSerializer
 
+    @action(detail=False, methods=['get'], url_path='check-candidate')
+    def check_candidate(self, request):
+        email = request.query_params.get('email')
+        phone = request.query_params.get('phone')
+        if not email or not phone:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+            
+        qs = Application.objects.exclude(candidate_name='').filter(
+            candidate_email__iexact=email.strip(),
+            candidate_phone=phone.strip()
+        )
+        if not qs.exists():
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+            
+        candidate = qs.first()
+        assigned_jobs = []
+        for app in qs:
+            if app.position and app.client_name:
+                assigned_jobs.append({
+                    'position': app.position.lower().strip(),
+                    'client_name': app.client_name.lower().strip(),
+                })
+                
+        name_parts = (candidate.candidate_name or '').split(' ')
+        first_name = name_parts[0] if len(name_parts) > 0 else ''
+        last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+
+        def extract_field_from_remarks(remarks_str, field_name):
+            import re
+            match = re.search(field_name + r':\s*(.*)', remarks_str or '')
+            return match.group(1).strip() if match else ''
+
+        remarks = candidate.remarks or ''
+        return Response({
+            'exists': True,
+            'id': candidate.id,
+            'candidate_name': candidate.candidate_name,
+            'first_name': first_name,
+            'last_name': last_name,
+            'city': candidate.city,
+            'state': candidate.state,
+            'pan_card': candidate.pan_card,
+            'aadhaar': candidate.aadhaar,
+            'alternate_mobile_number': candidate.alternate_mobile_number,
+            'source': candidate.source,
+            'interest_to_work_for_client': candidate.interest_to_work_for_client,
+            'experience': str(candidate.experience),
+            'technology': candidate.technology,
+            'degree': extract_field_from_remarks(remarks, 'Degree'),
+            'location': extract_field_from_remarks(remarks, 'Location'),
+            'expected_salary': extract_field_from_remarks(remarks, 'Expected Salary'),
+            'notice_period': extract_field_from_remarks(remarks, 'Notice Period'),
+            'resume_link': extract_field_from_remarks(remarks, 'Resume Link'),
+            'assigned_jobs': assigned_jobs
+        }, status=status.HTTP_200_OK)
+
     def perform_create(self, serializer):
         recruiter_val = self.request.data.get('recruiter')
         if not recruiter_val:

@@ -68,13 +68,6 @@ export const CandidateDetails: React.FC = () => {
     const candidate = applications.find(a => String(a.id) === applicationId);
     if (!candidate) return [];
 
-    // Find keys of all jobs this candidate is already assigned to
-    const assignedJobKeys = new Set(
-      applications
-        .filter(a => a.candidate_name && (a.candidate_email?.toLowerCase() === candidate.candidate_email?.toLowerCase() || a.candidate_name?.toLowerCase() === candidate.candidate_name?.toLowerCase()))
-        .map(a => `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`)
-    );
-
     // 1. Filter out standalone candidates (which have Job Code = N/A)
     const jobPostingApps = applications.filter(app => getRemarkField(app.remarks, 'Job Code') !== 'N/A');
 
@@ -90,8 +83,6 @@ export const CandidateDetails: React.FC = () => {
     const groups: Record<string, typeof filtered> = {};
     filtered.forEach(app => {
       const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
-      // Skip if the candidate is already assigned to this job
-      if (assignedJobKeys.has(key)) return;
 
       if (!groups[key]) {
         groups[key] = [];
@@ -159,9 +150,18 @@ export const CandidateDetails: React.FC = () => {
       alert("Successfully submitted candidate to selected jobs!");
       setSelectedJobIds([]);
       setOpenSubmitDialog(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to submit candidate to selected jobs.");
+      const serverError = err.response?.data;
+      let errMsg = "Failed to submit candidate to selected jobs.";
+      if (serverError) {
+        if (typeof serverError === 'object') {
+          errMsg = Object.values(serverError).flat().join(' ');
+        } else {
+          errMsg = String(serverError);
+        }
+      }
+      alert(errMsg);
     } finally {
       setSubmittingJobs(false);
     }
