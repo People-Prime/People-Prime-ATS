@@ -336,6 +336,44 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             
         return response
 
+    # Generate a pre-signed S3 URL for secure resume access (valid 1 hour)
+    @action(detail=False, methods=['post'], url_path='generate-resume-url')
+    def generate_resume_url(self, request):
+        import boto3
+        import os
+        from urllib.parse import urlparse, unquote
+
+        raw_url = request.data.get('url', '')
+        if not raw_url:
+            return Response({'error': 'No URL provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Extract the S3 object key from the full URL
+        # URL format: https://ats-resumestorage.s3.ap-south-1.amazonaws.com/filename.pdf
+        parsed = urlparse(raw_url)
+        # Remove leading slash from path to get the S3 key
+        s3_key = unquote(parsed.path.lstrip('/'))
+
+        bucket_name = os.getenv('AWS_STORAGE_BUCKET_NAME', 'ats-resumestorage')
+        region = os.getenv('AWS_S3_REGION_NAME', 'ap-south-1')
+        access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+
+        try:
+            s3_client = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key
+            )
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': bucket_name, 'Key': s3_key},
+                ExpiresIn=3600  # 1 hour
+            )
+            return Response({'url': presigned_url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     # Upload resume to Cloudinary
     @action(detail=False, methods=['post'], url_path='upload-resume')
     def upload_resume(self, request):

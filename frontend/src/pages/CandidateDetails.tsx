@@ -50,6 +50,7 @@ export const CandidateDetails: React.FC = () => {
   const [openSubmitDialog, setOpenSubmitDialog] = React.useState(false);
   const [selectedJobIds, setSelectedJobIds] = React.useState<string[]>([]);
   const [submittingJobs, setSubmittingJobs] = React.useState(false);
+  const [resumeLoading, setResumeLoading] = React.useState(false);
 
   const dispatch = useAppDispatch();
 
@@ -284,11 +285,32 @@ export const CandidateDetails: React.FC = () => {
                   <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>Resume Link</Typography>
                   {parsedDetails.resumeLink ? (
                     <Box sx={{ mt: 0.5 }}>
-                      <a href={parsedDetails.resumeLink} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                        <Button variant="outlined" size="small" startIcon={<ExternalLink size={16} />}>
-                          View Resume Document
-                        </Button>
-                      </a>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<ExternalLink size={16} />}
+                        disabled={resumeLoading}
+                        onClick={async () => {
+                          const resumeUrl = parsedDetails.resumeLink;
+                          // If it's an S3 URL, generate a pre-signed link first
+                          if (resumeUrl.includes('s3.') || resumeUrl.includes('amazonaws.com')) {
+                            setResumeLoading(true);
+                            try {
+                              const res: any = await api.post('applications/generate-resume-url/', { url: resumeUrl });
+                              window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                            } catch {
+                              alert('Failed to load resume. Please try again.');
+                            } finally {
+                              setResumeLoading(false);
+                            }
+                          } else {
+                            // Cloudinary or other direct URLs — open as-is
+                            window.open(resumeUrl, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                      >
+                        {resumeLoading ? 'Loading...' : 'View Resume Document'}
+                      </Button>
                     </Box>
                   ) : (
                     <Typography variant="body1" sx={{ fontWeight: 600 }}>Not Provided</Typography>
