@@ -56,6 +56,11 @@ class Application(models.Model):
         remarks = self.remarks or ''
         has_placeholder = 'Job Code: PPW - [Auto Generated]' in remarks or 'Job Code: ' not in remarks
         
+        # If candidate is assigned to at least one job (non-N/A), auto-transition status to 'Submitted'
+        if self.candidate_name and self.client_name and self.client_name != 'N/A' and self.position and self.position != 'N/A':
+            if self.status == 'New':
+                self.status = 'Submitted'
+
         super().save(*args, **kwargs)
         
         if is_new and not self.candidate_name and has_placeholder:
