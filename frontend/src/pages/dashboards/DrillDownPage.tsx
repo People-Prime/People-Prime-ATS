@@ -714,8 +714,14 @@ export const DrillDownPage: React.FC = () => {
                   modalData.map((app: any) => (
                     <TableRow key={app.id}>
                       <TableCell sx={{ fontSize: '0.7rem' }}>{app.id}</TableCell>
-                      <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main' }}>
-                        {app.candidate_name || 'N/A'}
+                      <TableCell sx={{ fontSize: '0.7rem', fontWeight: 700 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                          onClick={() => navigate(`/candidates/${app.id}/details`)}
+                        >
+                          {app.candidate_name || 'N/A'}
+                        </Typography>
                       </TableCell>
                       <TableCell sx={{ fontSize: '0.7rem' }}>{app.candidate_email || '—'}</TableCell>
                       <TableCell sx={{ fontSize: '0.7rem' }}>{getRemarkFieldVal(app.remarks, 'Job Code')}</TableCell>
