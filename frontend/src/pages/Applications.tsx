@@ -562,59 +562,70 @@ export const Applications: React.FC = () => {
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.candidate_email, 140)}</Typography>
                       </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Job Code'), 90)}</Typography>
-                      </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.city, 90)}</Typography>
-                      </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.state, 90)}</Typography>
-                      </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography
-                          variant="body2"
-                          sx={{ 
-                            fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', 
-                            fontWeight: 700, 
-                            color: 'primary.main', 
-                            cursor: isReadOnly ? 'default' : 'pointer', 
-                            '&:hover': { textDecoration: isReadOnly ? 'none' : 'underline' } 
-                          }}
-                          onClick={isReadOnly ? undefined : (e) => {
-                            e.stopPropagation();
-                            setStatusUpdateApp(app);
-                            setStatusUpdateValue(app.status as ApplicationStatus);
-                            setStatusUpdateComment('');
-                          }}
-                        >
-                          {app.status}
-                        </Typography>
-                      </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="subtitle2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 750 }}>{renderCellText(app.position, 150)}</Typography>
-                      </td>
                       {(() => {
-                        const jobCode = getRemarkField(app.remarks, 'Job Code');
-                        const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === jobCode);
-                        const jobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
-                        const clientName = jobPosting ? jobPosting.client_name : 'N/A';
-                        const startDateVal = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
+                        const directJobCode = getRemarkField(app.remarks, 'Job Code');
+                        // Find a submission that has a real Job Code, or default to direct properties
+                        const realSubmission = cand.allSubmissions.find(s => getRemarkField(s.remarks, 'Job Code') !== 'N/A');
                         
-                        const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === jobCode);
+                        const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkField(realSubmission.remarks, 'Job Code') : 'N/A');
+                        const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
+
+                        const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
+                        const displayJobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
+                        const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : (realSubmission ? realSubmission.client_name : 'N/A'));
+                        const displayStartDate = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
+
+                        const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
                         const recruiterEmails = siblingApps.map(a => a.assigned_employee?.email).filter(Boolean) as string[];
+                        
+                        // Fallback to primary recruiter if no assignee exists on the sibling requirements
+                        if (recruiterEmails.length === 0 && app.assigned_employee?.email) {
+                          recruiterEmails.push(app.assigned_employee.email);
+                        }
                         const hierarchyInfo = getHierarchyInfo(recruiterEmails);
 
                         return (
                           <>
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(jobType, 110)}</Typography>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(displayJobCode, 90)}</Typography>
                             </td>
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(clientName, 110)}</Typography>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.city, 90)}</Typography>
                             </td>
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(startDateVal, 110)}</Typography>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.state, 90)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography
+                                variant="body2"
+                                sx={{ 
+                                  fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', 
+                                  fontWeight: 700, 
+                                  color: 'primary.main', 
+                                  cursor: isReadOnly ? 'default' : 'pointer', 
+                                  '&:hover': { textDecoration: isReadOnly ? 'none' : 'underline' } 
+                                }}
+                                onClick={isReadOnly ? undefined : (e) => {
+                                  e.stopPropagation();
+                                  setStatusUpdateApp(app);
+                                  setStatusUpdateValue(app.status as ApplicationStatus);
+                                  setStatusUpdateComment('');
+                                }}
+                              >
+                                {app.status}
+                              </Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="subtitle2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 750 }}>{renderCellText(displayPosition, 150)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(displayJobType, 110)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(displayClientName, 110)}</Typography>
+                            </td>
+                            <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(displayStartDate, 110)}</Typography>
                             </td>
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                               <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.manager, 110)}</Typography>
