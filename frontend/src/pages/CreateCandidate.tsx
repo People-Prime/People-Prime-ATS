@@ -418,16 +418,27 @@ Recruiter Remarks: ${formData.remarks}`;
 
       let res;
       let isNewRecord = false;
-      if (applicationId && targetApp && targetApp.id) {
-        // We are explicitly updating a requirement or candidate in place
-        res = await api.put(`applications/${applicationId}/`, payload);
-      } else if (existingCandidateId) {
-        // Reuse the existing candidate record globally by updating it in place
-        res = await api.put(`applications/${existingCandidateId}/`, payload);
-      } else {
-        // We are creating a standalone candidate - POST a new record
-        res = await api.post('applications/', payload);
-        isNewRecord = true;
+      try {
+        if (applicationId && targetApp && targetApp.id) {
+          // We are explicitly updating a requirement or candidate in place
+          res = await api.put(`applications/${applicationId}/`, payload);
+        } else if (existingCandidateId) {
+          // Reuse the existing candidate record globally by updating it in place
+          res = await api.put(`applications/${existingCandidateId}/`, payload);
+        } else {
+          // We are creating a standalone candidate - POST a new record
+          res = await api.post('applications/', payload);
+          isNewRecord = true;
+        }
+      } catch (err: any) {
+        // Fallback: If we get a 404 (No Application matches the given query) because the existing
+        // application belongs to another recruiter/is out of the user's scope, create a new record instead.
+        if (err?.response?.status === 404 && (existingCandidateId || applicationId)) {
+          res = await api.post('applications/', payload);
+          isNewRecord = true;
+        } else {
+          throw err;
+        }
       }
 
       await api.post(`applications/${res.data.id}/add-note/`, {
