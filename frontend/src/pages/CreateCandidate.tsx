@@ -328,14 +328,17 @@ export const CreateCandidate: React.FC = () => {
       return;
     }
 
-    if (isDuplicateEmail) {
-      setError('A candidate with this email address already exists in the system. Duplicate candidate profiles are not allowed.');
-      return;
-    }
+    // Only block on duplicate email/phone when this is NOT a known existing candidate being re-submitted
+    if (!existingCandidateId) {
+      if (isDuplicateEmail) {
+        setError('A candidate with this email address already exists in the system. Duplicate candidate profiles are not allowed.');
+        return;
+      }
 
-    if (isDuplicatePhone) {
-      setError('A candidate with this phone number already exists in the system. Duplicate candidate profiles are not allowed.');
-      return;
+      if (isDuplicatePhone) {
+        setError('A candidate with this phone number already exists in the system. Duplicate candidate profiles are not allowed.');
+        return;
+      }
     }
 
     if (formData.expectedSalary.replace(/\D/g, '').length <= 4) {
@@ -436,9 +439,16 @@ Recruiter Remarks: ${formData.remarks}`;
           isNewRecord = true;
         }
       } catch (err: any) {
-        // Fallback: If we get a 404 (No Application matches the given query) because the existing
+        // Fallback 1: If we get a 404 (No Application matches the given query) because the existing
         // application belongs to another recruiter/is out of the user's scope, create a new record instead.
+        // Fallback 2: If server says "already assigned" but this is a multi-associate re-submission
+        // of an existing candidate, silently create a new record for this associate's slot.
+        const isAlreadyAssigned = err?.response?.status === 400 &&
+          JSON.stringify(err?.response?.data || '').toLowerCase().includes('already assigned');
         if (err?.response?.status === 404 && (existingCandidateId || applicationId)) {
+          res = await api.post('applications/', payload);
+          isNewRecord = true;
+        } else if (isAlreadyAssigned && existingCandidateId) {
           res = await api.post('applications/', payload);
           isNewRecord = true;
         } else {
