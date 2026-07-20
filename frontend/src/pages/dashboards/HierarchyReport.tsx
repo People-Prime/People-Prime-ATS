@@ -150,15 +150,15 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     } else if (metricType === 'INTERVIEWS') {
       filtered = dateFiltered.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));
       label = 'Client Interviews';
-      isHierarchy = false;
+      isApplicants = true;
     } else if (metricType === 'OFFERS') {
       filtered = dateFiltered.filter(app => app.status === 'Offer Sent');
       label = 'Offer Sent';
-      isHierarchy = false;
+      isApplicants = true;
     } else if (metricType === 'ONBOARD') {
       filtered = dateFiltered.filter(app => app.status === 'Placed');
       label = 'Onboard';
-      isHierarchy = false;
+      isApplicants = true;
     }
 
     const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${effectiveStartDate} to ${effectiveEndDate})`;
