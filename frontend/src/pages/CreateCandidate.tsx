@@ -468,7 +468,16 @@ Recruiter Remarks: ${formData.remarks}`;
         setError('Resume size must be within 1 MB.');
         return;
       }
+      // If the backend says candidate is already assigned to this job,
+      // treat it as a silent success — no error popup shown.
       const serverError = err.response?.data;
+      const isAlreadyAssignedToJob =
+        JSON.stringify(serverError || '').includes('CANDIDATE_ALREADY_ASSIGNED_TO_JOB');
+      if (isAlreadyAssignedToJob) {
+        setSuccess(`✅ Candidate "${`${formData.firstName} ${formData.lastName}`.trim()}" submitted successfully!`);
+        setTimeout(() => navigate('/'), 1800);
+        return;
+      }
       let errMsg = "Failed to submit candidate to the database.";
       if (serverError) {
         if (typeof serverError === 'object') {
