@@ -318,8 +318,8 @@ export const CreateCandidate: React.FC = () => {
 
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
 
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.city || !formData.state || !formData.degree) {
-      setError('Please fill in all candidate contact details, city, state, and qualification.');
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.city || !formData.state || !formData.degree || !formData.source) {
+      setError('Please fill in all candidate contact details, city, state, qualification, and source.');
       return;
     }
 
@@ -621,6 +621,7 @@ Recruiter Remarks: ${formData.remarks}`;
               <Grid item xs={12} sm={6}>
                 <TextField
                   label="Source"
+                  required
                   fullWidth
                   value={formData.source}
                   onChange={(e) => setFormData({ ...formData, source: e.target.value })}
