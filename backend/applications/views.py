@@ -356,11 +356,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if not raw_url:
             return Response({'error': 'No URL provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Extract the S3 object key from the full URL
-        # URL format: https://ats-resumestorage.s3.ap-south-1.amazonaws.com/filename.pdf
+        # Extract the S3 object key from the full URL and unquote twice to ensure spaces are decoded
         parsed = urlparse(raw_url)
-        # Remove leading slash from path to get the S3 key
-        s3_key = unquote(parsed.path.lstrip('/'))
+        s3_key = unquote(unquote(parsed.path.lstrip('/')))
 
         bucket_name = os.getenv('AWS_STORAGE_BUCKET_NAME', 'ats-resumestorage')
         region = os.getenv('AWS_S3_REGION_NAME', 'ap-south-1')

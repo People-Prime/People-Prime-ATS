@@ -16,6 +16,11 @@ import { api } from '../services/api';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
+  if (fieldName === 'Description') {
+    // Description can span multiple lines, parse until next section starting with bracket or next field
+    const match = remarks.match(new RegExp(`^Description:[ \\t]*([\\s\\S]*?)(?:^[A-Z][a-zA-Z ]+:|^\\[|\\Z)`, 'im'));
+    return match ? match[1].trim() : 'N/A';
+  }
   const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
   const value = match ? match[1].trim() : 'N/A';
   return value && value !== '' ? value : 'N/A';
