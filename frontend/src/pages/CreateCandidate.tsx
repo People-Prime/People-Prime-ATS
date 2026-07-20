@@ -323,6 +323,11 @@ export const CreateCandidate: React.FC = () => {
       return;
     }
 
+    if (!selectedFile && !formData.resumeLink) {
+      setError('Please attach a resume/document. This field is mandatory.');
+      return;
+    }
+
     if (isDuplicateEmail) {
       setError('A candidate with this email address already exists in the system. Duplicate candidate profiles are not allowed.');
       return;
@@ -743,7 +748,7 @@ Recruiter Remarks: ${formData.remarks}`;
                       startIcon={<Upload size={16} />}
                       sx={{ textTransform: 'none', borderRadius: '8px' }}
                     >
-                      Attach Resume / Documents
+                      Attach Resume / Documents *
                       <input
                         type="file"
                         hidden
