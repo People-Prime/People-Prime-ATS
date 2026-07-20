@@ -412,11 +412,9 @@ Recruiter Remarks: ${formData.remarks}`;
         if (applicationId && targetApp && targetApp.id) {
           // We are explicitly updating a requirement or candidate in place
           res = await api.put(`applications/${applicationId}/`, payload);
-        } else if (existingCandidateId) {
-          // Reuse the existing candidate record globally by updating it in place
-          res = await api.put(`applications/${existingCandidateId}/`, payload);
         } else {
-          // We are creating a standalone candidate - POST a new record
+          // Always create a new record — even if this candidate exists already (different associate flow).
+          // Each associate gets their own separate candidate entry. No overwriting.
           res = await api.post('applications/', payload);
           isNewRecord = true;
         }
