@@ -46,7 +46,7 @@ export const CandidateDetails: React.FC = () => {
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
   const theme = useTheme();
-  
+
   const [openSubmitDialog, setOpenSubmitDialog] = React.useState(false);
   const [selectedJobIds, setSelectedJobIds] = React.useState<string[]>([]);
   const [submittingJobs, setSubmittingJobs] = React.useState(false);
@@ -103,7 +103,7 @@ export const CandidateDetails: React.FC = () => {
 
 
   const handleToggleJob = (jobId: string) => {
-    setSelectedJobIds(prev => 
+    setSelectedJobIds(prev =>
       prev.includes(jobId) ? prev.filter(id => id !== jobId) : [...prev, jobId]
     );
   };
@@ -147,7 +147,7 @@ export const CandidateDetails: React.FC = () => {
           content: `Submitted candidate "${selectedApp.candidate_name}" to this job opening.`
         });
       }
-      
+
       alert("Successfully submitted candidate to selected jobs!");
       setSelectedJobIds([]);
       setOpenSubmitDialog(false);
@@ -218,7 +218,7 @@ export const CandidateDetails: React.FC = () => {
                   <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Briefcase size={18} /> {selectedApp.position} @ {selectedApp.client_name}
                   </Typography>
-                  
+
                   <Box sx={{ display: 'flex', gap: 3, mt: 2 }}>
                     <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 600, color: 'text.secondary' }}>
                       <Mail size={16} /> {selectedApp.candidate_email || 'N/A'}
@@ -246,7 +246,7 @@ export const CandidateDetails: React.FC = () => {
             {/* Candidate Metadata Grid */}
             <Box sx={{ p: 4 }}>
               <Typography variant="h6" sx={{ fontWeight: 800, mb: 3 }}>Comprehensive Overview</Typography>
-              
+
               <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>Primary Skills / Tech Stack</Typography>
@@ -331,8 +331,8 @@ export const CandidateDetails: React.FC = () => {
       </Grid>
 
       {/* JOB SUBMISSION POPUP DIALOG */}
-      <Dialog 
-        open={openSubmitDialog} 
+      <Dialog
+        open={openSubmitDialog}
         onClose={() => setOpenSubmitDialog(false)}
         maxWidth="sm"
         fullWidth
@@ -345,7 +345,7 @@ export const CandidateDetails: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Select the jobs you want to assign <strong>{selectedApp.candidate_name}</strong> to:
           </Typography>
-          
+
           {uniqueTeamRequirements.length === 0 ? (
             <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
               No active job openings/requirements available in the Job Postings Pipeline.
@@ -356,7 +356,7 @@ export const CandidateDetails: React.FC = () => {
                 <FormControlLabel
                   key={job.id}
                   control={
-                    <Checkbox 
+                    <Checkbox
                       checked={selectedJobIds.includes(String(job.id))}
                       onChange={() => handleToggleJob(String(job.id))}
                       color="primary"
@@ -379,19 +379,19 @@ export const CandidateDetails: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 2.5 }}>
-          <Button 
+          <Button
             onClick={() => {
               setSelectedJobIds([]);
               setOpenSubmitDialog(false);
-            }} 
-            variant="outlined" 
+            }}
+            variant="outlined"
             sx={{ borderRadius: '8px' }}
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleJobSubmit} 
-            variant="contained" 
+          <Button
+            onClick={handleJobSubmit}
+            variant="contained"
             color="primary"
             disabled={selectedJobIds.length === 0 || submittingJobs}
             sx={{ borderRadius: '8px', fontWeight: 700 }}
