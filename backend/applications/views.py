@@ -374,9 +374,23 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key
             )
+            # Set ResponseContentType to application/pdf so browser handles preview
+            # Set ResponseContentDisposition to inline so browser views instead of downloading
+            params = {
+                'Bucket': bucket_name,
+                'Key': s3_key,
+                'ResponseContentDisposition': 'inline'
+            }
+            if s3_key.lower().endswith('.pdf'):
+                params['ResponseContentType'] = 'application/pdf'
+            elif s3_key.lower().endswith('.docx'):
+                params['ResponseContentType'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            elif s3_key.lower().endswith('.doc'):
+                params['ResponseContentType'] = 'application/msword'
+
             presigned_url = s3_client.generate_presigned_url(
                 'get_object',
-                Params={'Bucket': bucket_name, 'Key': s3_key},
+                Params=params,
                 ExpiresIn=3600  # 1 hour
             )
             return Response({'url': presigned_url}, status=status.HTTP_200_OK)
