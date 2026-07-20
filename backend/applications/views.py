@@ -131,19 +131,28 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if cache.get('last_auto_close_time') is None:
             cache.set('last_auto_close_time', timezone.now().isoformat(), 600)
             try:
-                # Find active requirements (no candidate assigned yet)
+                import datetime, re
+                today = timezone.now().date()
+                # Find all active job postings (no candidate assigned)
                 active_jobs = Application.objects.filter(candidate_name='', remarks__icontains='Job Status: Active')
                 for job in active_jobs:
                     remarks = job.remarks or ''
-                    
-                    # ALL JOBS EXPIRY: End of the creation day (11:59:59 PM) based on created_at
-                    import datetime
-                    expiry_time = timezone.make_aware(
-                        datetime.datetime.combine(job.created_at.date(), datetime.time(23, 59, 59)),
-                        job.created_at.tzinfo
-                    )
-                    if timezone.now() >= expiry_time:
-                        new_remarks = remarks.replace('Job Status: Active', 'Job Status: Closed')
+                    # Extract Start Date from remarks (format: "Start Date: YYYY-MM-DD")
+                    match = re.search(r'^Start Date:\s*(\d{4}-\d{2}-\d{2})', remarks, re.MULTILINE | re.IGNORECASE)
+                    if not match:
+                        continue
+                    try:
+                        start_date = datetime.date.fromisoformat(match.group(1).strip())
+                    except ValueError:
+                        continue
+                    # Close the job if today is past the start date
+                    if today > start_date:
+                        new_remarks = re.sub(
+                            r'(^Job Status:\s*)Active',
+                            r'\1Closed',
+                            remarks,
+                            flags=re.MULTILINE | re.IGNORECASE
+                        )
                         job.remarks = new_remarks
                         job.save(update_fields=['remarks'])
             except Exception:

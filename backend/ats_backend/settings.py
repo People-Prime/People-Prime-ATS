@@ -163,6 +163,15 @@ CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:63
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+# Celery Beat — Daily scheduled tasks
+from celery.schedules import crontab
+CELERY_BEAT_SCHEDULE = {
+    'auto-close-expired-jobs-daily': {
+        'task': 'applications.tasks.auto_close_expired_jobs',
+        'schedule': crontab(hour=0, minute=5),  # Runs every day at 00:05 server time
+    },
+}
 CELERY_TIMEZONE = TIME_ZONE
 
 # AWS S3 Media Storage Configurations
