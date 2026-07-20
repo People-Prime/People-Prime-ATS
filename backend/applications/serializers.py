@@ -37,35 +37,24 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def validate(self, data):
         candidate_email = data.get('candidate_email')
         candidate_phone = data.get('candidate_phone')
+        position = data.get('position')
+        client_name = data.get('client_name')
         instance = self.instance
 
-        # NOTE: We intentionally do NOT block the same candidate from being assigned
-        # to the same job by a different associate. Each associate has their own slot/row
-        # and this is a valid multi-associate workflow.
-
-        if candidate_email:
-            qs = Application.objects.filter(candidate_email__iexact=candidate_email)
+        if candidate_email and candidate_phone and position and client_name:
+            # Check globally if candidate is already assigned to the selected job (by ANY associate)
+            existing_assignments = Application.objects.exclude(candidate_name='').filter(
+                candidate_email__iexact=candidate_email.strip(),
+                candidate_phone=candidate_phone.strip(),
+                position__iexact=position.strip(),
+                client_name__iexact=client_name.strip()
+            )
             if instance:
-                qs = qs.exclude(id=instance.id)
-            if qs.exists():
-                phone = candidate_phone or (instance.candidate_phone if instance else '')
-                # Allow duplicate email if the phone number is the same (multi-job assignment flow)
-                if not qs.filter(candidate_phone=phone).exists():
-                    raise serializers.ValidationError({
-                        "candidate_email": "A candidate with this email address already exists in the system."
-                    })
-
-        if candidate_phone:
-            qs = Application.objects.filter(candidate_phone=candidate_phone)
-            if instance:
-                qs = qs.exclude(id=instance.id)
-            if qs.exists():
-                email = candidate_email or (instance.candidate_email if instance else '')
-                # Allow duplicate phone if the email address is the same (multi-job assignment flow)
-                if not qs.filter(candidate_email__iexact=email).exists():
-                    raise serializers.ValidationError({
-                        "candidate_phone": "A candidate with this phone number already exists in the system."
-                    })
+                existing_assignments = existing_assignments.exclude(id=instance.id)
+            if existing_assignments.exists():
+                raise serializers.ValidationError({
+                    "non_field_errors": "This candidate is already assigned to the selected job."
+                })
 
         return data
 

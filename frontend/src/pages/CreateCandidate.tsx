@@ -151,25 +151,7 @@ export const CreateCandidate: React.FC = () => {
           if (res.data?.exists) {
             const data = res.data;
             setExistingCandidateId(String(data.id));
-            setFormData(prev => ({
-              ...prev,
-              firstName: prev.firstName || data.first_name || '',
-              lastName: prev.lastName || data.last_name || '',
-              city: prev.city || data.city || '',
-              state: prev.state || data.state || '',
-              panCard: prev.panCard || data.pan_card || '',
-              aadhaar: prev.aadhaar || data.aadhaar || '',
-              alternateMobileNumber: prev.alternateMobileNumber || data.alternate_mobile_number || '',
-              source: prev.source || data.source || '',
-              interestToWorkForClient: prev.interestToWorkForClient || data.interest_to_work_for_client || 'Yes',
-              experience: prev.experience || data.experience || '',
-              skills: prev.skills || data.technology || '',
-              degree: prev.degree || data.degree || '',
-              location: prev.location || data.location || '',
-              expectedSalary: prev.expectedSalary || data.expected_salary || '',
-              noticePeriod: prev.noticePeriod || data.notice_period || '',
-              resumeLink: prev.resumeLink || data.resume_link || '',
-            }));
+            // Removed auto-population of candidate details as per request "don't auto-populate the fields, let them fill"
           } else {
             setExistingCandidateId(null);
           }
