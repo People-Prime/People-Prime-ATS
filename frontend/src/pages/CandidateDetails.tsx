@@ -51,15 +51,28 @@ export const CandidateDetails: React.FC = () => {
   const [selectedJobIds, setSelectedJobIds] = React.useState<string[]>([]);
   const [submittingJobs, setSubmittingJobs] = React.useState(false);
   const [resumeLoading, setResumeLoading] = React.useState(false);
+  const [fetchedApp, setFetchedApp] = React.useState<any>(null);
+  const [fetchingApp, setFetchingApp] = React.useState(true);
 
   const dispatch = useAppDispatch();
 
   React.useEffect(() => {
+    // Always fetch the specific application by ID for reliability
+    if (applicationId) {
+      setFetchingApp(true);
+      api.get(`applications/${applicationId}/`)
+        .then((res: any) => {
+          setFetchedApp(res.data);
+        })
+        .catch(err => console.error('Failed to load application', err))
+        .finally(() => setFetchingApp(false));
+    }
+    // Also refresh the global list for the job submission dialog
     api.get('applications/').then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       dispatch(setApplications(list));
-    }).catch(err => console.error("Failed to load applications", err));
-  }, [dispatch]);
+    }).catch(err => console.error('Failed to load applications', err));
+  }, [applicationId, dispatch]);
 
   const applications = useAppSelector(state => state.applications.applications);
   const currentUser = useAppSelector(state => state.auth.user);
@@ -99,7 +112,7 @@ export const CandidateDetails: React.FC = () => {
     });
   }, [applications, currentUser, activeRole, applicationId]);
 
-  const selectedApp = applications.find(a => String(a.id) === applicationId);
+  const selectedApp = applications.find(a => String(a.id) === applicationId) || fetchedApp;
 
 
   const handleToggleJob = (jobId: string) => {
@@ -169,6 +182,14 @@ export const CandidateDetails: React.FC = () => {
   };
 
 
+
+  if (fetchingApp && !selectedApp) {
+    return (
+      <Box sx={{ p: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Typography>Loading candidate details...</Typography>
+      </Box>
+    );
+  }
 
   if (!selectedApp) {
     return (
