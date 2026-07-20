@@ -530,12 +530,13 @@ export const DrillDownPage: React.FC = () => {
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography
                               variant="body2"
-                              sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                              sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
                               onClick={() => {
                                 navigate(`/candidates/${app.id}/details`);
                               }}
+                              title={app.candidate_name || ''}
                             >
-                              {renderCellText(app.candidate_name, 120)}
+                              {app.candidate_name || 'N/A'}
                             </Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
