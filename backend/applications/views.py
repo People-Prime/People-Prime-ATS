@@ -374,12 +374,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 aws_secret_access_key=secret_key
             )
 
-            # Resolve exact key stored in S3 bucket to handle key variations
-            found_key = s3_key
+            # Check if key exists in S3
+            found_key = None
             try:
                 s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+                found_key = s3_key
             except Exception:
-                # 1. Try normalized spacing/underscore candidates
+                # Try space/underscore variations
                 candidates = [
                     s3_key,
                     s3_key.replace('.docx', ' .docx').replace('.pdf', ' .pdf').replace('.doc', ' .doc'),
@@ -387,66 +388,50 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     s3_key.replace(' ', '_'),
                     s3_key.replace('_', ' ')
                 ]
-                matched = False
                 for cand in candidates:
                     try:
                         s3_client.head_object(Bucket=bucket_name, Key=cand)
                         found_key = cand
-                        matched = True
                         break
                     except Exception:
                         pass
 
-                # 2. First-word search in S3 bucket if exact key not found
-                if not matched and s3_key:
-                    req_clean = s3_key.lower().replace('_', ' ').replace('-', ' ')
-                    words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in req_clean.split()]
-                    words = [w for w in words if len(w) >= 3 and w not in ['pdf', 'docx', 'doc', 'resume', 'naukri']]
-                    
-                    if words:
-                        search_term = words[0]
-                        paginator = s3_client.get_paginator('list_objects_v2')
-                        for page in paginator.paginate(Bucket=bucket_name, Prefix=search_term[:3]):
-                            for obj in page.get('Contents', []):
-                                obj_k = obj['Key']
-                                if search_term in obj_k.lower():
-                                    found_key = obj_k
-                                    matched = True
-                                    break
-                            if matched:
-                                break
+            if found_key:
+                # File exists in S3 -> Generate S3 presigned URL
+                params = {
+                    'Bucket': bucket_name,
+                    'Key': found_key,
+                    'ResponseContentDisposition': 'inline'
+                }
+                if found_key.lower().endswith('.pdf'):
+                    params['ResponseContentType'] = 'application/pdf'
+                elif found_key.lower().endswith('.docx'):
+                    params['ResponseContentType'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                elif found_key.lower().endswith('.doc'):
+                    params['ResponseContentType'] = 'application/msword'
 
-                        # Fallback full bucket scan with search_term if prefix didn't match
-                        if not matched:
-                            for page in paginator.paginate(Bucket=bucket_name):
-                                for obj in page.get('Contents', []):
-                                    obj_k = obj['Key']
-                                    if search_term in obj_k.lower():
-                                        found_key = obj_k
-                                        matched = True
-                                        break
-                                if matched:
-                                    break
+                presigned_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params=params,
+                    ExpiresIn=3600
+                )
+                return Response({'url': presigned_url}, status=status.HTTP_200_OK)
 
-            # Set ResponseContentType so browser handles preview
-            params = {
-                'Bucket': bucket_name,
-                'Key': found_key,
-                'ResponseContentDisposition': 'inline'
-            }
-            if found_key.lower().endswith('.pdf'):
-                params['ResponseContentType'] = 'application/pdf'
-            elif found_key.lower().endswith('.docx'):
-                params['ResponseContentType'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            elif found_key.lower().endswith('.doc'):
-                params['ResponseContentType'] = 'application/msword'
+            # Fallback for legacy Cloudinary links: Generate signed Cloudinary URL
+            if 'cloudinary.com' in raw_url:
+                import cloudinary, cloudinary.utils
+                cloudinary.config(
+                    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME', 'ggdlbhrf'),
+                    api_key=os.getenv('CLOUDINARY_API_KEY', '154731121199677'),
+                    api_secret=os.getenv('CLOUDINARY_API_SECRET', 'dquFbWva1EO_bTI__FbKiCieRrs')
+                )
+                archive_url = cloudinary.utils.download_archive_url(
+                    public_ids=[s3_key],
+                    resource_type='raw'
+                )
+                return Response({'url': archive_url}, status=status.HTTP_200_OK)
 
-            presigned_url = s3_client.generate_presigned_url(
-                'get_object',
-                Params=params,
-                ExpiresIn=3600  # 1 hour
-            )
-            return Response({'url': presigned_url}, status=status.HTTP_200_OK)
+            return Response({'error': f'Resume file {s3_key} not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
