@@ -371,18 +371,50 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key
             )
-            # Set ResponseContentType to application/pdf so browser handles preview
-            # Set ResponseContentDisposition to inline so browser views instead of downloading
+
+            # Resolve exact key stored in S3 bucket to handle key variations
+            found_key = s3_key
+            try:
+                s3_client.head_object(Bucket=bucket_name, Key=s3_key)
+            except Exception:
+                candidates = [
+                    s3_key,
+                    s3_key.replace('.docx', ' .docx').replace('.pdf', ' .pdf').replace('.doc', ' .doc'),
+                    s3_key.replace(' .docx', '.docx').replace(' .pdf', '.pdf').replace(' .doc', '.doc'),
+                    s3_key.replace(' ', '_'),
+                    s3_key.replace('_', ' ')
+                ]
+                matched = False
+                for cand in candidates:
+                    try:
+                        s3_client.head_object(Bucket=bucket_name, Key=cand)
+                        found_key = cand
+                        matched = True
+                        break
+                    except Exception:
+                        pass
+
+                if not matched and s3_key:
+                    prefix = s3_key.split()[0] if s3_key.split() else s3_key[:4]
+                    res = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix, MaxKeys=50)
+                    for obj in res.get('Contents', []):
+                        obj_k = obj['Key']
+                        if s3_key.lower().replace(' ', '').replace('_', '') == obj_k.lower().replace(' ', '').replace('_', ''):
+                            found_key = obj_k
+                            matched = True
+                            break
+
+            # Set ResponseContentType so browser handles preview
             params = {
                 'Bucket': bucket_name,
-                'Key': s3_key,
+                'Key': found_key,
                 'ResponseContentDisposition': 'inline'
             }
-            if s3_key.lower().endswith('.pdf'):
+            if found_key.lower().endswith('.pdf'):
                 params['ResponseContentType'] = 'application/pdf'
-            elif s3_key.lower().endswith('.docx'):
+            elif found_key.lower().endswith('.docx'):
                 params['ResponseContentType'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            elif s3_key.lower().endswith('.doc'):
+            elif found_key.lower().endswith('.doc'):
                 params['ResponseContentType'] = 'application/msword'
 
             presigned_url = s3_client.generate_presigned_url(
