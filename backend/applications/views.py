@@ -160,9 +160,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 pass
 
         user = self.request.user
+        all_applicants = self.request.query_params.get('all_applicants') == 'true'
         
         # 1. Admin, CEO, Senior Manager, and Reporting Team can see all requirements and candidates
-        if user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER, Role.REPORTING_TEAM]:
+        if all_applicants or user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER, Role.REPORTING_TEAM]:
             return Application.objects.all().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
         
         # 2. Junior Manager can see applications of teams/members reporting to them, plus their own

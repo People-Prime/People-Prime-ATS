@@ -33,7 +33,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
-import { changeApplicationStatus, addApplicationNote, setApplications, deleteApplication, updateApplication } from '../redux/applicationsSlice';
+import { changeApplicationStatus, addApplicationNote, deleteApplication, updateApplication } from '../redux/applicationsSlice';
 import { Application, ApplicationStatus } from '../types';
 import { api } from '../services/api';
 
@@ -54,14 +54,6 @@ export const Applications: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
-
-  const todayStr = (): string => {
-    const d = new Date();
-    const yy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yy}-${mm}-${dd}`;
-  };
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -167,6 +159,7 @@ export const Applications: React.FC = () => {
     if (!deleteAppConfirm) return;
     try {
       await api.delete(`applications/${deleteAppConfirm.id}/`);
+      setLocalApplications(prev => prev.filter(a => String(a.id) !== String(deleteAppConfirm.id)));
       dispatch(deleteApplication(String(deleteAppConfirm.id)));
       setDeleteAppConfirm(null);
     } catch (err) {
@@ -179,20 +172,17 @@ export const Applications: React.FC = () => {
   const shouldHideAction = activeRole !== 'ADMIN' && activeRole !== 'CEO';
   const showActionColumn = activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD';
 
-  // Load applications from API (Reuses Redux cache if available to prevent slow load times)
+  // Load applications from API
+  const [localApplications, setLocalApplications] = useState<Application[]>([]);
+
   useEffect(() => {
-    const hasData = applications && applications.length > 0;
-    if (hasData) {
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
-    api.get('applications/').then((res: any) => {
+    setLoading(true);
+    api.get('applications/?all_applicants=true').then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
+      setLocalApplications(list);
     }).catch(() => { })
       .finally(() => setLoading(false));
-  }, [dispatch]);
+  }, []);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
@@ -223,12 +213,8 @@ export const Applications: React.FC = () => {
   }, [users]);
 
   // Filter applications based on search and selected filter and roles
-  const filteredApps = applications.filter((app) => {
-    // 0. Date Filter (for all roles)
-    const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
-    const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
-    const appDate = (app.created_at || '').slice(0, 10);
-    if (appDate < savedStart || appDate > savedEnd) return false;
+  const filteredApps = localApplications.filter((app) => {
+    // Date Filter is ignored for Applicants page as requested
 
     // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
     if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
@@ -239,14 +225,7 @@ export const Applications: React.FC = () => {
       if (!isMemberOfTeam) return false;
     }
 
-    // 1. Role-based restrictions
-    if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
-      // Associates see items assigned to them OR recruited by them
-      const isAssignee = app.assigned_employee?.email?.toLowerCase() === currentUser?.email?.toLowerCase();
-      const isRecruiterName = app.recruiter?.toLowerCase() === currentUser?.full_name?.toLowerCase();
-      const isRecruiterEmail = app.recruiter?.toLowerCase() === currentUser?.email?.toLowerCase();
-      if (!isAssignee && !isRecruiterName && !isRecruiterEmail) return false;
-    }
+    // Role-based restrictions are bypassed for Applicants page to show all records
 
     // 2. Status Filter
     if (statusFilter !== 'ALL') {
@@ -361,8 +340,10 @@ export const Applications: React.FC = () => {
       });
 
       if (updatedAppFromBackend && updatedAppFromBackend.id) {
+        setLocalApplications(prev => prev.map(a => a.id === updatedAppFromBackend.id ? updatedAppFromBackend : a));
         dispatch(updateApplication(updatedAppFromBackend));
       } else {
+        setLocalApplications(prev => prev.map(a => a.id === statusUpdateApp.id ? { ...a, status: statusUpdateValue } : a));
         dispatch(changeApplicationStatus({ id: statusUpdateApp.id, status: statusUpdateValue }));
       }
 
