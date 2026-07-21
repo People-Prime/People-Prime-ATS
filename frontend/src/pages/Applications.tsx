@@ -250,10 +250,14 @@ export const Applications: React.FC = () => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
+      const matchEmail = app.candidate_email?.toLowerCase().includes(term);
+      const matchPhone = app.candidate_phone?.toLowerCase().includes(term);
       const matchClient = app.client_name.toLowerCase().includes(term);
       const matchPosition = app.position.toLowerCase().includes(term);
       const matchTech = app.technology.toLowerCase().includes(term);
-      return matchCandidate || matchClient || matchPosition || matchTech;
+      const matchAppId = String(app.id).toLowerCase().includes(term);
+      const matchJobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term);
+      return matchCandidate || matchEmail || matchPhone || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
     }
 
     return true;

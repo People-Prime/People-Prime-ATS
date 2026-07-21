@@ -444,7 +444,9 @@ export const JobPostings: React.FC = () => {
       const matchClient = app.client_name.toLowerCase().includes(term);
       const matchPosition = app.position.toLowerCase().includes(term);
       const matchTech = app.technology.toLowerCase().includes(term);
-      return matchCandidate || matchClient || matchPosition || matchTech;
+      const matchAppId = String(app.id).toLowerCase().includes(term);
+      const matchJobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term);
+      return matchCandidate || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
     }
 
     return true;

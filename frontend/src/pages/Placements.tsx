@@ -185,6 +185,7 @@ export const Placements: React.FC = () => {
       const tech = (app.technology || '').toLowerCase();
       const plcCode = app.placementCode.toLowerCase();
       const jobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase();
+      const matchAppId = String(app.id).includes(searchLower);
 
       return (
         name.includes(searchLower) ||
@@ -193,7 +194,8 @@ export const Placements: React.FC = () => {
         client.includes(searchLower) ||
         tech.includes(searchLower) ||
         plcCode.includes(searchLower) ||
-        jobCode.includes(searchLower)
+        jobCode.includes(searchLower) ||
+        matchAppId
       );
     });
   }, [placedCandidates, searchTerm]);
