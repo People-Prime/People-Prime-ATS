@@ -107,7 +107,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   const dateFilteredApps = useMemo(() => {
     if (!startDate || !endDate) return deduplicatedApps;
     return deduplicatedApps.filter(app => {
-      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      const d = (app.created_at || '').slice(0, 10);
       return d >= startDate && d <= endDate;
     });
   }, [deduplicatedApps, startDate, endDate]);

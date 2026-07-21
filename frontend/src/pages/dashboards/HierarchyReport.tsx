@@ -77,7 +77,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const dateFilteredRawApps = useMemo(() => {
     if (!effectiveStartDate || !effectiveEndDate) return applications;
     return applications.filter(app => {
-      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      const d = (app.created_at || '').slice(0, 10);
       return d >= effectiveStartDate && d <= effectiveEndDate;
     });
   }, [applications, effectiveStartDate, effectiveEndDate]);
@@ -468,7 +468,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
           const dateFiltered = (effectiveStartDate && effectiveEndDate)
             ? descendantApps.filter(app => {
-              const d = (app.updated_at || app.created_at || '').slice(0, 10);
+              const d = (app.created_at || '').slice(0, 10);
               return d >= effectiveStartDate && d <= effectiveEndDate;
             })
             : descendantApps;

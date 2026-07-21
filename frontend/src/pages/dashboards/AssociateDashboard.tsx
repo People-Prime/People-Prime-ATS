@@ -76,7 +76,7 @@ export const AssociateDashboard: React.FC = () => {
   // Filter by date range when range is selected
   const dateFilteredApps = (startDate && endDate)
     ? myApplications.filter(app => {
-      const d = (app.updated_at || app.created_at || '').slice(0, 10);
+      const d = (app.created_at || '').slice(0, 10);
       return d >= startDate && d <= endDate;
     })
     : myApplications;
