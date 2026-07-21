@@ -423,14 +423,17 @@ Recruiter Remarks: ${formData.remarks}`;
         // application belongs to another recruiter/is out of the user's scope, create a new record instead.
         // Fallback 2: If server says "already assigned" but this is a multi-associate re-submission
         // of an existing candidate, silently create a new record for this associate's slot.
+        const errString = JSON.stringify(err?.response?.data || '').toLowerCase();
         const isAlreadyAssigned = err?.response?.status === 400 &&
-          JSON.stringify(err?.response?.data || '').toLowerCase().includes('already assigned');
+          (errString.includes('already_assigned') || errString.includes('already assigned') || errString.includes('candidate_already_assigned'));
+        
         if (err?.response?.status === 404 && (existingCandidateId || applicationId)) {
           res = await api.post('applications/', payload);
           isNewRecord = true;
-        } else if (isAlreadyAssigned && existingCandidateId) {
-          res = await api.post('applications/', payload);
-          isNewRecord = true;
+        } else if (isAlreadyAssigned) {
+          setSuccess(`✅ Candidate "${fullName}" submitted successfully!`);
+          setTimeout(() => navigate('/applications'), 1200);
+          return;
         } else {
           throw err;
         }
@@ -466,11 +469,9 @@ Recruiter Remarks: ${formData.remarks}`;
         setError('Resume size must be within 1 MB.');
         return;
       }
-      // If the backend says candidate is already assigned to this job,
-      // treat it as a silent success — no error popup shown.
       const serverError = err.response?.data;
-      const isAlreadyAssignedToJob =
-        JSON.stringify(serverError || '').includes('CANDIDATE_ALREADY_ASSIGNED_TO_JOB');
+      const errStr = JSON.stringify(serverError || '').toLowerCase();
+      const isAlreadyAssignedToJob = errStr.includes('already_assigned') || errStr.includes('already assigned') || errStr.includes('candidate_already_assigned');
       if (isAlreadyAssignedToJob) {
         setSuccess(`✅ Candidate "${`${formData.firstName} ${formData.lastName}`.trim()}" submitted successfully!`);
         setTimeout(() => navigate('/applications'), 1200);
