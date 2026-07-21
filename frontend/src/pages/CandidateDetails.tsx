@@ -313,21 +313,16 @@ export const CandidateDetails: React.FC = () => {
                         disabled={resumeLoading}
                         onClick={async () => {
                           const resumeUrl = parsedDetails.resumeLink;
-                          // If it's an S3 URL, generate a pre-signed link first
-                          if (resumeUrl.includes('s3.') || resumeUrl.includes('amazonaws.com')) {
-                            setResumeLoading(true);
-                            try {
-                              const res: any = await api.post('applications/generate-resume-url/', { url: resumeUrl });
-                              window.open(res.data.url, '_blank', 'noopener,noreferrer');
-                            } catch (err: any) {
-                              const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
-                              alert(`Failed to load resume: ${errMsg}`);
-                            } finally {
-                              setResumeLoading(false);
-                            }
-                          } else {
-                            // Cloudinary or other direct URLs — open as-is
-                            window.open(resumeUrl, '_blank', 'noopener,noreferrer');
+                          if (!resumeUrl) return;
+                          setResumeLoading(true);
+                          try {
+                            const res: any = await api.post('applications/generate-resume-url/', { url: resumeUrl });
+                            window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                          } catch (err: any) {
+                            const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                            alert(`Failed to load resume: ${errMsg}`);
+                          } finally {
+                            setResumeLoading(false);
                           }
                         }}
                       >
