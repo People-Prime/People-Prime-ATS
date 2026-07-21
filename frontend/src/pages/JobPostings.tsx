@@ -104,11 +104,46 @@ export const JobPostings: React.FC = () => {
   const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
   const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
   const [statusUpdateComment, setStatusUpdateComment] = useState('');
+  const [payRateInput, setPayRateInput] = useState('');
+  const [grossRevenueInput, setGrossRevenueInput] = useState('');
+  const [taxesInput, setTaxesInput] = useState('');
+  const [tdsInput, setTdsInput] = useState('');
+  const [invoiceAmountInput, setInvoiceAmountInput] = useState('');
+  const [profitAmountInput, setProfitAmountInput] = useState('');
+  const [dateOfJoinInput, setDateOfJoinInput] = useState('');
 
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
     try {
-      await api.patch(`applications/${statusUpdateApp.id}/`, { status: statusUpdateValue });
+      let updatedRemarks = statusUpdateApp.remarks || '';
+      if (statusUpdateValue === 'Interview Completed') {
+        const fieldsToUpdate: Record<string, string> = {
+          'Pay Rate': payRateInput.trim(),
+          'Gross Revenue': grossRevenueInput.trim(),
+          'Taxes': taxesInput.trim(),
+          'TDS': tdsInput.trim(),
+          'Invoice Amount': invoiceAmountInput.trim(),
+          'Profit Amount': profitAmountInput.trim(),
+          'Date of Join': dateOfJoinInput.trim()
+        };
+
+        Object.entries(fieldsToUpdate).forEach(([key, val]) => {
+          if (!val) return;
+          const regex = new RegExp(`^${key}:.*$`, 'im');
+          if (regex.test(updatedRemarks)) {
+            updatedRemarks = updatedRemarks.replace(regex, `${key}: ${val}`);
+          } else {
+            updatedRemarks = updatedRemarks ? `${updatedRemarks}\n${key}: ${val}` : `${key}: ${val}`;
+          }
+        });
+      }
+
+      const patchPayload: any = { status: statusUpdateValue };
+      if (statusUpdateValue === 'Interview Completed') {
+        patchPayload.remarks = updatedRemarks;
+      }
+
+      await api.patch(`applications/${statusUpdateApp.id}/`, patchPayload);
 
       const commentMsg = statusUpdateComment ? `\nComment: ${statusUpdateComment}` : '';
       await api.post(`applications/${statusUpdateApp.id}/add-note/`, {
@@ -1145,6 +1180,13 @@ Remarks: ${candidateForm.remarks}`;
                                       setStatusUpdateApp(applicant);
                                       setStatusUpdateValue(applicant.status as ApplicationStatus);
                                       setStatusUpdateComment('');
+                                      setPayRateInput(getRemarkField(applicant.remarks, 'Pay Rate') !== 'N/A' ? getRemarkField(applicant.remarks, 'Pay Rate') : '');
+                                      setGrossRevenueInput(getRemarkField(applicant.remarks, 'Gross Revenue') !== 'N/A' ? getRemarkField(applicant.remarks, 'Gross Revenue') : '');
+                                      setTaxesInput(getRemarkField(applicant.remarks, 'Taxes') !== 'N/A' ? getRemarkField(applicant.remarks, 'Taxes') : '');
+                                      setTdsInput(getRemarkField(applicant.remarks, 'TDS') !== 'N/A' ? getRemarkField(applicant.remarks, 'TDS') : '');
+                                      setInvoiceAmountInput(getRemarkField(applicant.remarks, 'Invoice Amount') !== 'N/A' ? getRemarkField(applicant.remarks, 'Invoice Amount') : '');
+                                      setProfitAmountInput(getRemarkField(applicant.remarks, 'Profit Amount') !== 'N/A' ? getRemarkField(applicant.remarks, 'Profit Amount') : '');
+                                      setDateOfJoinInput(getRemarkField(applicant.remarks, 'Date of Join') !== 'N/A' ? getRemarkField(applicant.remarks, 'Date of Join') : '');
                                     }}
                                   >
                                     {applicant.status}
@@ -1807,6 +1849,100 @@ Remarks: ${candidateForm.remarks}`;
                 </Select>
               </FormControl>
 
+              {statusUpdateValue === 'Interview Completed' && (
+                <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: 'primary.main' }}>
+                    FINANCIAL DETAILS (REQUIRED FOR INTERVIEW COMPLETED)
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        required
+                        label="Pay Rate *"
+                        placeholder="e.g. $50/hr or 10 LPA"
+                        value={payRateInput}
+                        onChange={(e) => setPayRateInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        required
+                        label="Gross Revenue *"
+                        placeholder="e.g. $70/hr"
+                        value={grossRevenueInput}
+                        onChange={(e) => setGrossRevenueInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        required
+                        label="Taxes *"
+                        placeholder="e.g. $5/hr"
+                        value={taxesInput}
+                        onChange={(e) => setTaxesInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        required
+                        label="TDS *"
+                        placeholder="e.g. 10%"
+                        value={tdsInput}
+                        onChange={(e) => setTdsInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        required
+                        label="Invoice Amount *"
+                        placeholder="e.g. $10,000"
+                        value={invoiceAmountInput}
+                        onChange={(e) => setInvoiceAmountInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        required
+                        label="Profit Amount *"
+                        placeholder="e.g. $15/hr"
+                        value={profitAmountInput}
+                        onChange={(e) => setProfitAmountInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="date"
+                        label="Date of Join (Optional)"
+                        InputLabelProps={{ shrink: true }}
+                        value={dateOfJoinInput}
+                        onChange={(e) => setDateOfJoinInput(e.target.value)}
+                        InputProps={{ sx: { borderRadius: '8px' } }}
+                      />
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
+
               <Typography variant="overline" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 1 }}>
                 COMMENTS
               </Typography>
@@ -1827,6 +1963,15 @@ Remarks: ${candidateForm.remarks}`;
             onClick={handleUpdateStatusSubmit}
             color="primary"
             variant="contained"
+            disabled={
+              statusUpdateValue === 'Interview Completed' &&
+              (!payRateInput.trim() ||
+                !grossRevenueInput.trim() ||
+                !taxesInput.trim() ||
+                !tdsInput.trim() ||
+                !invoiceAmountInput.trim() ||
+                !profitAmountInput.trim())
+            }
             startIcon={<Check size={16} />}
             sx={{ borderRadius: '8px', fontWeight: 700, px: 3 }}
           >
