@@ -39,11 +39,13 @@ class ApplicationSerializer(serializers.ModelSerializer):
         candidate_phone = data.get('candidate_phone')
         position = data.get('position')
         client_name = data.get('client_name')
+        assigned_employee = data.get('assigned_employee')
         instance = self.instance
 
-        if candidate_email and candidate_phone and position and client_name:
-            # Check globally if candidate is already assigned to the selected job (by ANY associate)
+        if candidate_email and candidate_phone and position and client_name and assigned_employee:
+            # Only block if the SAME associate tries to assign the same candidate to the same job twice
             existing_assignments = Application.objects.exclude(candidate_name='').filter(
+                assigned_employee=assigned_employee,
                 candidate_email__iexact=candidate_email.strip(),
                 candidate_phone=candidate_phone.strip(),
                 position__iexact=position.strip(),

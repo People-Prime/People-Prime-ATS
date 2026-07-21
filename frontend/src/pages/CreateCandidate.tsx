@@ -310,19 +310,6 @@ export const CreateCandidate: React.FC = () => {
       return;
     }
 
-    // Only block on duplicate email/phone when this is NOT a known existing candidate being re-submitted
-    if (!existingCandidateId) {
-      if (isDuplicateEmail) {
-        setError('A candidate with this email address already exists in the system. Duplicate candidate profiles are not allowed.');
-        return;
-      }
-
-      if (isDuplicatePhone) {
-        setError('A candidate with this phone number already exists in the system. Duplicate candidate profiles are not allowed.');
-        return;
-      }
-    }
-
     if (formData.expectedSalary.replace(/\D/g, '').length <= 4) {
       setError('Expected Salary / Rate must be more than 4 digits.');
       return;
