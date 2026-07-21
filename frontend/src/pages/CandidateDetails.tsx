@@ -201,12 +201,19 @@ export const CandidateDetails: React.FC = () => {
   }
 
   const remarks = selectedApp.remarks || '';
+  const getFallbackResumeLink = (rem: string): string => {
+    const direct = extractField(rem, 'Resume Link');
+    if (direct && direct !== 'N/A') return direct;
+    const match = rem.match(/(s3:\/\/[^\s\n"']+|(https?:\/\/[^\s\n"']+\.(pdf|docx|doc)))/i);
+    return match ? match[0] : '';
+  };
+
   const parsedDetails = {
     location: extractField(remarks, 'Location') || 'N/A',
     workAuth: extractField(remarks, 'Work Auth') || 'N/A',
     salary: extractField(remarks, 'Expected Salary') || extractField(remarks, 'Salary') || 'N/A',
     noticePeriod: extractField(remarks, 'Notice Period') || 'N/A',
-    resumeLink: extractField(remarks, 'Resume Link') || '',
+    resumeLink: getFallbackResumeLink(remarks),
     skills: extractField(remarks, 'Skills') || selectedApp.technology || 'N/A',
     jobType: extractField(remarks, 'Job Type') || 'N/A',
     workMode: extractField(remarks, 'Work Mode') || 'N/A',

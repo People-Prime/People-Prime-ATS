@@ -395,19 +395,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                         pass
 
                 if not matched and s3_key:
-                    name_words = [w.lower() for w in os.path.splitext(s3_key)[0].replace('_', ' ').split() if len(w) > 2]
-                    if name_words:
-                        paginator = s3_client.get_paginator('list_objects_v2')
-                        for page in paginator.paginate(Bucket=bucket_name):
-                            for obj in page.get('Contents', []):
-                                obj_k = obj['Key']
-                                k_lower = obj_k.lower()
-                                if any(word in k_lower for word in name_words):
-                                    found_key = obj_k
-                                    matched = True
-                                    break
-                            if matched:
+                    try:
+                        res = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=s3_key[:4], MaxKeys=50)
+                        for obj in res.get('Contents', []):
+                            obj_k = obj['Key']
+                            if s3_key.lower().replace(' ', '').replace('_', '') == obj_k.lower().replace(' ', '').replace('_', ''):
+                                found_key = obj_k
+                                matched = True
                                 break
+                    except Exception:
+                        pass
 
             # Set ResponseContentType so browser handles preview
             params = {
@@ -431,7 +428,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Upload resume to Cloudinary
+    # Upload resume directly to AWS S3
     @action(detail=False, methods=['post'], url_path='upload-resume')
     def upload_resume(self, request):
         file_obj = request.FILES.get('file')
@@ -439,24 +436,39 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
         
         import os
-        import cloudinary
-        import cloudinary.uploader
-        
-        cloudinary.config(
-            cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME', 'ggdlbhrf'),
-            api_key = os.getenv('CLOUDINARY_API_KEY', '154731121199677'),
-            api_secret = os.getenv('CLOUDINARY_API_SECRET', 'dquFbWva1EO_bTI__FbKiCieRrs'),
-            secure = True
-        )
+        import boto3
+
+        bucket_name = os.getenv('AWS_STORAGE_BUCKET_NAME', 'ats-resumestorage')
+        region = os.getenv('AWS_S3_REGION_NAME', 'ap-south-1')
+        access_key = os.getenv('AWS_ACCESS_KEY_ID')
+        secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
         
         try:
-            result = cloudinary.uploader.upload(
-                file_obj,
-                resource_type="raw",
-                public_id=file_obj.name
+            s3_client = boto3.client(
+                's3',
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key
             )
-            secure_url = result.get('secure_url')
-            return Response({'url': secure_url}, status=status.HTTP_200_OK)
+            filename = file_obj.name
+            
+            content_type = 'application/octet-stream'
+            if filename.lower().endswith('.pdf'):
+                content_type = 'application/pdf'
+            elif filename.lower().endswith('.docx'):
+                content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            elif filename.lower().endswith('.doc'):
+                content_type = 'application/msword'
+
+            s3_client.upload_fileobj(
+                file_obj,
+                bucket_name,
+                filename,
+                ExtraArgs={'ContentType': content_type}
+            )
+
+            s3_url = f"s3://{bucket_name}/{filename}"
+            return Response({'url': s3_url}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
