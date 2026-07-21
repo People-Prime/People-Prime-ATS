@@ -459,7 +459,7 @@ Recruiter Remarks: ${formData.remarks}`;
       }));
 
       setSuccess(`✅ Candidate "${fullName}" submitted successfully!`);
-      setTimeout(() => navigate('/'), 1800);
+      setTimeout(() => navigate('/applications'), 1200);
     } catch (err: any) {
       console.error("Submission error details:", err);
       if (err.response?.status === 413) {
@@ -473,7 +473,7 @@ Recruiter Remarks: ${formData.remarks}`;
         JSON.stringify(serverError || '').includes('CANDIDATE_ALREADY_ASSIGNED_TO_JOB');
       if (isAlreadyAssignedToJob) {
         setSuccess(`✅ Candidate "${`${formData.firstName} ${formData.lastName}`.trim()}" submitted successfully!`);
-        setTimeout(() => navigate('/'), 1800);
+        setTimeout(() => navigate('/applications'), 1200);
         return;
       }
       let errMsg = "Failed to submit candidate to the database.";
