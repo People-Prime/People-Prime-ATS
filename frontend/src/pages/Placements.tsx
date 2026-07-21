@@ -17,9 +17,10 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Button
 } from '@mui/material';
-import { Search } from 'lucide-react';
+import { Search, Download } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
@@ -212,6 +213,77 @@ export const Placements: React.FC = () => {
             List of all successfully placed candidates and assignment details
           </Typography>
         </Box>
+        <Button
+          variant="outlined"
+          startIcon={<Download size={18} />}
+          onClick={() => {
+            const headers = [
+              'Placement Code',
+              'Applicant Name',
+              'Job Code',
+              'Job Title',
+              'Client',
+              'Business Unit',
+              'Gross Revenue',
+              'Invoice Amount',
+              'Profit Amount',
+              'Created By',
+              'Created On',
+              'Tentative Start Date',
+              'Actual Start Date',
+              'Actual End Date',
+              'Placement Status',
+              'Recruiter',
+              'Manager',
+              'City/State'
+            ];
+
+            const rows = filteredCandidates.map(app => [
+              app.placementCode || 'N/A',
+              app.candidate_name || 'N/A',
+              getRemarkField(app.remarks, 'Job Code') || 'N/A',
+              app.position || 'N/A',
+              app.client_name || 'N/A',
+              getRemarkField(app.remarks, 'Business Unit') || 'N/A',
+              getRemarkField(app.remarks, 'Client Bill Rate') || 'N/A',
+              getRemarkField(app.remarks, 'Pay Rate') || 'N/A',
+              getProfitAmount(app.remarks) || 'N/A',
+              app.recruiter || app.assigned_employee?.full_name || 'System',
+              app.created_at ? new Date(app.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
+              getRemarkField(app.remarks, 'Start Date') || 'N/A',
+              getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A' ? getRemarkField(app.remarks, 'Actual Start Date') : getRemarkField(app.remarks, 'Start Date'),
+              getRemarkField(app.remarks, 'End Date') || 'N/A',
+              app.status || 'N/A',
+              app.recruiter || app.assigned_employee?.full_name || 'System',
+              getRemarkField(app.remarks, 'Manager') || 'N/A',
+              app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || 'N/A'
+            ]);
+
+            const escapeCell = (val: any): string => {
+              if (val === null || val === undefined) return '""';
+              const str = String(val).replace(/"/g, '""');
+              return `"${str}"`;
+            };
+
+            const csvContent = [
+              headers.map(escapeCell).join(','),
+              ...rows.map(row => row.map(escapeCell).join(','))
+            ].join('\r\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `placements_export_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }}
+          sx={{ borderRadius: '8px', borderWeight: 2 }}
+        >
+          Export CSV Registry
+        </Button>
       </Box>
 
 

@@ -342,33 +342,93 @@ export const Applications: React.FC = () => {
     }
   };
 
-  // CSV Export
+  // CSV Export matching exact page display & filters
   const handleExportCSV = () => {
-    const headers = ['ID', 'Candidate Name', 'Candidate Email', 'Candidate Phone', 'Client Name', 'Position', 'Technology', 'Experience', 'Assigned Analyst', 'Status', 'Updated At'];
-    const rows = displayApps.map(app => [
-      app.id,
-      app.candidate_name || 'N/A',
-      app.candidate_email || 'N/A',
-      app.candidate_phone || 'N/A',
-      app.client_name,
-      app.position,
-      app.technology,
-      app.experience,
-      app.assigned_employee?.full_name || 'Unassigned',
-      app.status,
-      new Date(app.updated_at).toLocaleDateString()
-    ]);
+    const headers = [
+      'Applicant ID',
+      'Applicant Name',
+      'Email',
+      'Job Code',
+      'City',
+      'State',
+      'Applicant Status',
+      'Job Title',
+      'Job Type',
+      'Client Name',
+      'Tentative Start Date',
+      'Manager',
+      'Team Lead',
+      'Recruiter',
+      'PAN Card',
+      'Aadhaar',
+      'Alt Mobile',
+      'Source',
+      'Interest to Work',
+      'Modified By'
+    ];
 
-    const csvContent = "data:text/csv;charset=utf-8,"
-      + [headers.join(','), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join('\n');
+    const rows = uniqueCandidates.map((cand) => {
+      const app = cand.primaryApp;
+      const directJobCode = getRemarkField(app.remarks, 'Job Code');
+      const realSubmission = cand.allSubmissions.find(s => getRemarkField(s.remarks, 'Job Code') !== 'N/A');
+      const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkField(realSubmission.remarks, 'Job Code') : 'N/A');
+      const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
+      const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
+      const displayJobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
+      const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : (realSubmission ? realSubmission.client_name : 'N/A'));
+      const displayStartDate = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ats_applications_${Date.now()}.csv`);
+      const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
+      const recruiterEmails = siblingApps.map(a => a.assigned_employee?.email).filter(Boolean) as string[];
+      if (recruiterEmails.length === 0 && app.assigned_employee?.email) {
+        recruiterEmails.push(app.assigned_employee.email);
+      }
+      const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+
+      return [
+        app.id,
+        app.candidate_name || 'N/A',
+        app.candidate_email || 'N/A',
+        displayJobCode,
+        app.city || 'N/A',
+        app.state || 'N/A',
+        app.status || 'N/A',
+        displayPosition,
+        displayJobType,
+        displayClientName,
+        displayStartDate,
+        hierarchyInfo.manager,
+        hierarchyInfo.tl,
+        app.recruiter || app.assigned_employee?.full_name || 'System',
+        app.pan_card || 'N/A',
+        app.aadhaar || 'N/A',
+        app.alternate_mobile_number || 'N/A',
+        app.source || 'N/A',
+        app.interest_to_work_for_client || 'N/A',
+        app.modified_by || 'System'
+      ];
+    });
+
+    const escapeCell = (val: any): string => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvContent = [
+      headers.map(escapeCell).join(','),
+      ...rows.map(row => row.map(escapeCell).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `applicants_export_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   if (loading && applications.length === 0) {

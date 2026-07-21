@@ -19,7 +19,7 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { ArrowLeft, Building } from 'lucide-react';
+import { ArrowLeft, Building, Download } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
 
 export const DrillDownPage: React.FC = () => {
@@ -208,19 +208,156 @@ export const DrillDownPage: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => navigate(-1)}
+            startIcon={<ArrowLeft size={16} />}
+            sx={{ textTransform: 'none', borderRadius: '8px', fontWeight: 700 }}
+          >
+            Back to Dashboard
+          </Button>
+          <Typography variant="h5" fontWeight={800}>
+            {isJobsType ? `Job Postings (${modalData.length})` : isApplicantsType ? `Applicants (${uniqueCandidates.length})` : `${modalTitle} (${modalData.length})`}
+          </Typography>
+        </Box>
+
         <Button
           variant="outlined"
           size="small"
-          onClick={() => navigate(-1)}
-          startIcon={<ArrowLeft size={16} />}
-          sx={{ textTransform: 'none', borderRadius: '8px', fontWeight: 700 }}
+          startIcon={<Download size={18} />}
+          onClick={() => {
+            if (isJobsType) {
+              const headers = [
+                'Job Code', 'Job Title', 'Client', 'Location', 'Job Status',
+                'Client Bill Rate / Salary', 'Pay Rate / Salary', 'Manager', 'TL',
+                'Recruiter', 'Created Date', 'Min Sal', 'Max Sal', 'Avg Sal', 'Modified By'
+              ];
+              const rows = modalData.map((app: any) => {
+                const jobCodeVal = getRemarkFieldVal(app.remarks, 'Job Code');
+                const loc = getRemarkFieldVal(app.remarks, 'Location');
+                const locationVal = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
+                const jobStatusVal = getRemarkFieldVal(app.remarks, 'Job Status') !== 'N/A' ? getRemarkFieldVal(app.remarks, 'Job Status') : 'Active';
+                const billRate = getRemarkFieldVal(app.remarks, 'Client Bill Rate');
+                const salary = getRemarkFieldVal(app.remarks, 'Salary');
+                const billRateVal = billRate !== 'N/A' ? billRate : (salary !== 'N/A' ? salary : '—');
+                const payRate = getRemarkFieldVal(app.remarks, 'Pay Rate');
+                const payRateVal = payRate !== 'N/A' ? payRate : '—';
+                const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
+                const recruitersText = Array.from(new Set(
+                  app.associatedApps
+                    ?.map((a: any) => a.assigned_employee?.full_name || a.recruiter)
+                    .filter(Boolean)
+                )).join(', ') || 'Unassigned';
+                const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+                const creationDateText = app.created_at ? new Date(app.created_at).toLocaleString('en-US', { hour12: true }) : '—';
+                const salaryInfo = getSalaryInfo(app.remarks || '');
+
+                return [
+                  jobCodeVal !== 'N/A' ? jobCodeVal : '—',
+                  app.position || '—',
+                  app.client_name || '—',
+                  locationVal,
+                  jobStatusVal,
+                  billRateVal,
+                  payRateVal,
+                  hierarchyInfo.manager,
+                  hierarchyInfo.tl,
+                  recruitersText,
+                  creationDateText,
+                  salaryInfo.min,
+                  salaryInfo.max,
+                  salaryInfo.avg,
+                  app.modified_by || 'System'
+                ];
+              });
+
+              const escapeCell = (val: any): string => {
+                if (val === null || val === undefined) return '""';
+                const str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+              };
+              const csvContent = [headers.map(escapeCell).join(','), ...rows.map((r: any) => r.map(escapeCell).join(','))].join('\r\n');
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.setAttribute('href', url);
+              link.setAttribute('download', `jobs_drilldown_export_${Date.now()}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            } else {
+              const headers = [
+                'Applicant ID', 'Applicant Name', 'Email', 'Job Code', 'City', 'State',
+                'Applicant Status', 'Job Title', 'Job Type', 'Client Name', 'Tentative Start Date',
+                'Manager', 'Team Lead', 'Recruiter', 'PAN Card', 'Aadhaar', 'Alt Mobile',
+                'Source', 'Interest to Work', 'Modified By'
+              ];
+              const rows = uniqueCandidates.map((cand: any) => {
+                const app = cand.primaryApp;
+                const directJobCode = getRemarkFieldVal(app.remarks, 'Job Code');
+                const realSubmission = cand.allSubmissions.find((s: any) => getRemarkFieldVal(s.remarks, 'Job Code') !== 'N/A');
+                const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkFieldVal(realSubmission.remarks, 'Job Code') : 'N/A');
+                const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
+                const jobPosting = applications.find((a: any) => !a.candidate_name && getRemarkFieldVal(a.remarks, 'Job Code') === displayJobCode);
+                const displayJobType = jobPosting ? getRemarkFieldVal(jobPosting.remarks, 'Job Type') : 'N/A';
+                const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : (realSubmission ? realSubmission.client_name : 'N/A'));
+                const displayStartDate = jobPosting ? getRemarkFieldVal(jobPosting.remarks, 'Start Date') : 'N/A';
+                const siblingApps = applications.filter((a: any) => !a.candidate_name && getRemarkFieldVal(a.remarks, 'Job Code') === displayJobCode);
+                const recruiterEmails = siblingApps.map((a: any) => a.assigned_employee?.email).filter(Boolean) as string[];
+                if (recruiterEmails.length === 0 && app.assigned_employee?.email) {
+                  recruiterEmails.push(app.assigned_employee.email);
+                }
+                const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+
+                return [
+                  app.id,
+                  app.candidate_name || 'N/A',
+                  app.candidate_email || 'N/A',
+                  displayJobCode,
+                  app.city || 'N/A',
+                  app.state || 'N/A',
+                  app.status || 'N/A',
+                  displayPosition,
+                  displayJobType,
+                  displayClientName,
+                  displayStartDate,
+                  hierarchyInfo.manager,
+                  hierarchyInfo.tl,
+                  app.recruiter || app.assigned_employee?.full_name || 'System',
+                  app.pan_card || 'N/A',
+                  app.aadhaar || 'N/A',
+                  app.alternate_mobile_number || 'N/A',
+                  app.source || 'N/A',
+                  app.interest_to_work_for_client || 'N/A',
+                  app.modified_by || 'System'
+                ];
+              });
+
+              const escapeCell = (val: any): string => {
+                if (val === null || val === undefined) return '""';
+                const str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+              };
+              const csvContent = [headers.map(escapeCell).join(','), ...rows.map((r: any) => r.map(escapeCell).join(','))].join('\r\n');
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.setAttribute('href', url);
+              link.setAttribute('download', `drilldown_export_${Date.now()}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }
+          }}
+          sx={{ borderRadius: '8px', borderWeight: 2, fontWeight: 700 }}
         >
-          Back to Dashboard
+          Export CSV
         </Button>
-        <Typography variant="h5" fontWeight={800}>
-          {isJobsType ? `Job Postings (${modalData.length})` : isApplicantsType ? `Applicants (${uniqueCandidates.length})` : `${modalTitle} (${modalData.length})`}
-        </Typography>
       </Box>
 
       <Card sx={{ borderRadius: '12px', border: `1px solid ${theme.palette.divider}` }}>

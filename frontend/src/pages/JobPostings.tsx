@@ -637,33 +637,86 @@ Remarks: ${candidateForm.remarks}`;
     }
   };
 
-  // CSV Export
+  // CSV Export matching exact page display & filters
   const handleExportCSV = () => {
-    const headers = ['ID', 'Candidate Name', 'Candidate Email', 'Candidate Phone', 'Client Name', 'Position', 'Technology', 'Experience', 'Assigned Analyst', 'Status', 'Updated At'];
-    const rows = groupedApps.map(app => [
-      app.id,
-      app.candidate_name || 'N/A',
-      app.candidate_email || 'N/A',
-      app.candidate_phone || 'N/A',
-      app.client_name,
-      app.position,
-      app.technology,
-      app.experience,
-      app.consolidatedAnalysts || 'Unassigned',
-      app.status,
-      new Date(app.updated_at).toLocaleDateString()
-    ]);
+    const headers = [
+      'Job Code',
+      'Job Title',
+      'Client',
+      'Location',
+      'Job Status',
+      'Client Bill Rate / Salary',
+      'Pay Rate / Salary',
+      'Manager',
+      'TL',
+      'Recruiter',
+      'Created Date',
+      'Min Sal',
+      'Max Sal',
+      'Avg Sal',
+      'Modified By'
+    ];
 
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(','), ...rows.map(e => e.map(val => `"${val}"`).join(","))].join('\n');
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ats_applications_${Date.now()}.csv`);
+    const rows = groupedApps.map(app => {
+      const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
+      const loc = getRemarkField(app.remarks, 'Location');
+      const locationVal = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
+      const jobStatusVal = getRemarkField(app.remarks, 'Job Status') !== 'N/A' ? getRemarkField(app.remarks, 'Job Status') : 'Active';
+      const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
+      const salary = getRemarkField(app.remarks, 'Salary');
+      const billRateVal = billRate !== 'N/A' ? billRate : (salary !== 'N/A' ? salary : '—');
+      const payRate = getRemarkField(app.remarks, 'Pay Rate');
+      const payRateVal = payRate !== 'N/A' ? payRate : '—';
+
+      const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
+      const recruitersText = Array.from(new Set(
+        app.associatedApps
+          ?.map((a: any) => a.assigned_employee?.full_name || a.recruiter)
+          .filter(Boolean)
+      )).join(', ') || 'Unassigned';
+      const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+      const creationDateText = app.created_at ? new Date(app.created_at).toLocaleString('en-US', { hour12: true }) : '—';
+      const salaryInfo = getSalaryInfo(app.remarks || '');
+
+      return [
+        jobCodeVal !== 'N/A' ? jobCodeVal : '—',
+        app.position || '—',
+        app.client_name || '—',
+        locationVal,
+        jobStatusVal,
+        billRateVal,
+        payRateVal,
+        hierarchyInfo.manager,
+        hierarchyInfo.tl,
+        recruitersText,
+        creationDateText,
+        salaryInfo.min,
+        salaryInfo.max,
+        salaryInfo.avg,
+        app.modified_by || 'System'
+      ];
+    });
+
+    const escapeCell = (val: any): string => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvContent = [
+      headers.map(escapeCell).join(','),
+      ...rows.map(row => row.map(escapeCell).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `job_postings_export_${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const getStatusChipColor = (status: string) => {
