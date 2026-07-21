@@ -137,7 +137,7 @@ export const Placements: React.FC = () => {
   const placedCandidates = useMemo(() => {
     const uniqueApps = getUniqueSubmissions(applications);
     const placed = uniqueApps.filter(app => {
-      if (app.status !== 'Placed' || getRemarkField(app.remarks || '', 'Job Code') === 'N/A') return false;
+      if (app.status !== 'Placed') return false;
 
       // 0. Date Filter (for all roles)
       const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
