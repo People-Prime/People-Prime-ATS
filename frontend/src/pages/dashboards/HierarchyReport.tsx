@@ -29,6 +29,7 @@ interface CalculatedMetrics {
   submissions: number;
   interviews: number;
   offers: number;
+  offerAccepted: number;
   onboard: number;
 }
 
@@ -155,6 +156,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       filtered = dateFiltered.filter(app => app.status === 'Offer Sent');
       label = 'Offer Sent';
       isApplicants = true;
+    } else if (metricType === 'OFFER_ACCEPTED') {
+      filtered = dateFiltered.filter(app => app.status === 'Offer Accepted');
+      label = 'Offer Accepted';
+      isApplicants = true;
     } else if (metricType === 'ONBOARD') {
       filtered = dateFiltered.filter(app => app.status === 'Placed');
       label = 'Onboard';
@@ -258,9 +263,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       ['Interview Scheduled', 'Interview Completed'].includes(app.status)
     ).length;
     const offers = dateFiltered.filter(app => app.status === 'Offer Sent').length;
+    const offerAccepted = dateFiltered.filter(app => app.status === 'Offer Accepted').length;
     const onboard = dateFiltered.filter(app => app.status === 'Placed').length;
 
-    return { jobsCount, submissions, interviews, offers, onboard };
+    return { jobsCount, submissions, interviews, offers, offerAccepted, onboard };
   };
 
   // Build Hierarchy Tree recursively
@@ -389,11 +395,12 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             submissions: individualVal.submissions + childrenList.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
             interviews: individualVal.interviews + childrenList.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
             offers: individualVal.offers + childrenList.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
+            offerAccepted: individualVal.offerAccepted + childrenList.reduce((acc, c) => acc + c.aggregatedMetrics.offerAccepted, 0),
             onboard: individualVal.onboard + childrenList.reduce((acc, c) => acc + c.aggregatedMetrics.onboard, 0),
           };
         };
 
-        const zeroMetrics = { jobsCount: 0, submissions: 0, interviews: 0, offers: 0, onboard: 0 };
+        const zeroMetrics = { jobsCount: 0, submissions: 0, interviews: 0, offers: 0, offerAccepted: 0, onboard: 0 };
         const cwrAggregated = {
           ...sumMetrics(zeroMetrics, cwrChildren),
           jobsCount: computeUniqueJobsCountForTree([], cwrChildren)
@@ -424,6 +431,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           submissions: individual.submissions + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
+          offerAccepted: individual.offerAccepted + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offerAccepted, 0),
           onboard: individual.onboard + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.onboard, 0),
         };
 
@@ -480,6 +488,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           submissions: individual.submissions + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
+          offerAccepted: individual.offerAccepted + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offerAccepted, 0),
           onboard: individual.onboard + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.onboard, 0),
         };
 
@@ -689,13 +698,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                   <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Client Submissions</TableCell>
                   <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Interview Schedules</TableCell>
                   <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Offer Sent</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Offer Accepted</TableCell>
                   <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Onboard</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} style={{ padding: '16px', textAlign: 'center' }}>
+                    <TableCell colSpan={7} style={{ padding: '16px', textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">No staff members found to build hierarchy tree.</Typography>
                     </TableCell>
                   </TableRow>
@@ -756,6 +766,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                         </TableCell>
                         <TableCell style={{ padding: '4px 8px', textAlign: 'center' }}>
                           {renderClickableMetric(row.metrics.offers, row.user.email, row.user.full_name, row.user.role, 'OFFERS', row.isSelfRow)}
+                        </TableCell>
+                        <TableCell style={{ padding: '4px 8px', textAlign: 'center' }}>
+                          {renderClickableMetric(row.metrics.offerAccepted, row.user.email, row.user.full_name, row.user.role, 'OFFER_ACCEPTED', row.isSelfRow)}
                         </TableCell>
                         <TableCell style={{ padding: '4px 8px', textAlign: 'center' }}>
                           {renderClickableMetric(row.metrics.onboard, row.user.email, row.user.full_name, row.user.role, 'ONBOARD', row.isSelfRow)}
