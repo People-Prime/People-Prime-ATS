@@ -395,14 +395,19 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                         pass
 
                 if not matched and s3_key:
-                    prefix = s3_key.split()[0] if s3_key.split() else s3_key[:4]
-                    res = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix, MaxKeys=50)
-                    for obj in res.get('Contents', []):
-                        obj_k = obj['Key']
-                        if s3_key.lower().replace(' ', '').replace('_', '') == obj_k.lower().replace(' ', '').replace('_', ''):
-                            found_key = obj_k
-                            matched = True
-                            break
+                    name_words = [w.lower() for w in os.path.splitext(s3_key)[0].replace('_', ' ').split() if len(w) > 2]
+                    if name_words:
+                        paginator = s3_client.get_paginator('list_objects_v2')
+                        for page in paginator.paginate(Bucket=bucket_name):
+                            for obj in page.get('Contents', []):
+                                obj_k = obj['Key']
+                                k_lower = obj_k.lower()
+                                if any(word in k_lower for word in name_words):
+                                    found_key = obj_k
+                                    matched = True
+                                    break
+                            if matched:
+                                break
 
             # Set ResponseContentType so browser handles preview
             params = {
