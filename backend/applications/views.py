@@ -1,4 +1,5 @@
 import csv
+import re
 from django.http import HttpResponse
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
@@ -350,6 +351,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def generate_resume_url(self, request):
         import boto3
         import os
+        import re
         from urllib.parse import urlparse, unquote
 
         raw_url = request.data.get('url', '')
@@ -377,6 +379,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             try:
                 s3_client.head_object(Bucket=bucket_name, Key=s3_key)
             except Exception:
+                # 1. Try normalized spacing/underscore candidates
                 candidates = [
                     s3_key,
                     s3_key.replace('.docx', ' .docx').replace('.pdf', ' .pdf').replace('.doc', ' .doc'),
@@ -394,17 +397,36 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     except Exception:
                         pass
 
+                # 2. First-word search in S3 bucket if exact key not found
                 if not matched and s3_key:
-                    try:
-                        res = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=s3_key[:4], MaxKeys=50)
-                        for obj in res.get('Contents', []):
-                            obj_k = obj['Key']
-                            if s3_key.lower().replace(' ', '').replace('_', '') == obj_k.lower().replace(' ', '').replace('_', ''):
-                                found_key = obj_k
-                                matched = True
+                    req_clean = s3_key.lower().replace('_', ' ').replace('-', ' ')
+                    words = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in req_clean.split()]
+                    words = [w for w in words if len(w) >= 3 and w not in ['pdf', 'docx', 'doc', 'resume', 'naukri']]
+                    
+                    if words:
+                        search_term = words[0]
+                        paginator = s3_client.get_paginator('list_objects_v2')
+                        for page in paginator.paginate(Bucket=bucket_name, Prefix=search_term[:3]):
+                            for obj in page.get('Contents', []):
+                                obj_k = obj['Key']
+                                if search_term in obj_k.lower():
+                                    found_key = obj_k
+                                    matched = True
+                                    break
+                            if matched:
                                 break
-                    except Exception:
-                        pass
+
+                        # Fallback full bucket scan with search_term if prefix didn't match
+                        if not matched:
+                            for page in paginator.paginate(Bucket=bucket_name):
+                                for obj in page.get('Contents', []):
+                                    obj_k = obj['Key']
+                                    if search_term in obj_k.lower():
+                                        found_key = obj_k
+                                        matched = True
+                                        break
+                                if matched:
+                                    break
 
             # Set ResponseContentType so browser handles preview
             params = {
