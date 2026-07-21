@@ -325,7 +325,7 @@ export const Applications: React.FC = () => {
     if (!statusUpdateApp) return;
     try {
       let updatedRemarks = statusUpdateApp.remarks || '';
-      if (statusUpdateValue === 'Interview Completed') {
+      if (statusUpdateValue === 'Offer Sent') {
         const fieldsToUpdate: Record<string, string> = {
           'Pay Rate': payRateInput.trim(),
           'Gross Revenue': grossRevenueInput.trim(),
@@ -348,7 +348,7 @@ export const Applications: React.FC = () => {
       }
 
       const patchPayload: any = { status: statusUpdateValue };
-      if (statusUpdateValue === 'Interview Completed') {
+      if (statusUpdateValue === 'Offer Sent') {
         patchPayload.remarks = updatedRemarks;
       }
 
@@ -1010,10 +1010,10 @@ export const Applications: React.FC = () => {
                 </Select>
               </FormControl>
 
-              {statusUpdateValue === 'Interview Completed' && (
+              {statusUpdateValue === 'Offer Sent' && (
                 <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: 'primary.main' }}>
-                    FINANCIAL DETAILS (REQUIRED FOR INTERVIEW COMPLETED)
+                    FINANCIAL DETAILS (REQUIRED FOR OFFER SENT)
                   </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
@@ -1125,7 +1125,7 @@ export const Applications: React.FC = () => {
             color="primary"
             variant="contained"
             disabled={
-              statusUpdateValue === 'Interview Completed' &&
+              statusUpdateValue === 'Offer Sent' &&
               (!payRateInput.trim() ||
                 !grossRevenueInput.trim() ||
                 !taxesInput.trim() ||

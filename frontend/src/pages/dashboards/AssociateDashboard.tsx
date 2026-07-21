@@ -16,6 +16,7 @@ import {
 import { useAppSelector } from '../../redux/store';
 import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { HierarchyReport } from './HierarchyReport';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
@@ -266,6 +267,15 @@ export const AssociateDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Hierarchy Report Section */}
+      <Box sx={{ mt: 4 }}>
+        <HierarchyReport
+          rootEmail={currentUser?.email}
+          startDate={startDate}
+          endDate={endDate}
+        />
+      </Box>
     </Box>
   );
 };
