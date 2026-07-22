@@ -22,7 +22,7 @@ import { useAppSelector } from '../../redux/store';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
-import { getUniqueSubmissions, hasReachedSubmittedMilestone } from './PipelineKPIs';
+import { getUniqueSubmissions, hasReachedSubmittedMilestone, isStatusAllowedForMetric } from './PipelineKPIs';
 
 interface CalculatedMetrics {
   jobsCount: number;
@@ -61,6 +61,9 @@ interface HierarchyReportProps {
 }
 
 export const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
+  if (!isStatusAllowedForMetric(app.status, targetStatus)) {
+    return '';
+  }
   if (notesDict && notesDict[app.id]) {
     const transitionNotes = notesDict[app.id]
       .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))

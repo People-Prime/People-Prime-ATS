@@ -24,7 +24,7 @@ import { Search, Download } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
-import { getPlacedAppsWithCodes } from './dashboards/PipelineKPIs';
+import { getPlacedAppsWithCodes, isStatusAllowedForMetric } from './dashboards/PipelineKPIs';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
@@ -188,6 +188,9 @@ export const Placements: React.FC = () => {
   }, [currentUser, users, selectedTeamId, getDescendantEmails]);
 
   const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
+    if (!isStatusAllowedForMetric(app.status, targetStatus)) {
+      return '';
+    }
     if (notesDict && notesDict[app.id]) {
       const transitionNotes = notesDict[app.id]
         .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))

@@ -134,7 +134,33 @@ interface PipelineKPIsProps {
  * Counts are derived from the passed `applications` slice so each dashboard
  * can supply its own scope (all-org, team, or personal).
  */
+export const isStatusAllowedForMetric = (currentStatus: string, targetStatus: string): boolean => {
+  const statusRank: Record<string, number> = {
+    'New': 1,
+    'Submitted': 2,
+    'Under Review': 3,
+    'Interview Scheduled': 4,
+    'Interview Completed': 5,
+    'Offer Sent': 6,
+    'Offer Accepted': 7,
+    'Placed': 8,
+    'Selected': 8
+  };
+
+  const currentRank = statusRank[currentStatus] || 0;
+  const targetRank = statusRank[targetStatus] || 0;
+
+  if (['Rejected', 'Closed', 'On Hold'].includes(currentStatus)) {
+    return true;
+  }
+
+  return currentRank >= targetRank;
+};
+
 export const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
+  if (!isStatusAllowedForMetric(app.status, targetStatus)) {
+    return '';
+  }
   if (notesDict && notesDict[app.id]) {
     const transitionNotes = notesDict[app.id]
       .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
