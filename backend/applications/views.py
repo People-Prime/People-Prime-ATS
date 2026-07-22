@@ -124,41 +124,6 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
     def get_queryset(self):
-        # Auto-close expired job requirements (Throttled to run at most once every 10 minutes)
-        from django.core.cache import cache
-        from django.utils import timezone
-        import re
-        
-        if cache.get('last_auto_close_time') is None:
-            cache.set('last_auto_close_time', timezone.now().isoformat(), 600)
-            try:
-                import datetime, re
-                today = timezone.now().date()
-                # Find all active job postings (no candidate assigned)
-                active_jobs = Application.objects.filter(candidate_name='', remarks__icontains='Job Status: Active')
-                for job in active_jobs:
-                    remarks = job.remarks or ''
-                    # Extract Start Date from remarks (format: "Start Date: YYYY-MM-DD")
-                    match = re.search(r'^Start Date:\s*(\d{4}-\d{2}-\d{2})', remarks, re.MULTILINE | re.IGNORECASE)
-                    if not match:
-                        continue
-                    try:
-                        start_date = datetime.date.fromisoformat(match.group(1).strip())
-                    except ValueError:
-                        continue
-                    # Close the job if today is past the start date
-                    if today > start_date:
-                        new_remarks = re.sub(
-                            r'(^Job Status:\s*)Active',
-                            r'\1Closed',
-                            remarks,
-                            flags=re.MULTILINE | re.IGNORECASE
-                        )
-                        job.remarks = new_remarks
-                        job.save(update_fields=['remarks'])
-            except Exception:
-                pass
-
         user = self.request.user
         all_applicants = self.request.query_params.get('all_applicants') == 'true'
         
