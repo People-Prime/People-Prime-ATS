@@ -126,72 +126,53 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         global_search = self.request.query_params.get('global_search')
-        uploaded_by_me = self.request.query_params.get('uploaded_by_me') == 'true'
+        all_applicants = self.request.query_params.get('all_applicants') == 'true'
 
-        if uploaded_by_me:
+        # Base role-based visibility querysets
+        if user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER, Role.REPORTING_TEAM]:
+            qs = Application.objects.all()
+        elif user.role == Role.JUNIOR_MANAGER:
+            reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
+            qs = Application.objects.filter(
+                Q(assigned_employee__in=reporters) |
+                Q(assigned_employee=user) |
+                Q(recruiter=user.full_name) |
+                Q(recruiter=user.email)
+            ).distinct()
+        elif user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+            reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
+            qs = Application.objects.filter(
+                Q(assigned_employee__in=reporters) |
+                Q(assigned_employee=user) |
+                Q(recruiter=user.full_name) |
+                Q(recruiter=user.email)
+            ).distinct()
+        elif user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
             qs = Application.objects.filter(
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
             ).distinct()
-            if global_search:
-                search_query = Q(candidate_name__icontains=global_search) | \
-                               Q(candidate_email__icontains=global_search) | \
-                               Q(candidate_phone__icontains=global_search)
-                if global_search.isdigit():
-                    search_query |= Q(id=int(global_search))
-                qs = qs.filter(search_query)
-            return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
+        else:
+            qs = Application.objects.none()
 
+        # Apply global search if present
         if global_search:
             search_query = Q(candidate_name__icontains=global_search) | \
                            Q(candidate_email__icontains=global_search) | \
                            Q(candidate_phone__icontains=global_search)
-            
             if global_search.isdigit():
                 search_query |= Q(id=int(global_search))
-                
-            return Application.objects.exclude(candidate_name='').filter(
-                search_query
-            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
+            qs = qs.exclude(candidate_name='').filter(search_query)
 
-        all_applicants = self.request.query_params.get('all_applicants') == 'true'
-        
-        # 1. Admin, CEO, Senior Manager, and Reporting Team can see all requirements and candidates
-        if all_applicants or user.is_superuser or user.role in [Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER, Role.REPORTING_TEAM]:
-            return Application.objects.all().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
-        
-        # 2. Junior Manager can see applications of teams/members reporting to them, plus their own
-        if user.role == Role.JUNIOR_MANAGER:
-            # Get members who report to this manager
-            reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
-            return Application.objects.filter(
-                Q(assigned_employee__in=reporters) |
-                Q(assigned_employee=user) |
-                Q(recruiter=user.full_name) |
-                Q(recruiter=user.email)
-            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
+        # Apply date range filtering if not on the main dashboard and not in global search
+        if not all_applicants and not global_search:
+            start_date = self.request.query_params.get('start_date')
+            end_date = self.request.query_params.get('end_date')
+            if start_date and end_date:
+                qs = qs.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
 
-        # 3. Team Lead & Sub Lead can see applications of members reporting to them, plus their own
-        if user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
-            # Get members who report to this lead
-            reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
-            return Application.objects.filter(
-                Q(assigned_employee__in=reporters) |
-                Q(assigned_employee=user) |
-                Q(recruiter=user.full_name) |
-                Q(recruiter=user.email)
-            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
-
-        # 4. Associate Analyst & Senior Analyst can see only their assigned applications
-        if user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
-            return Application.objects.filter(
-                Q(assigned_employee=user) |
-                Q(recruiter=user.full_name) |
-                Q(recruiter=user.email)
-            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
-
-        return Application.objects.none()
+        return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
     def get_serializer_class(self):
         if self.action == 'create':

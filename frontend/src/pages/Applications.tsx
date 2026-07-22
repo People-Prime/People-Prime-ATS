@@ -35,8 +35,9 @@ import {
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, deleteApplication, updateApplication } from '../redux/applicationsSlice';
-import { Application, ApplicationStatus } from '../types';
 import { api } from '../services/api';
+import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
+import { Application, ApplicationStatus } from '../types';
 
 export const Applications: React.FC = () => {
   const navigate = useNavigate();
@@ -55,6 +56,15 @@ export const Applications: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`applications_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`applications_end_date_${currentUser?.email}`) || todayStr());
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      localStorage.setItem(`applications_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`applications_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
 
   // Pagination states
   const [page, setPage] = useState(0);
@@ -73,7 +83,7 @@ export const Applications: React.FC = () => {
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
-  }, [searchTerm, statusFilter, selectedTeamId]);
+  }, [searchTerm, statusFilter, selectedTeamId, startDate, endDate]);
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -198,15 +208,18 @@ export const Applications: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     const queryTerm = debouncedSearchTerm.trim();
-    const url = queryTerm
-      ? `applications/?uploaded_by_me=true&global_search=${encodeURIComponent(queryTerm)}`
-      : 'applications/?uploaded_by_me=true';
+    let url = 'applications/?';
+    if (queryTerm) {
+      url += `global_search=${encodeURIComponent(queryTerm)}&`;
+    } else {
+      url += `start_date=${startDate}&end_date=${endDate}&`;
+    }
     api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       setLocalApplications(list);
     }).catch(() => { })
       .finally(() => setLoading(false));
-  }, [debouncedSearchTerm]);
+  }, [debouncedSearchTerm, startDate, endDate]);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
@@ -516,14 +529,24 @@ export const Applications: React.FC = () => {
             Sift, track, and advance candidates through the hiring pipeline.
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Download size={18} />}
-          onClick={handleExportCSV}
-          sx={{ borderRadius: '8px', borderWeight: 2 }}
-        >
-          Export CSV Pipeline
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <DashboardCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<Download size={18} />}
+            onClick={handleExportCSV}
+            sx={{ borderRadius: '8px', borderWeight: 2 }}
+          >
+            Export CSV Pipeline
+          </Button>
+        </Box>
       </Box>
 
       {/* Filter panel */}
