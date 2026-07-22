@@ -134,13 +134,17 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     if (metricType === 'JOBS') {
       const seen = new Set<string>();
-      userApps.forEach(app => {
+      const dateFiltered = userApps.filter(app => {
+        const d = (app.created_at || '').slice(0, 10);
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      });
+      dateFiltered.forEach(app => {
         const jobCode = getRemarkField(app.remarks, 'Job Code');
         if (jobCode === 'N/A' || !jobCode) return;
         const key = jobCode.toUpperCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
-          const group = userApps.filter(a => {
+          const group = dateFiltered.filter(a => {
             const code = getRemarkField(a.remarks, 'Job Code');
             return code && code.toUpperCase().trim() === key;
           });
