@@ -225,7 +225,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   }, [myAssignedApps, isAssociate]);
 
   const seenJobs = new Set<string>();
-  const sourceAppsForCount = isAssociate ? dateFilteredAssigned : applications;
+  const sourceAppsForCount = isAssociate ? myAssignedApps : applications;
   sourceAppsForCount.forEach((app: any) => {
     const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
     if (jobCode === 'N/A' || !jobCode) return;
