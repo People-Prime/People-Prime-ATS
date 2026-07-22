@@ -24,7 +24,8 @@ import {
   TableBody,
   TableCell,
   TableHead,
-  TableRow
+  TableRow,
+  TablePagination
 } from '@mui/material';
 import {
   Search,
@@ -54,6 +55,15 @@ export const Applications: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [expandedCandidates, setExpandedCandidates] = useState<Record<string, boolean>>({});
+
+  // Pagination states
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, statusFilter, selectedTeamId]);
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -288,10 +298,9 @@ export const Applications: React.FC = () => {
         key,
         primaryApp: (() => {
           const sortedByResume = [...apps].sort((a, b) => {
-            const aHasResume = (a.remarks || '').toLowerCase().includes('resume link');
-            const bHasResume = (b.remarks || '').toLowerCase().includes('resume link');
-            if (aHasResume !== bHasResume) return aHasResume ? -1 : 1;
-            return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+            const dateA = new Date(a.updated_at || a.created_at).getTime();
+            const dateB = new Date(b.updated_at || b.created_at).getTime();
+            return dateB - dateA;
           });
           return sortedByResume[0];
         })(),
@@ -299,6 +308,11 @@ export const Applications: React.FC = () => {
       };
     });
   }, [candidateGroups]);
+
+  const paginatedCandidates = useMemo(() => {
+    return uniqueCandidates.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [uniqueCandidates, page, rowsPerPage]);
+
 
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
@@ -596,7 +610,7 @@ export const Applications: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {uniqueCandidates.map((cand) => {
+              {paginatedCandidates.map((cand) => {
                 const app = cand.primaryApp;
                 const isExpanded = !!expandedCandidates[cand.key];
                 return (
@@ -879,6 +893,18 @@ export const Applications: React.FC = () => {
             </tbody>
           </table>
         </Box>
+        <TablePagination
+          rowsPerPageOptions={[25, 50, 100]}
+          component="div"
+          count={uniqueCandidates.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+        />
       </Card>
 
       {/* DELETE CONFIRMATION DIALOG */}
