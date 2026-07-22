@@ -52,10 +52,10 @@ export const CreateCandidate: React.FC = () => {
     users.filter(u => {
       const isAssociate = u.role === 'ASSOCIATE_ANALYST' || u.role === 'SENIOR_ANALYST';
       if (!isAssociate) return false;
-      
+
       const isAdminOrCEO = currentUser?.role === 'ADMIN' || currentUser?.role === 'CEO';
       if (isAdminOrCEO) return true;
-      
+
       const reportsToMe = u.reporting_to_list && u.reporting_to_list.some((r: any) => r.email?.toLowerCase() === currentUser?.email?.toLowerCase());
       return reportsToMe;
     }),
@@ -167,7 +167,7 @@ export const CreateCandidate: React.FC = () => {
   const isDuplicateEmail = useMemo(() => {
     if (!formData.email || !formData.phone) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
-    
+
     const originalEmail = targetApp?.candidate_email;
     const originalPhone = targetApp?.candidate_phone;
 
@@ -192,7 +192,7 @@ export const CreateCandidate: React.FC = () => {
     const cleanPhone = formData.phone.replace(/\D/g, '');
     if (!cleanPhone) return false;
     const targetApp = applicationId ? (selectedApp || availableApplications.find(a => String(a.id) === applicationId)) : null;
-    
+
     const originalEmail = targetApp?.candidate_email;
     const originalPhone = targetApp?.candidate_phone;
 
@@ -413,7 +413,7 @@ Recruiter Remarks: ${formData.remarks}`;
         const errString = JSON.stringify(err?.response?.data || '').toLowerCase();
         const isAlreadyAssigned = err?.response?.status === 400 &&
           (errString.includes('already_assigned') || errString.includes('already assigned') || errString.includes('candidate_already_assigned'));
-        
+
         if (err?.response?.status === 404 && (existingCandidateId || applicationId)) {
           res = await api.post('applications/', payload);
           isNewRecord = true;
