@@ -21,7 +21,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
-import { useAppDispatch } from '../redux/store';
+import { useAppDispatch, useAppSelector } from '../redux/store';
 import { loginUser } from '../redux/authSlice';
 
 interface LoginProps {
@@ -33,6 +33,8 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const theme = useTheme();
+  
+  const { loading } = useAppSelector(state => state.auth);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -501,6 +503,7 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                     variant="contained"
                     size="large"
                     type="submit"
+                    disabled={loading}
                     sx={{
                       py: 1.5,
                       borderRadius: '10px',
@@ -513,7 +516,7 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                       }
                     }}
                   >
-                    Sign In
+                    {loading ? 'Signing In...' : 'Sign In'}
                   </Button>
                 </Box>
               </form>

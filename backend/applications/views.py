@@ -125,6 +125,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        global_search = self.request.query_params.get('global_search')
+        
+        if global_search:
+            from django.db.models import Q
+            search_query = Q(candidate_name__icontains=global_search) | \
+                           Q(candidate_email__icontains=global_search) | \
+                           Q(candidate_phone__icontains=global_search)
+            
+            if global_search.isdigit():
+                search_query |= Q(id=int(global_search))
+                
+            return Application.objects.exclude(candidate_name='').filter(
+                search_query
+            ).distinct().select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
+
         all_applicants = self.request.query_params.get('all_applicants') == 'true'
         
         # 1. Admin, CEO, Senior Manager, and Reporting Team can see all requirements and candidates

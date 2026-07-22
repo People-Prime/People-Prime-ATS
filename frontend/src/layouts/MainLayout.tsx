@@ -24,7 +24,6 @@ import {
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { logout } from '../redux/authSlice';
 import { fetchUsersStart, fetchUsersSuccess } from '../redux/usersSlice';
-import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 
 interface MainLayoutProps {
@@ -62,10 +61,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
         dispatch(fetchUsersSuccess(mappedUsers));
       }).catch(() => { });
 
-      api.get('applications/').then(res => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => { });
+
     }
   }, [dispatch, user]);
 

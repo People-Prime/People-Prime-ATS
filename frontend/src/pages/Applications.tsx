@@ -60,6 +60,16 @@ export const Applications: React.FC = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
+  // Debounced search state
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
   // Reset page when filters change
   useEffect(() => {
     setPage(0);
@@ -187,12 +197,16 @@ export const Applications: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    api.get('applications/?all_applicants=true').then((res: any) => {
+    const queryTerm = debouncedSearchTerm.trim();
+    const url = queryTerm
+      ? `applications/?global_search=${encodeURIComponent(queryTerm)}`
+      : 'applications/';
+    api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       setLocalApplications(list);
     }).catch(() => { })
       .finally(() => setLoading(false));
-  }, []);
+  }, [debouncedSearchTerm]);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
