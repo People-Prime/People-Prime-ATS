@@ -60,7 +60,15 @@ interface HierarchyReportProps {
   endDate?: string;
 }
 
-export const getStatusTransitionDate = (app: any, targetStatus: string): string => {
+export const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
+  if (notesDict && notesDict[app.id]) {
+    const transitionNotes = notesDict[app.id]
+      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (transitionNotes.length > 0) {
+      return transitionNotes[0].created_at.slice(0, 10);
+    }
+  }
   if (app.notes && Array.isArray(app.notes)) {
     const transitionNotes = app.notes
       .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
@@ -69,9 +77,6 @@ export const getStatusTransitionDate = (app: any, targetStatus: string): string 
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
-  if (app.status === targetStatus) {
-    return (app.updated_at || app.created_at || '').slice(0, 10);
-  }
   return (app.created_at || '').slice(0, 10);
 };
 
@@ -79,7 +84,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const theme = useTheme();
   const navigate = useNavigate();
   const { users } = useAppSelector(state => state.users);
-  const { applications } = useAppSelector(state => state.applications);
+  const { applications, notes } = useAppSelector(state => state.applications || { applications: [], notes: {} });
   const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
 
   const [localStartDate, setLocalStartDate] = useState(todayStr());
@@ -143,7 +148,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         app.candidate_name &&
         hasReachedSubmittedMilestone(app) &&
         (() => {
-          const d = getStatusTransitionDate(app, 'Submitted');
+          const d = getStatusTransitionDate(app, 'Submitted', notes);
           return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
         })()
       );
@@ -151,8 +156,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       isApplicants = true;
     } else if (metricType === 'INTERVIEWS') {
       filtered = userApps.filter(app => {
-        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled');
-        const dCompleted = getStatusTransitionDate(app, 'Interview Completed');
+        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
+        const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
         const matchScheduled = !effectiveStartDate || !effectiveEndDate || (dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate);
         const matchCompleted = !effectiveStartDate || !effectiveEndDate || (dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate);
         return matchScheduled || matchCompleted;
@@ -161,21 +166,21 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       isApplicants = true;
     } else if (metricType === 'OFFERS') {
       filtered = userApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Sent');
+        const d = getStatusTransitionDate(app, 'Offer Sent', notes);
         return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       label = 'Offer Sent';
       isApplicants = true;
     } else if (metricType === 'OFFER_ACCEPTED') {
       filtered = userApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Accepted');
+        const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
         return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       label = 'Offer Accepted';
       isApplicants = true;
     } else if (metricType === 'ONBOARD') {
       filtered = userApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Placed');
+        const d = getStatusTransitionDate(app, 'Placed', notes);
         return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       label = 'Onboard';
@@ -276,31 +281,31 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       app.candidate_name &&
       hasReachedSubmittedMilestone(app) &&
       (() => {
-        const d = getStatusTransitionDate(app, 'Submitted');
+        const d = getStatusTransitionDate(app, 'Submitted', notes);
         return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       })()
     ).length;
 
     const interviews = userApps.filter(app => {
-      const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled');
-      const dCompleted = getStatusTransitionDate(app, 'Interview Completed');
+      const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
+      const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
       const matchScheduled = !effectiveStartDate || !effectiveEndDate || (dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate);
       const matchCompleted = !effectiveStartDate || !effectiveEndDate || (dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate);
       return matchScheduled || matchCompleted;
     }).length;
 
     const offers = userApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Offer Sent');
+      const d = getStatusTransitionDate(app, 'Offer Sent', notes);
       return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
     }).length;
 
     const offerAccepted = userApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Offer Accepted');
+      const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
       return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
     }).length;
 
     const onboard = userApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Placed');
+      const d = getStatusTransitionDate(app, 'Placed', notes);
       return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
     }).length;
 

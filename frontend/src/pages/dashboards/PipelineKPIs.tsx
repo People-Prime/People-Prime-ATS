@@ -134,7 +134,15 @@ interface PipelineKPIsProps {
  * Counts are derived from the passed `applications` slice so each dashboard
  * can supply its own scope (all-org, team, or personal).
  */
-export const getStatusTransitionDate = (app: any, targetStatus: string): string => {
+export const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
+  if (notesDict && notesDict[app.id]) {
+    const transitionNotes = notesDict[app.id]
+      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (transitionNotes.length > 0) {
+      return transitionNotes[0].created_at.slice(0, 10);
+    }
+  }
   if (app.notes && Array.isArray(app.notes)) {
     const transitionNotes = app.notes
       .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
@@ -143,9 +151,6 @@ export const getStatusTransitionDate = (app: any, targetStatus: string): string 
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
-  if (app.status === targetStatus) {
-    return (app.updated_at || app.created_at || '').slice(0, 10);
-  }
   return (app.created_at || '').slice(0, 10);
 };
 
@@ -153,7 +158,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user: currentUser } = useAppSelector((state: any) => state.auth);
-  const { applications: allApps } = useAppSelector((state: any) => state.applications || { applications: [] });
+  const { applications: allApps, notes } = useAppSelector((state: any) => state.applications || { applications: [], notes: {} });
   const { users } = useAppSelector((state: any) => state.users || { users: [] });
 
   const isAssociate = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST'].includes(currentUser?.role);
@@ -223,11 +228,11 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
       app.candidate_name &&
       hasReachedSubmittedMilestone(app) &&
       (() => {
-        const d = getStatusTransitionDate(app, 'Submitted');
+        const d = getStatusTransitionDate(app, 'Submitted', notes);
         return d >= startDate && d <= endDate;
       })()
     ).length;
-  }, [scopeApps]);
+  }, [scopeApps, notes]);
 
   const clientSubmissions = submissions;
 
@@ -235,49 +240,49 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     const startDate = localStorage.getItem('dashboard_start_date') || todayStr();
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
     return scopeApps.filter(app => {
-      const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled');
-      const dCompleted = getStatusTransitionDate(app, 'Interview Completed');
+      const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
+      const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
       const matchScheduled = dScheduled >= startDate && dScheduled <= endDate;
       const matchCompleted = dCompleted >= startDate && dCompleted <= endDate;
       return matchScheduled || matchCompleted;
     }).length;
-  }, [scopeApps]);
+  }, [scopeApps, notes]);
 
   const clientRejections = React.useMemo(() => {
     const startDate = localStorage.getItem('dashboard_start_date') || todayStr();
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
     return scopeApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Rejected');
+      const d = getStatusTransitionDate(app, 'Rejected', notes);
       return d >= startDate && d <= endDate;
     }).length;
-  }, [scopeApps]);
+  }, [scopeApps, notes]);
 
   const offerSent = React.useMemo(() => {
     const startDate = localStorage.getItem('dashboard_start_date') || todayStr();
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
     return scopeApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Offer Sent');
+      const d = getStatusTransitionDate(app, 'Offer Sent', notes);
       return d >= startDate && d <= endDate;
     }).length;
-  }, [scopeApps]);
+  }, [scopeApps, notes]);
 
   const offerAccepted = React.useMemo(() => {
     const startDate = localStorage.getItem('dashboard_start_date') || todayStr();
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
     return scopeApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Offer Accepted');
+      const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
       return d >= startDate && d <= endDate;
     }).length;
-  }, [scopeApps]);
+  }, [scopeApps, notes]);
 
   const placed = React.useMemo(() => {
     const startDate = localStorage.getItem('dashboard_start_date') || todayStr();
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
     return scopeApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Placed');
+      const d = getStatusTransitionDate(app, 'Placed', notes);
       return d >= startDate && d <= endDate;
     }).length;
-  }, [scopeApps]);
+  }, [scopeApps, notes]);
 
   const handleCardClick = (label: string, value: number) => {
     if (value === 0) return;
@@ -308,36 +313,36 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
         app.candidate_name &&
         hasReachedSubmittedMilestone(app) &&
         (() => {
-          const d = getStatusTransitionDate(app, 'Submitted');
+          const d = getStatusTransitionDate(app, 'Submitted', notes);
           return d >= startDate && d <= endDate;
         })()
       );
     } else if (label === 'Client Interviews') {
       filtered = scopeApps.filter(app => {
-        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled');
-        const dCompleted = getStatusTransitionDate(app, 'Interview Completed');
+        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
+        const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
         const matchScheduled = dScheduled >= startDate && dScheduled <= endDate;
         const matchCompleted = dCompleted >= startDate && dCompleted <= endDate;
         return matchScheduled || matchCompleted;
       });
     } else if (label === 'Client Rejections') {
       filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Rejected');
+        const d = getStatusTransitionDate(app, 'Rejected', notes);
         return d >= startDate && d <= endDate;
       });
     } else if (label === 'Offer Sent') {
       filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Sent');
+        const d = getStatusTransitionDate(app, 'Offer Sent', notes);
         return d >= startDate && d <= endDate;
       });
     } else if (label === 'Offer Accepted') {
       filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Accepted');
+        const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
         return d >= startDate && d <= endDate;
       });
     } else if (label === 'Onboard') {
       filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Placed');
+        const d = getStatusTransitionDate(app, 'Placed', notes);
         return d >= startDate && d <= endDate;
       });
     }

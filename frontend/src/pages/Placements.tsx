@@ -29,7 +29,7 @@ import { getPlacedAppsWithCodes } from './dashboards/PipelineKPIs';
 export const Placements: React.FC = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
-  const { applications } = useAppSelector(state => state.applications);
+  const { applications, notes } = useAppSelector(state => state.applications || { applications: [], notes: {} });
   const { users } = useAppSelector(state => state.users);
   const { user: currentUser } = useAppSelector(state => state.auth);
 
@@ -187,7 +187,15 @@ export const Placements: React.FC = () => {
     return descendant.map(e => e.toLowerCase());
   }, [currentUser, users, selectedTeamId, getDescendantEmails]);
 
-  const getStatusTransitionDate = (app: any, targetStatus: string): string => {
+  const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
+    if (notesDict && notesDict[app.id]) {
+      const transitionNotes = notesDict[app.id]
+        .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      if (transitionNotes.length > 0) {
+        return transitionNotes[0].created_at.slice(0, 10);
+      }
+    }
     if (app.notes && Array.isArray(app.notes)) {
       const transitionNotes = app.notes
         .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
@@ -195,9 +203,6 @@ export const Placements: React.FC = () => {
       if (transitionNotes.length > 0) {
         return transitionNotes[0].created_at.slice(0, 10);
       }
-    }
-    if (app.status === targetStatus) {
-      return (app.updated_at || app.created_at || '').slice(0, 10);
     }
     return (app.created_at || '').slice(0, 10);
   };
@@ -209,7 +214,7 @@ export const Placements: React.FC = () => {
       // 0. Date Filter (for all roles) based on status transition to Placed
       const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
       const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
-      const appDate = getStatusTransitionDate(app, 'Placed');
+      const appDate = getStatusTransitionDate(app, 'Placed', notes);
       if (appDate < savedStart || appDate > savedEnd) return false;
 
       // Hierarchy/Role visibility filter
