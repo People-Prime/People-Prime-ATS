@@ -59,7 +59,20 @@ interface HierarchyReportProps {
   startDate?: string;
   endDate?: string;
 }
-
+export const getStatusTransitionDate = (app: any, targetStatus: string): string => {
+  if (app.notes && Array.isArray(app.notes)) {
+    const transitionNotes = app.notes
+      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    if (transitionNotes.length > 0) {
+      return transitionNotes[0].created_at.slice(0, 10);
+    }
+  }
+  if (app.status === targetStatus) {
+    return (app.updated_at || app.created_at || '').slice(0, 10);
+  }
+  return (app.created_at || '').slice(0, 10);
+};
 export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, startDate, endDate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -74,29 +87,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
   const effectiveEndDate = endDate !== undefined ? endDate : localEndDate;
 
-  const dateFilteredRawApps = useMemo(() => {
-    if (!effectiveStartDate || !effectiveEndDate) return applications;
-    return applications.filter(app => {
-      const d = (app.created_at || '').slice(0, 10);
-      return d >= effectiveStartDate && d <= effectiveEndDate;
-    });
-  }, [applications, effectiveStartDate, effectiveEndDate]);
-
   const deduplicatedApps = useMemo(() => {
-    return getUniqueSubmissions(dateFilteredRawApps);
-  }, [dateFilteredRawApps]);
-
-  const dateFilteredSubmissionsRawApps = useMemo(() => {
-    if (!effectiveStartDate || !effectiveEndDate) return applications;
-    return applications.filter(app => {
-      const d = (app.created_at || '').slice(0, 10);
-      return d >= effectiveStartDate && d <= effectiveEndDate;
-    });
-  }, [applications, effectiveStartDate, effectiveEndDate]);
+    return getUniqueSubmissions(applications);
+  }, [applications]);
 
   const deduplicatedSubmissionsApps = useMemo(() => {
-    return getUniqueSubmissions(dateFilteredSubmissionsRawApps);
-  }, [dateFilteredSubmissionsRawApps]);
+    return getUniqueSubmissions(applications);
+  }, [applications]);
 
   const getDescendantEmails = (email: string): string[] => {
     const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
@@ -105,12 +102,12 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   const handleMetricClick = (userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
     const emails = isSelfRow ? [userEmail] : getDescendantEmails(userEmail);
-    const dateFiltered = deduplicatedApps.filter(app =>
+    const userApps = deduplicatedApps.filter(app =>
       app.assigned_employee?.email &&
       emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
     );
 
-    let filtered = dateFiltered;
+    let filtered: any[] = [];
     let label = '';
     let isJobs = false;
     let isApplicants = false;
@@ -118,7 +115,10 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     if (metricType === 'JOBS') {
       const seen = new Set<string>();
-      const unique: typeof dateFiltered = [];
+      const dateFiltered = userApps.filter(app => {
+        const d = (app.created_at || '').slice(0, 10);
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      });
       dateFiltered.forEach(app => {
         const jobCode = getRemarkField(app.remarks, 'Job Code');
         if (jobCode === 'N/A' || !jobCode) return;
@@ -131,37 +131,51 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           });
           const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
           rep.associatedApps = group;
-          unique.push(rep);
+          filtered.push(rep);
         }
       });
-      filtered = unique;
       label = 'Jobs Count';
       isJobs = true;
     } else if (metricType === 'SUBMISSIONS') {
-      const dateFilteredSub = deduplicatedSubmissionsApps.filter(app =>
-        app.assigned_employee?.email &&
-        emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
-      );
-      filtered = dateFilteredSub.filter(app =>
+      filtered = userApps.filter(app =>
         app.candidate_name &&
-        hasReachedSubmittedMilestone(app)
+        hasReachedSubmittedMilestone(app) &&
+        (() => {
+          const d = getStatusTransitionDate(app, 'Submitted');
+          return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+        })()
       );
       label = 'Client Submissions';
       isApplicants = true;
     } else if (metricType === 'INTERVIEWS') {
-      filtered = dateFiltered.filter(app => ['Interview Scheduled', 'Interview Completed'].includes(app.status));
+      filtered = userApps.filter(app => {
+        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled');
+        const dCompleted = getStatusTransitionDate(app, 'Interview Completed');
+        const matchScheduled = !effectiveStartDate || !effectiveEndDate || (dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate);
+        const matchCompleted = !effectiveStartDate || !effectiveEndDate || (dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate);
+        return matchScheduled || matchCompleted;
+      });
       label = 'Client Interviews';
       isApplicants = true;
     } else if (metricType === 'OFFERS') {
-      filtered = dateFiltered.filter(app => app.status === 'Offer Sent');
+      filtered = userApps.filter(app => {
+        const d = getStatusTransitionDate(app, 'Offer Sent');
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      });
       label = 'Offer Sent';
       isApplicants = true;
     } else if (metricType === 'OFFER_ACCEPTED') {
-      filtered = dateFiltered.filter(app => app.status === 'Offer Accepted');
+      filtered = userApps.filter(app => {
+        const d = getStatusTransitionDate(app, 'Offer Accepted');
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      });
       label = 'Offer Accepted';
       isApplicants = true;
     } else if (metricType === 'ONBOARD') {
-      filtered = dateFiltered.filter(app => app.status === 'Placed');
+      filtered = userApps.filter(app => {
+        const d = getStatusTransitionDate(app, 'Placed');
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      });
       label = 'Onboard';
       isApplicants = true;
     }
@@ -240,31 +254,53 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
-    const dateFiltered = deduplicatedApps.filter(app =>
+    const userApps = deduplicatedApps.filter(app =>
       app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
     );
 
     const seenJobs = new Set<string>();
-    dateFiltered.forEach(app => {
+    userApps.forEach(app => {
+      const d = (app.created_at || '').slice(0, 10);
+      const dateMatch = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      if (!dateMatch) return;
       const jobCode = getRemarkField(app.remarks, 'Job Code');
       if (jobCode === 'N/A' || !jobCode) return;
       seenJobs.add(jobCode.toUpperCase().trim());
     });
-
     const jobsCount = seenJobs.size;
-    const dateFilteredSub = deduplicatedSubmissionsApps.filter(app =>
-      app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
-    );
-    const submissions = dateFilteredSub.filter(app =>
+
+    const submissions = deduplicatedSubmissionsApps.filter(app =>
+      app.assigned_employee?.email?.toLowerCase() === email.toLowerCase() &&
       app.candidate_name &&
-      hasReachedSubmittedMilestone(app)
+      hasReachedSubmittedMilestone(app) &&
+      (() => {
+        const d = getStatusTransitionDate(app, 'Submitted');
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      })()
     ).length;
-    const interviews = dateFiltered.filter(app =>
-      ['Interview Scheduled', 'Interview Completed'].includes(app.status)
-    ).length;
-    const offers = dateFiltered.filter(app => app.status === 'Offer Sent').length;
-    const offerAccepted = dateFiltered.filter(app => app.status === 'Offer Accepted').length;
-    const onboard = dateFiltered.filter(app => app.status === 'Placed').length;
+
+    const interviews = userApps.filter(app => {
+      const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled');
+      const dCompleted = getStatusTransitionDate(app, 'Interview Completed');
+      const matchScheduled = !effectiveStartDate || !effectiveEndDate || (dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate);
+      const matchCompleted = !effectiveStartDate || !effectiveEndDate || (dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate);
+      return matchScheduled || matchCompleted;
+    }).length;
+
+    const offers = userApps.filter(app => {
+      const d = getStatusTransitionDate(app, 'Offer Sent');
+      return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+    }).length;
+
+    const offerAccepted = userApps.filter(app => {
+      const d = getStatusTransitionDate(app, 'Offer Accepted');
+      return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+    }).length;
+
+    const onboard = userApps.filter(app => {
+      const d = getStatusTransitionDate(app, 'Placed');
+      return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+    }).length;
 
     return { jobsCount, submissions, interviews, offers, offerAccepted, onboard };
   };
