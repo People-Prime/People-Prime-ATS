@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from '@mui/material/styles';
 import {
   Box,
@@ -133,21 +133,6 @@ export const Placements: React.FC = () => {
     return text;
   };
 
-  const getStatusTransitionDate = (app: any, targetStatus: string): string => {
-    if (app.notes && Array.isArray(app.notes)) {
-      const transitionNotes = app.notes
-        .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      if (transitionNotes.length > 0) {
-        return transitionNotes[0].created_at.slice(0, 10);
-      }
-    }
-    if (app.status === targetStatus) {
-      return (app.updated_at || app.created_at || '').slice(0, 10);
-    }
-    return (app.created_at || '').slice(0, 10);
-  };
-
   const getHierarchyInfo = (recruiterEmails: string[]) => {
     const tls = new Set<string>();
     const managers = new Set<string>();
@@ -182,27 +167,43 @@ export const Placements: React.FC = () => {
     };
   };
 
+  const filteredUsers = useMemo(() => users.filter((u: any) => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
+
+  const getDescendantEmails = useCallback((email: string): string[] => {
+    const direct = filteredUsers.filter((u: any) => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
+    return [email, ...direct.flatMap((d: any) => getDescendantEmails(d.email))];
+  }, [filteredUsers]);
+
+  const allowedEmails = useMemo(() => {
+    const isHierarchyRoot = ['CEO', 'ADMIN', 'REPORTING_TEAM'].includes(currentUser?.role || '');
+    if (isHierarchyRoot) {
+      if (selectedTeamId !== 'ALL') {
+        const teamUsers = users.filter((u: any) => u.teams?.some((t: any) => String(t.id) === selectedTeamId));
+        return teamUsers.map((u: any) => u.email.toLowerCase());
+      }
+      return users.map((u: any) => u.email.toLowerCase());
+    }
+    const descendant = getDescendantEmails(currentUser?.email || '');
+    return descendant.map(e => e.toLowerCase());
+  }, [currentUser, users, selectedTeamId, getDescendantEmails]);
+
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
     const allPlacedWithCodes = getPlacedAppsWithCodes(applications);
     return allPlacedWithCodes.filter(app => {
-      // 0. Date Filter (for all roles) based on status transition to Placed
+      // 0. Date Filter (for all roles) based on created_at (since Hierarchy Report uses created_at)
       const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
       const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
-      const appDate = getStatusTransitionDate(app, 'Placed');
+      const appDate = (app.created_at || '').slice(0, 10);
       if (appDate < savedStart || appDate > savedEnd) return false;
 
-      // Team Filter (only for ADMIN/CEO)
-      if ((activeRole === 'ADMIN' || activeRole === 'CEO') && selectedTeamId !== 'ALL') {
-        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-        if (!assignedEmail) return false;
-        const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
-        const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
-        if (!isMemberOfTeam) return false;
-      }
+      // Hierarchy/Role visibility filter
+      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+      if (!assignedEmail || !allowedEmails.includes(assignedEmail)) return false;
+
       return true;
     });
-  }, [applications, selectedTeamId, users, activeRole, currentUser]);
+  }, [applications, allowedEmails, currentUser]);
 
   // Filter based on search term
   const filteredCandidates = useMemo(() => {
