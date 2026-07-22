@@ -199,8 +199,8 @@ export const Applications: React.FC = () => {
     setLoading(true);
     const queryTerm = debouncedSearchTerm.trim();
     const url = queryTerm
-      ? `applications/?global_search=${encodeURIComponent(queryTerm)}`
-      : 'applications/';
+      ? `applications/?uploaded_by_me=true&global_search=${encodeURIComponent(queryTerm)}`
+      : 'applications/?uploaded_by_me=true';
     api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       setLocalApplications(list);

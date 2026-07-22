@@ -11,15 +11,18 @@ import { ManagerDashboard } from './dashboards/ManagerDashboard';
 export const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
   const { user: currentUser } = useAppSelector(state => state.auth);
+  const { applications } = useAppSelector(state => state.applications);
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
   // Load applications from API so all sub-dashboards have access
   useEffect(() => {
-    api.get('applications/').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(() => {});
-  }, [dispatch]);
+    if (applications.length === 0) {
+      api.get('applications/?all_applicants=true').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => {});
+    }
+  }, [dispatch, applications.length]);
 
   return (
     <Box className="animate-fade-in">

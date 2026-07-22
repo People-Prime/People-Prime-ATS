@@ -126,7 +126,24 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         global_search = self.request.query_params.get('global_search')
-        
+        uploaded_by_me = self.request.query_params.get('uploaded_by_me') == 'true'
+
+        if uploaded_by_me:
+            from django.db.models import Q
+            qs = Application.objects.filter(
+                Q(assigned_employee=user) |
+                Q(recruiter=user.full_name) |
+                Q(recruiter=user.email)
+            ).distinct()
+            if global_search:
+                search_query = Q(candidate_name__icontains=global_search) | \
+                               Q(candidate_email__icontains=global_search) | \
+                               Q(candidate_phone__icontains=global_search)
+                if global_search.isdigit():
+                    search_query |= Q(id=int(global_search))
+                qs = qs.filter(search_query)
+            return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
+
         if global_search:
             from django.db.models import Q
             search_query = Q(candidate_name__icontains=global_search) | \
