@@ -129,7 +129,6 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         uploaded_by_me = self.request.query_params.get('uploaded_by_me') == 'true'
 
         if uploaded_by_me:
-            from django.db.models import Q
             qs = Application.objects.filter(
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
@@ -145,7 +144,6 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
         if global_search:
-            from django.db.models import Q
             search_query = Q(candidate_name__icontains=global_search) | \
                            Q(candidate_email__icontains=global_search) | \
                            Q(candidate_phone__icontains=global_search)
