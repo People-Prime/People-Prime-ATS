@@ -187,14 +187,29 @@ export const Placements: React.FC = () => {
     return descendant.map(e => e.toLowerCase());
   }, [currentUser, users, selectedTeamId, getDescendantEmails]);
 
+  const getStatusTransitionDate = (app: any, targetStatus: string): string => {
+    if (app.notes && Array.isArray(app.notes)) {
+      const transitionNotes = app.notes
+        .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      if (transitionNotes.length > 0) {
+        return transitionNotes[0].created_at.slice(0, 10);
+      }
+    }
+    if (app.status === targetStatus) {
+      return (app.updated_at || app.created_at || '').slice(0, 10);
+    }
+    return (app.created_at || '').slice(0, 10);
+  };
+
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
     const allPlacedWithCodes = getPlacedAppsWithCodes(applications);
     return allPlacedWithCodes.filter(app => {
-      // 0. Date Filter (for all roles) based on created_at (since Hierarchy Report uses created_at)
+      // 0. Date Filter (for all roles) based on status transition to Placed
       const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
       const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
-      const appDate = (app.created_at || '').slice(0, 10);
+      const appDate = getStatusTransitionDate(app, 'Placed');
       if (appDate < savedStart || appDate > savedEnd) return false;
 
       // Hierarchy/Role visibility filter
