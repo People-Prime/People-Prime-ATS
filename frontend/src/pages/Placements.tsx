@@ -24,7 +24,7 @@ import { Search, Download } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
-import { getUniqueSubmissions } from './dashboards/PipelineKPIs';
+import { getPlacedAppsWithCodes } from './dashboards/PipelineKPIs';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
@@ -133,16 +133,63 @@ export const Placements: React.FC = () => {
     return text;
   };
 
+  const getStatusTransitionDate = (app: any, targetStatus: string): string => {
+    if (app.notes && Array.isArray(app.notes)) {
+      const transitionNotes = app.notes
+        .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      if (transitionNotes.length > 0) {
+        return transitionNotes[0].created_at.slice(0, 10);
+      }
+    }
+    if (app.status === targetStatus) {
+      return (app.updated_at || app.created_at || '').slice(0, 10);
+    }
+    return (app.created_at || '').slice(0, 10);
+  };
+
+  const getHierarchyInfo = (recruiterEmails: string[]) => {
+    const tls = new Set<string>();
+    const managers = new Set<string>();
+
+    recruiterEmails.forEach(email => {
+      let current = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+      while (current) {
+        if (current.role === 'TEAM_LEAD' || current.role === 'SUB_LEAD') {
+          tls.add(current.full_name || current.email);
+        }
+        if (current.role === 'JUNIOR_MANAGER' || current.role === 'SENIOR_MANAGER') {
+          managers.add(current.full_name || current.email);
+        }
+
+        const parentEmail = current.reporting_to?.email || (current.reporting_to_list && current.reporting_to_list[0]?.email);
+        if (parentEmail) {
+          const parentUser = users.find((x: any) => x.email?.toLowerCase() === parentEmail.toLowerCase());
+          if (parentUser) {
+            current = parentUser;
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
+    });
+
+    return {
+      tl: Array.from(tls).join(', ') || 'N/A',
+      manager: Array.from(managers).join(', ') || 'N/A'
+    };
+  };
+
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
-    const uniqueApps = getUniqueSubmissions(applications);
-    const placed = uniqueApps.filter(app => {
-      if (app.status !== 'Placed') return false;
-
-      // 0. Date Filter (for all roles)
+    const allPlacedWithCodes = getPlacedAppsWithCodes(applications);
+    return allPlacedWithCodes.filter(app => {
+      // 0. Date Filter (for all roles) based on status transition to Placed
       const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
       const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
-      const appDate = (app.created_at || '').slice(0, 10);
+      const appDate = getStatusTransitionDate(app, 'Placed');
       if (appDate < savedStart || appDate > savedEnd) return false;
 
       // Team Filter (only for ADMIN/CEO)
@@ -155,25 +202,7 @@ export const Placements: React.FC = () => {
       }
       return true;
     });
-
-    // Sort by created_at ascending
-    const sorted = [...placed].sort((a, b) => {
-      const timeA = new Date(a.created_at || 0).getTime();
-      const timeB = new Date(b.created_at || 0).getTime();
-      if (timeA !== timeB) return timeA - timeB;
-      return String(a.id).localeCompare(String(b.id));
-    });
-
-    // Map each to include auto-generated placement code
-    return sorted.map((app, idx) => {
-      const plcNumber = String(idx + 1).padStart(4, '0');
-      const placementCode = `PLC-${plcNumber}`;
-      return {
-        ...app,
-        placementCode
-      };
-    });
-  }, [applications, selectedTeamId, users, activeRole]);
+  }, [applications, selectedTeamId, users, activeRole, currentUser]);
 
   // Filter based on search term
   const filteredCandidates = useMemo(() => {
@@ -220,44 +249,46 @@ export const Placements: React.FC = () => {
             const headers = [
               'Placement Code',
               'Applicant Name',
-              'Job Code',
-              'Job Title',
               'Client',
-              'Business Unit',
+              'Recruiter',
+              'Count',
+              'Modified By',
+              'Team Lead',
+              'Created By',
+              'Manager',
+              'Placement Type',
+              'Pay Rate',
               'Gross Revenue',
+              'Taxes',
+              'TDS',
               'Invoice Amount',
               'Profit Amount',
-              'Created By',
-              'Created On',
-              'Tentative Start Date',
-              'Actual Start Date',
-              'Actual End Date',
-              'Placement Status',
-              'Recruiter',
-              'Manager',
-              'City/State'
+              'Date of Join'
             ];
 
-            const rows = filteredCandidates.map(app => [
-              app.placementCode || 'N/A',
-              app.candidate_name || 'N/A',
-              getRemarkField(app.remarks, 'Job Code') || 'N/A',
-              app.position || 'N/A',
-              app.client_name || 'N/A',
-              getRemarkField(app.remarks, 'Business Unit') || 'N/A',
-              getRemarkField(app.remarks, 'Client Bill Rate') || 'N/A',
-              getRemarkField(app.remarks, 'Pay Rate') || 'N/A',
-              getProfitAmount(app.remarks) || 'N/A',
-              app.recruiter || app.assigned_employee?.full_name || 'System',
-              app.created_at ? new Date(app.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A',
-              getRemarkField(app.remarks, 'Start Date') || 'N/A',
-              getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A' ? getRemarkField(app.remarks, 'Actual Start Date') : getRemarkField(app.remarks, 'Start Date'),
-              getRemarkField(app.remarks, 'End Date') || 'N/A',
-              app.status || 'N/A',
-              app.recruiter || app.assigned_employee?.full_name || 'System',
-              getRemarkField(app.remarks, 'Manager') || 'N/A',
-              app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || 'N/A'
-            ]);
+            const rows = filteredCandidates.map(app => {
+              const hierarchyInfo = getHierarchyInfo([app.assigned_employee?.email].filter(Boolean));
+              const placementType = getRemarkField(app.remarks, 'Employee Type');
+              return [
+                app.placementCode || 'N/A',
+                app.candidate_name || 'N/A',
+                app.client_name || 'N/A',
+                app.recruiter || 'N/A',
+                '1',
+                app.modified_by || 'System',
+                hierarchyInfo.tl,
+                app.assigned_employee?.full_name || 'System',
+                hierarchyInfo.manager,
+                placementType,
+                getRemarkField(app.remarks, 'Pay Rate'),
+                getRemarkField(app.remarks, 'Client Bill Rate'),
+                getRemarkField(app.remarks, 'Taxes'),
+                getRemarkField(app.remarks, 'TDS'),
+                getRemarkField(app.remarks, 'Invoice Amount'),
+                getProfitAmount(app.remarks) || 'N/A',
+                getRemarkField(app.remarks, 'Date of Join')
+              ];
+            });
 
             const escapeCell = (val: any): string => {
               if (val === null || val === undefined) return '""';
@@ -372,111 +403,71 @@ export const Placements: React.FC = () => {
               >
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Placement Code</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Applicant Name</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Code</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Job Title</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Client</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Business Unit</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Recruiter</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Count</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Modified By</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Team Lead</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created By</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Placement Type</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Pay Rate</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Gross Revenue</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Taxes</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>TDS</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Invoice Amount</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Profit Amount</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created By</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created On</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Tentative Start Date</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Actual Start Date</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Actual End Date</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Placement Status</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Recruiter</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>City/State</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Date of Join</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={18} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  <TableCell colSpan={17} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                     Loading placements data...
                   </TableCell>
                 </TableRow>
               ) : filteredCandidates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={18} align="center" sx={{ py: 6, color: 'text.secondary' }}>
+                  <TableCell colSpan={17} align="center" sx={{ py: 6, color: 'text.secondary' }}>
                     No placed candidates found.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCandidates.map((app) => (
-                  <TableRow
-                    key={app.id}
-                    sx={{
-                      borderBottom: `1px solid ${theme.palette.divider}`,
-                      whiteSpace: 'nowrap',
-                      '&:hover': {
-                        bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b50'
-                      }
-                    }}
-                  >
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.placementCode, 100)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.candidate_name, 120)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Job Code'), 90)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.position, 140)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.client_name, 120)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Business Unit'), 120)}
-                    </TableCell>
-                    <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Client Bill Rate'), 100)}
-                    </TableCell>
-                    <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Pay Rate'), 100)}
-                    </TableCell>
-                    <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {renderCellText(getProfitAmount(app.remarks), 100)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {new Date(app.created_at).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Start Date'), 110)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Actual Start Date') !== 'N/A'
-                        ? getRemarkField(app.remarks, 'Actual Start Date')
-                        : getRemarkField(app.remarks, 'Start Date'), 110)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'End Date'), 110)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.status, 90)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(getRemarkField(app.remarks, 'Manager'), 110)}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      {renderCellText(app.city && app.state ? `${app.city}, ${app.state}` : app.city || app.state || 'N/A', 120)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredCandidates.map((app) => {
+                  const hierarchyInfo = getHierarchyInfo([app.assigned_employee?.email].filter(Boolean));
+                  const placementType = getRemarkField(app.remarks, 'Employee Type');
+                  return (
+                    <TableRow
+                      key={app.id}
+                      sx={{
+                        borderBottom: `1px solid ${theme.palette.divider}`,
+                        whiteSpace: 'nowrap',
+                        '&:hover': {
+                          bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b50'
+                        }
+                      }}
+                    >
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.placementCode, 100)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.candidate_name, 120)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.client_name, 120)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.recruiter || 'N/A', 110)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>1</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.modified_by || 'System', 110)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(hierarchyInfo.tl, 110)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.assigned_employee?.full_name || 'System', 110)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(hierarchyInfo.manager, 110)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(placementType, 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Pay Rate'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Client Bill Rate'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Taxes'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'TDS'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Invoice Amount'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getProfitAmount(app.remarks), 100)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Date of Join'), 110)}</TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

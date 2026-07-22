@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { ArrowLeft, Building, Download } from 'lucide-react';
 import { useAppSelector } from '../../redux/store';
+import { getPlacedAppsWithCodes } from './PipelineKPIs';
 
 export const DrillDownPage: React.FC = () => {
   const location = useLocation();
@@ -45,6 +46,16 @@ export const DrillDownPage: React.FC = () => {
   const isCEOOroughReportingTeam = currentUser?.role === 'CEO' || currentUser?.role === 'REPORTING_TEAM';
   const shouldHideAction = ['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'REPORTING_TEAM', 'CEO'].includes(currentUser?.role);
   const isClientInterviewsForCEO = currentUser?.role === 'CEO' && (modalTitle || '').toLowerCase().includes('interview');
+  const isOnboardType = isApplicantsType && (modalTitle || '').toLowerCase().includes('onboard');
+
+  const placedAppsWithCodes = React.useMemo(() => {
+    return getPlacedAppsWithCodes(applications);
+  }, [applications]);
+
+  const getPlacementCodeForApp = (appId: string | number): string => {
+    const found = placedAppsWithCodes.find((a: any) => String(a.id) === String(appId));
+    return found ? found.placementCode : 'N/A';
+  };
 
   const getRemarkFieldVal = (remarks: string | undefined | null, fieldName: string): string => {
     if (!remarks) return 'N/A';
@@ -129,6 +140,28 @@ export const DrillDownPage: React.FC = () => {
       tl: Array.from(tls).join(', ') || '—',
       manager: Array.from(managers).join(', ') || '—'
     };
+  };
+
+  const getProfitAmount = (remarks: string) => {
+    const grossStr = getRemarkFieldVal(remarks, 'Client Bill Rate');
+    const invStr = getRemarkFieldVal(remarks, 'Pay Rate');
+    const extractNumber = (s: string) => {
+      const cleaned = s.replace(/[^0-9.]/g, '');
+      return cleaned ? parseFloat(cleaned) : NaN;
+    };
+    const grossNum = extractNumber(grossStr);
+    const invNum = extractNumber(invStr);
+    if (!isNaN(grossNum) && !isNaN(invNum)) {
+      const diff = grossNum - invNum;
+      const currency = grossStr.includes('LPA') ? ' LPA' : (grossStr.includes('$') ? '$' : '');
+      if (currency === ' LPA') {
+        return `${diff.toFixed(1)}${currency}`;
+      } else if (currency === '$') {
+        return `$${diff.toFixed(1)}`;
+      }
+      return `${diff.toFixed(1)}`;
+    }
+    return 'N/A';
   };
 
   const getSalaryInfo = (remarks: string) => {
@@ -289,6 +322,67 @@ export const DrillDownPage: React.FC = () => {
               link.click();
               document.body.removeChild(link);
               URL.revokeObjectURL(url);
+            } else if (isOnboardType) {
+              const headers = [
+                'Placement Code',
+                'Applicant Name',
+                'Client',
+                'Recruiter',
+                'Count',
+                'Modified By',
+                'Team Lead',
+                'Created By',
+                'Manager',
+                'Placement Type',
+                'Pay Rate',
+                'Gross Revenue',
+                'Taxes',
+                'TDS',
+                'Invoice Amount',
+                'Profit Amount',
+                'Date of Join'
+              ];
+              const rows = modalData.map((app: any) => {
+                const placementCode = getPlacementCodeForApp(app.id);
+                const recEmail = app.assigned_employee?.email;
+                const hierarchyInfo = getHierarchyInfo(recEmail ? [recEmail] : []);
+                const placementType = getRemarkFieldVal(app.remarks, 'Employee Type');
+                return [
+                  placementCode,
+                  app.candidate_name || 'N/A',
+                  app.client_name || 'N/A',
+                  app.recruiter || 'N/A',
+                  '1',
+                  app.modified_by || 'System',
+                  hierarchyInfo.tl,
+                  app.assigned_employee?.full_name || 'System',
+                  hierarchyInfo.manager,
+                  placementType,
+                  getRemarkFieldVal(app.remarks, 'Pay Rate'),
+                  getRemarkFieldVal(app.remarks, 'Client Bill Rate'),
+                  getRemarkFieldVal(app.remarks, 'Taxes'),
+                  getRemarkFieldVal(app.remarks, 'TDS'),
+                  getRemarkFieldVal(app.remarks, 'Invoice Amount'),
+                  getProfitAmount(app.remarks) || 'N/A',
+                  getRemarkFieldVal(app.remarks, 'Date of Join')
+                ];
+              });
+
+              const escapeCell = (val: any): string => {
+                if (val === null || val === undefined) return '""';
+                const str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+              };
+              const csvContent = [headers.map(escapeCell).join(','), ...rows.map((r: any) => r.map(escapeCell).join(','))].join('\r\n');
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.setAttribute('href', url);
+              link.setAttribute('download', `onboard_drilldown_export_${Date.now()}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
             } else {
               const headers = [
                 'Applicant ID', 'Applicant Name', 'Email', 'Job Code', 'City', 'State',
@@ -393,6 +487,26 @@ export const DrillDownPage: React.FC = () => {
                     {!shouldHideAction && (
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', padding: '6px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>ACTION</TableCell>
                     )}
+                  </TableRow>
+                ) : isOnboardType ? (
+                  <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Placement Code</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Applicant Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Client</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Recruiter</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Count</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Modified By</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Team Lead</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Created By</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Manager</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Placement Type</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Pay Rate</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Gross Revenue</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Taxes</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>TDS</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Invoice Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Profit Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Date of Join</TableCell>
                   </TableRow>
                 ) : isApplicantsType ? (
                   <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
@@ -621,6 +735,43 @@ export const DrillDownPage: React.FC = () => {
                             </Box>
                           </TableCell>
                         )}
+                      </TableRow>
+                    );
+                  })
+                ) : isOnboardType ? (
+                  modalData.map((app: any) => {
+                    const placementCode = getPlacementCodeForApp(app.id);
+                    const recEmail = app.assigned_employee?.email;
+                    const hierarchyInfo = getHierarchyInfo(recEmail ? [recEmail] : []);
+                    const placementType = getRemarkFieldVal(app.remarks, 'Employee Type');
+                    return (
+                      <TableRow
+                        key={app.id}
+                        sx={{
+                          borderBottom: `1px solid ${theme.palette.divider}`,
+                          whiteSpace: 'nowrap',
+                          '&:hover': {
+                            bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b50'
+                          }
+                        }}
+                      >
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(placementCode, 100)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.candidate_name, 120)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.client_name, 120)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.recruiter || 'N/A', 110)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>1</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.modified_by || 'System', 110)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(hierarchyInfo.tl, 110)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(app.assigned_employee?.full_name || 'System', 110)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(hierarchyInfo.manager, 110)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(placementType, 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Pay Rate'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Client Bill Rate'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Taxes'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'TDS'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Invoice Amount'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getProfitAmount(app.remarks), 100)}</TableCell>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Date of Join'), 110)}</TableCell>
                       </TableRow>
                     );
                   })

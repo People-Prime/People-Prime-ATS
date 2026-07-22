@@ -90,6 +90,26 @@ export const hasReachedSubmittedMilestone = (app: any): boolean => {
   return false;
 };
 
+export const getPlacedAppsWithCodes = (allApplications: any[]) => {
+  const uniqueApps = getUniqueSubmissions(allApplications);
+  const placed = uniqueApps.filter((app: any) => app.status === 'Placed');
+  // Sort by created_at ascending
+  const sorted = [...placed].sort((a, b) => {
+    const timeA = new Date(a.created_at || 0).getTime();
+    const timeB = new Date(b.created_at || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  return sorted.map((app, idx) => {
+    const plcNumber = String(idx + 1).padStart(4, '0');
+    const placementCode = `PLC-${plcNumber}`;
+    return {
+      ...app,
+      placementCode
+    };
+  });
+};
+
 interface PipelineKPIsProps {
   applications: Array<{
     id: string;
