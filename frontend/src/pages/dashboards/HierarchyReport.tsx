@@ -72,6 +72,9 @@ export const getStatusTransitionDate = (app: any, targetStatus: string, notesDic
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
+  if (app.transition_dates && app.transition_dates[targetStatus]) {
+    return app.transition_dates[targetStatus];
+  }
   if (app.notes && Array.isArray(app.notes)) {
     const transitionNotes = app.notes
       .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))

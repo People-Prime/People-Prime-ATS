@@ -22,6 +22,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
         allow_null=True
     )
     notes = NoteSerializer(many=True, read_only=True)
+    transition_dates = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -30,9 +31,34 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'client_name', 'city', 'state', 'position', 'technology', 'experience', 'recruiter',
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
-            'modified_by', 'created_at', 'updated_at', 'notes'
+            'modified_by', 'created_at', 'updated_at', 'notes', 'transition_dates'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'modified_by']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        if request and request.parser_context:
+            view = request.parser_context.get('view')
+            if view and getattr(view, 'action', None) == 'list':
+                self.fields.pop('notes', None)
+
+    def get_transition_dates(self, obj):
+        dates = {}
+        try:
+            all_notes = obj.notes.all()
+            for note in all_notes:
+                content = note.content or ''
+                if "Status updated to " in content:
+                    parts = content.split("Status updated to ")
+                    if len(parts) > 1:
+                        status_part = parts[1].split(".")[0].split("\n")[0].strip()
+                        dates[status_part] = note.created_at.strftime('%Y-%m-%d')
+        except Exception:
+            pass
+        if obj.status and obj.status not in dates:
+            dates[obj.status] = obj.created_at.strftime('%Y-%m-%d')
+        return dates
 
     def validate(self, data):
         candidate_email = data.get('candidate_email')
