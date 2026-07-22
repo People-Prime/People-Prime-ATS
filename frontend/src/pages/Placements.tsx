@@ -204,7 +204,10 @@ export const Placements: React.FC = () => {
         return transitionNotes[0].created_at.slice(0, 10);
       }
     }
-    return (app.created_at || '').slice(0, 10);
+    if (app.status === targetStatus) {
+      return (app.created_at || '').slice(0, 10);
+    }
+    return '';
   };
 
   // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)

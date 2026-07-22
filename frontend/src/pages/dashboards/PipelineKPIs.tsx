@@ -151,7 +151,13 @@ export const getStatusTransitionDate = (app: any, targetStatus: string, notesDic
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
-  return (app.created_at || '').slice(0, 10);
+  if (app.status === targetStatus) {
+    return (app.created_at || '').slice(0, 10);
+  }
+  if (targetStatus === 'Submitted' && hasReachedSubmittedMilestone(app)) {
+    return (app.created_at || '').slice(0, 10);
+  }
+  return '';
 };
 
 export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
