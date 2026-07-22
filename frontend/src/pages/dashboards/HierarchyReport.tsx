@@ -429,10 +429,17 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             allEmails.push(...collectAllEmails(child));
           });
 
-          const dateFiltered = deduplicatedApps.filter(app =>
+          const descendantApps = deduplicatedApps.filter(app =>
             app.assigned_employee?.email &&
             allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
           );
+
+          const dateFiltered = (effectiveStartDate && effectiveEndDate)
+            ? descendantApps.filter(app => {
+              const d = (app.created_at || '').slice(0, 10);
+              return d >= effectiveStartDate && d <= effectiveEndDate;
+            })
+            : descendantApps;
 
           const seen = new Set<string>();
           dateFiltered.forEach(app => {
