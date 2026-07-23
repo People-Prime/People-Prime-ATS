@@ -170,7 +170,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
             if start_date and end_date:
-                qs = qs.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+                qs = qs.filter(
+                    Q(created_at__date__gte=start_date, created_at__date__lte=end_date) |
+                    Q(updated_at__date__gte=start_date, updated_at__date__lte=end_date)
+                )
 
         return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
