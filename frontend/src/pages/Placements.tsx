@@ -25,6 +25,7 @@ import { useAppSelector, useAppDispatch } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 import { getPlacedAppsWithCodes, isStatusAllowedForMetric } from './dashboards/PipelineKPIs';
+import { DashboardCalendar } from './dashboards/DashboardCalendar';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
@@ -36,6 +37,15 @@ export const Placements: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [loading, setLoading] = useState(false);
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`placements_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`placements_end_date_${currentUser?.email}`) || todayStr());
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      localStorage.setItem(`placements_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`placements_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
@@ -221,10 +231,8 @@ export const Placements: React.FC = () => {
     const allPlacedWithCodes = getPlacedAppsWithCodes(applications);
     return allPlacedWithCodes.filter(app => {
       // 0. Date Filter (for all roles) based on status transition to Placed
-      const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
-      const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
       const appDate = getStatusTransitionDate(app, 'Placed', notes);
-      if (appDate < savedStart || appDate > savedEnd) return false;
+      if (appDate < startDate || appDate > endDate) return false;
 
       // Hierarchy/Role visibility filter
       const assignedEmail = app.assigned_employee?.email?.toLowerCase();
@@ -232,7 +240,7 @@ export const Placements: React.FC = () => {
 
       return true;
     });
-  }, [applications, allowedEmails, currentUser]);
+  }, [applications, allowedEmails, currentUser, startDate, endDate]);
 
   // Filter based on search term
   const filteredCandidates = useMemo(() => {
@@ -272,11 +280,20 @@ export const Placements: React.FC = () => {
             List of all successfully placed candidates and assignment details
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Download size={18} />}
-          onClick={() => {
-            const headers = [
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <DashboardCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
+          <Button
+            variant="outlined"
+            startIcon={<Download size={18} />}
+            onClick={() => {
+              const headers = [
               'Placement Code',
               'Applicant Name',
               'Client',
@@ -346,6 +363,7 @@ export const Placements: React.FC = () => {
           Export CSV Registry
         </Button>
       </Box>
+    </Box>
 
 
 

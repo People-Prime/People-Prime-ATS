@@ -38,8 +38,9 @@ import {
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
-import { Application, ApplicationStatus } from '../types';
 import { api } from '../services/api';
+import { DashboardCalendar } from './dashboards/DashboardCalendar';
+import { Application, ApplicationStatus } from '../types';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
@@ -71,6 +72,15 @@ export const JobPostings: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`job_postings_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`job_postings_end_date_${currentUser?.email}`) || todayStr());
+
+  useEffect(() => {
+    if (currentUser?.email) {
+      localStorage.setItem(`job_postings_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`job_postings_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
 
   const todayStr = (): string => {
     const d = new Date();
@@ -445,10 +455,8 @@ export const JobPostings: React.FC = () => {
     if (!isJobPostingApp) return false;
 
     // 0. Date Filter (for all roles)
-    const savedStart = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
-    const savedEnd = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
     const appDate = (app.created_at || '').slice(0, 10);
-    if (appDate < savedStart || appDate > savedEnd) return false;
+    if (appDate < startDate || appDate > endDate) return false;
 
     // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
     if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
@@ -789,14 +797,24 @@ Remarks: ${candidateForm.remarks}`;
               Manage and track all job postings and requirements created by your team.
             </Typography>
         </Box>
-        <Button 
-          variant="outlined" 
-          startIcon={<Download size={18} />} 
-          onClick={handleExportCSV}
-          sx={{ borderRadius: '8px', borderWeight: 2 }}
-        >
-          Export CSV Pipeline
-        </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <DashboardCalendar
+            startDate={startDate}
+            endDate={endDate}
+            onChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+          />
+          <Button 
+            variant="outlined" 
+            startIcon={<Download size={18} />} 
+            onClick={handleExportCSV}
+            sx={{ borderRadius: '8px', borderWeight: 2 }}
+          >
+            Export CSV Pipeline
+          </Button>
+        </Box>
       </Box>
 
       {/* Filter panel */}
