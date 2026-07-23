@@ -79,6 +79,14 @@ export const Placements: React.FC = () => {
   // Helper to extract fields from remarks
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
+    if (fieldName === 'Variable Pay') {
+      const matchVar = remarks.match(/^(Variable Pay|Gross Revenue):\s*(.+)/mi);
+      return matchVar ? (matchVar[2].trim() || 'N/A') : 'N/A';
+    }
+    if (fieldName === 'Offer Value') {
+      const matchOffer = remarks.match(/^(Offer Value|Invoice Amount):\s*(.+)/mi);
+      return matchOffer ? (matchOffer[2].trim() || 'N/A') : 'N/A';
+    }
     // Use ^ anchor with multiline and case-insensitive flags so we match the field regardless of case
     const regex = new RegExp(`^${fieldName}:\\s*(.+)`, 'mi');
     const match = remarks.match(regex);
@@ -301,10 +309,8 @@ export const Placements: React.FC = () => {
               'Manager',
               'Placement Type',
               'Pay Rate',
-              'Gross Revenue',
-              'Taxes',
-              'TDS',
-              'Invoice Amount',
+              'Variable Pay',
+              'Offer Value',
               'Profit Amount',
               'Date of Join'
             ];
@@ -324,10 +330,8 @@ export const Placements: React.FC = () => {
                 hierarchyInfo.manager,
                 placementType,
                 getRemarkField(app.remarks, 'Pay Rate'),
-                getRemarkField(app.remarks, 'Client Bill Rate'),
-                getRemarkField(app.remarks, 'Taxes'),
-                getRemarkField(app.remarks, 'TDS'),
-                getRemarkField(app.remarks, 'Invoice Amount'),
+                getRemarkField(app.remarks, 'Variable Pay'),
+                getRemarkField(app.remarks, 'Offer Value'),
                 getProfitAmount(app.remarks) || 'N/A',
                 getRemarkField(app.remarks, 'Date of Join')
               ];
@@ -456,10 +460,8 @@ export const Placements: React.FC = () => {
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Manager</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Placement Type</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Pay Rate</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Gross Revenue</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Taxes</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>TDS</TableCell>
-                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Invoice Amount</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Variable Pay</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Offer Value</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Profit Amount</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Date of Join</TableCell>
               </TableRow>
@@ -503,10 +505,8 @@ export const Placements: React.FC = () => {
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(hierarchyInfo.manager, 110)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(placementType, 100)}</TableCell>
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Pay Rate'), 100)}</TableCell>
-                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Client Bill Rate'), 100)}</TableCell>
-                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Taxes'), 100)}</TableCell>
-                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'TDS'), 100)}</TableCell>
-                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Invoice Amount'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Variable Pay'), 100)}</TableCell>
+                      <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Offer Value'), 100)}</TableCell>
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getProfitAmount(app.remarks), 100)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Date of Join'), 110)}</TableCell>
                     </TableRow>

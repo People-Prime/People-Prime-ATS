@@ -57,24 +57,26 @@ export const LeadDashboard: React.FC = () => {
   const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
   const [statusUpdateComment, setStatusUpdateComment] = useState('');
   const [payRateInput, setPayRateInput] = useState('');
-  const [grossRevenueInput, setGrossRevenueInput] = useState('');
-  const [taxesInput, setTaxesInput] = useState('');
-  const [tdsInput, setTdsInput] = useState('');
-  const [invoiceAmountInput, setInvoiceAmountInput] = useState('');
+  const [variablePayInput, setVariablePayInput] = useState('');
+  const [offerValueInput, setOfferValueInput] = useState('');
   const [profitAmountInput, setProfitAmountInput] = useState('');
   const [dateOfJoinInput, setDateOfJoinInput] = useState('');
 
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
+    if (statusUpdateValue === 'Offer Sent') {
+      if (!payRateInput.trim() || !offerValueInput.trim() || !profitAmountInput.trim() || !dateOfJoinInput.trim()) {
+        alert("Please fill in all required financial details (Pay Rate, Offer Value, Profit Amount, Date of Join).");
+        return;
+      }
+    }
     try {
       let updatedRemarks = statusUpdateApp.remarks || '';
       if (statusUpdateValue === 'Offer Sent') {
         const fieldsToUpdate: Record<string, string> = {
           'Pay Rate': payRateInput.trim(),
-          'Gross Revenue': grossRevenueInput.trim(),
-          'Taxes': taxesInput.trim(),
-          'TDS': tdsInput.trim(),
-          'Invoice Amount': invoiceAmountInput.trim(),
+          'Variable Pay': variablePayInput.trim(),
+          'Offer Value': offerValueInput.trim(),
           'Profit Amount': profitAmountInput.trim(),
           'Date of Join': dateOfJoinInput.trim()
         };
@@ -262,11 +264,10 @@ export const LeadDashboard: React.FC = () => {
                       <TextField
                         fullWidth
                         size="small"
-                        required
-                        label="Gross Revenue *"
-                        placeholder="e.g. $70/hr"
-                        value={grossRevenueInput}
-                        onChange={(e) => setGrossRevenueInput(e.target.value)}
+                        label="Variable Pay (Optional)"
+                        placeholder="e.g. $10/hr"
+                        value={variablePayInput}
+                        onChange={(e) => setVariablePayInput(e.target.value)}
                         InputProps={{ sx: { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -275,34 +276,10 @@ export const LeadDashboard: React.FC = () => {
                         fullWidth
                         size="small"
                         required
-                        label="Taxes *"
-                        placeholder="e.g. $5/hr"
-                        value={taxesInput}
-                        onChange={(e) => setTaxesInput(e.target.value)}
-                        InputProps={{ sx: { borderRadius: '8px' } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        required
-                        label="TDS *"
-                        placeholder="e.g. 10%"
-                        value={tdsInput}
-                        onChange={(e) => setTdsInput(e.target.value)}
-                        InputProps={{ sx: { borderRadius: '8px' } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        required
-                        label="Invoice Amount *"
+                        label="Offer Value *"
                         placeholder="e.g. $10,000"
-                        value={invoiceAmountInput}
-                        onChange={(e) => setInvoiceAmountInput(e.target.value)}
+                        value={offerValueInput}
+                        onChange={(e) => setOfferValueInput(e.target.value)}
                         InputProps={{ sx: { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -357,11 +334,9 @@ export const LeadDashboard: React.FC = () => {
             disabled={
               statusUpdateValue === 'Offer Sent' &&
               (!payRateInput.trim() ||
-                !grossRevenueInput.trim() ||
-                !taxesInput.trim() ||
-                !tdsInput.trim() ||
-                !invoiceAmountInput.trim() ||
-                !profitAmountInput.trim())
+                !offerValueInput.trim() ||
+                !profitAmountInput.trim() ||
+                !dateOfJoinInput.trim())
             }
             startIcon={<Check size={16} />}
             sx={{ borderRadius: '8px', fontWeight: 700, px: 3 }}

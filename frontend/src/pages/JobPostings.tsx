@@ -99,34 +99,35 @@ export const JobPostings: React.FC = () => {
   // Deletion confirmation state
   const [deleteAppConfirm, setDeleteAppConfirm] = useState<Application | null>(null);
 
-  // Job Status change modal state
+  // Status update modal state
+  const [statusUpdateApp, setStatusUpdateApp] = useState<Application | null>(null);
+  const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
+  const [statusUpdateComment, setStatusUpdateComment] = useState('');
+  const [payRateInput, setPayRateInput] = useState('');
+  const [variablePayInput, setVariablePayInput] = useState('');
+  const [offerValueInput, setOfferValueInput] = useState('');
+  const [profitAmountInput, setProfitAmountInput] = useState('');
+  const [dateOfJoinInput, setDateOfJoinInput] = useState('');
+
   const [jobStatusUpdateApp, setJobStatusUpdateApp] = useState<any | null>(null);
   const [jobStatusUpdateValue, setJobStatusUpdateValue] = useState<string>('Active');
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
 
-  // Candidate status update modal states
-  const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
-  const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
-  const [statusUpdateComment, setStatusUpdateComment] = useState('');
-  const [payRateInput, setPayRateInput] = useState('');
-  const [grossRevenueInput, setGrossRevenueInput] = useState('');
-  const [taxesInput, setTaxesInput] = useState('');
-  const [tdsInput, setTdsInput] = useState('');
-  const [invoiceAmountInput, setInvoiceAmountInput] = useState('');
-  const [profitAmountInput, setProfitAmountInput] = useState('');
-  const [dateOfJoinInput, setDateOfJoinInput] = useState('');
-
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
+    if (statusUpdateValue === 'Offer Sent') {
+      if (!payRateInput.trim() || !offerValueInput.trim() || !profitAmountInput.trim() || !dateOfJoinInput.trim()) {
+        alert("Please fill in all required financial details (Pay Rate, Offer Value, Profit Amount, Date of Join).");
+        return;
+      }
+    }
     try {
       let updatedRemarks = statusUpdateApp.remarks || '';
       if (statusUpdateValue === 'Offer Sent') {
         const fieldsToUpdate: Record<string, string> = {
           'Pay Rate': payRateInput.trim(),
-          'Gross Revenue': grossRevenueInput.trim(),
-          'Taxes': taxesInput.trim(),
-          'TDS': tdsInput.trim(),
-          'Invoice Amount': invoiceAmountInput.trim(),
+          'Variable Pay': variablePayInput.trim(),
+          'Offer Value': offerValueInput.trim(),
           'Profit Amount': profitAmountInput.trim(),
           'Date of Join': dateOfJoinInput.trim()
         };
@@ -1193,12 +1194,9 @@ Remarks: ${candidateForm.remarks}`;
                                       e.stopPropagation();
                                       setStatusUpdateApp(applicant);
                                       setStatusUpdateValue(applicant.status as ApplicationStatus);
-                                      setStatusUpdateComment('');
                                       setPayRateInput(getRemarkField(applicant.remarks, 'Pay Rate') !== 'N/A' ? getRemarkField(applicant.remarks, 'Pay Rate') : '');
-                                      setGrossRevenueInput(getRemarkField(applicant.remarks, 'Gross Revenue') !== 'N/A' ? getRemarkField(applicant.remarks, 'Gross Revenue') : '');
-                                      setTaxesInput(getRemarkField(applicant.remarks, 'Taxes') !== 'N/A' ? getRemarkField(applicant.remarks, 'Taxes') : '');
-                                      setTdsInput(getRemarkField(applicant.remarks, 'TDS') !== 'N/A' ? getRemarkField(applicant.remarks, 'TDS') : '');
-                                      setInvoiceAmountInput(getRemarkField(applicant.remarks, 'Invoice Amount') !== 'N/A' ? getRemarkField(applicant.remarks, 'Invoice Amount') : '');
+                                      setVariablePayInput(getRemarkField(applicant.remarks, 'Variable Pay') !== 'N/A' ? getRemarkField(applicant.remarks, 'Variable Pay') : '');
+                                      setOfferValueInput(getRemarkField(applicant.remarks, 'Offer Value') !== 'N/A' ? getRemarkField(applicant.remarks, 'Offer Value') : '');
                                       setProfitAmountInput(getRemarkField(applicant.remarks, 'Profit Amount') !== 'N/A' ? getRemarkField(applicant.remarks, 'Profit Amount') : '');
                                       setDateOfJoinInput(getRemarkField(applicant.remarks, 'Date of Join') !== 'N/A' ? getRemarkField(applicant.remarks, 'Date of Join') : '');
                                     }}
@@ -1885,11 +1883,10 @@ Remarks: ${candidateForm.remarks}`;
                       <TextField
                         fullWidth
                         size="small"
-                        required
-                        label="Gross Revenue *"
-                        placeholder="e.g. $70/hr"
-                        value={grossRevenueInput}
-                        onChange={(e) => setGrossRevenueInput(e.target.value)}
+                        label="Variable Pay (Optional)"
+                        placeholder="e.g. $10/hr"
+                        value={variablePayInput}
+                        onChange={(e) => setVariablePayInput(e.target.value)}
                         InputProps={{ sx: { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -1898,34 +1895,10 @@ Remarks: ${candidateForm.remarks}`;
                         fullWidth
                         size="small"
                         required
-                        label="Taxes *"
-                        placeholder="e.g. $5/hr"
-                        value={taxesInput}
-                        onChange={(e) => setTaxesInput(e.target.value)}
-                        InputProps={{ sx: { borderRadius: '8px' } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        required
-                        label="TDS *"
-                        placeholder="e.g. 10%"
-                        value={tdsInput}
-                        onChange={(e) => setTdsInput(e.target.value)}
-                        InputProps={{ sx: { borderRadius: '8px' } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        required
-                        label="Invoice Amount *"
+                        label="Offer Value *"
                         placeholder="e.g. $10,000"
-                        value={invoiceAmountInput}
-                        onChange={(e) => setInvoiceAmountInput(e.target.value)}
+                        value={offerValueInput}
+                        onChange={(e) => setOfferValueInput(e.target.value)}
                         InputProps={{ sx: { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -1980,11 +1953,9 @@ Remarks: ${candidateForm.remarks}`;
             disabled={
               statusUpdateValue === 'Offer Sent' &&
               (!payRateInput.trim() ||
-                !grossRevenueInput.trim() ||
-                !taxesInput.trim() ||
-                !tdsInput.trim() ||
-                !invoiceAmountInput.trim() ||
-                !profitAmountInput.trim())
+                !offerValueInput.trim() ||
+                !profitAmountInput.trim() ||
+                !dateOfJoinInput.trim())
             }
             startIcon={<Check size={16} />}
             sx={{ borderRadius: '8px', fontWeight: 700, px: 3 }}

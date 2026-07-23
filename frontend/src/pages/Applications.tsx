@@ -87,6 +87,16 @@ export const Applications: React.FC = () => {
 
   const getRemarkField = (remarks: string, fieldName: string): string => {
     if (!remarks) return 'N/A';
+    if (fieldName === 'Variable Pay') {
+      const matchVar = remarks.match(new RegExp(`^(Variable Pay|Gross Revenue):[ \\t]*(.+)`, 'im'));
+      const val = matchVar ? matchVar[2].trim() : 'N/A';
+      return val && val !== '' ? val : 'N/A';
+    }
+    if (fieldName === 'Offer Value') {
+      const matchOffer = remarks.match(new RegExp(`^(Offer Value|Invoice Amount):[ \\t]*(.+)`, 'im'));
+      const val = matchOffer ? matchOffer[2].trim() : 'N/A';
+      return val && val !== '' ? val : 'N/A';
+    }
     const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
     const value = match ? match[1].trim() : 'N/A';
     const cleanVal = value && value !== '' ? value : 'N/A';
@@ -100,10 +110,8 @@ export const Applications: React.FC = () => {
 
   // Status update financial form fields
   const [payRateInput, setPayRateInput] = useState('');
-  const [grossRevenueInput, setGrossRevenueInput] = useState('');
-  const [taxesInput, setTaxesInput] = useState('');
-  const [tdsInput, setTdsInput] = useState('');
-  const [invoiceAmountInput, setInvoiceAmountInput] = useState('');
+  const [variablePayInput, setVariablePayInput] = useState('');
+  const [offerValueInput, setOfferValueInput] = useState('');
   const [profitAmountInput, setProfitAmountInput] = useState('');
   const [dateOfJoinInput, setDateOfJoinInput] = useState('');
 
@@ -343,15 +351,19 @@ export const Applications: React.FC = () => {
 
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
+    if (statusUpdateValue === 'Offer Sent') {
+      if (!payRateInput.trim() || !offerValueInput.trim() || !profitAmountInput.trim() || !dateOfJoinInput.trim()) {
+        alert("Please fill in all required financial details (Pay Rate, Offer Value, Profit Amount, Date of Join).");
+        return;
+      }
+    }
     try {
       let updatedRemarks = statusUpdateApp.remarks || '';
       if (statusUpdateValue === 'Offer Sent') {
         const fieldsToUpdate: Record<string, string> = {
           'Pay Rate': payRateInput.trim(),
-          'Gross Revenue': grossRevenueInput.trim(),
-          'Taxes': taxesInput.trim(),
-          'TDS': tdsInput.trim(),
-          'Invoice Amount': invoiceAmountInput.trim(),
+          'Variable Pay': variablePayInput.trim(),
+          'Offer Value': offerValueInput.trim(),
           'Profit Amount': profitAmountInput.trim(),
           'Date of Join': dateOfJoinInput.trim()
         };
@@ -430,10 +442,8 @@ export const Applications: React.FC = () => {
       'Interest to Work',
       'Modified By',
       'Pay Rate',
-      'Gross Revenue',
-      'Taxes',
-      'TDS',
-      'Invoice Amount',
+      'Variable Pay',
+      'Offer Value',
       'Profit Amount',
       'Date of Join'
     ];
@@ -478,10 +488,8 @@ export const Applications: React.FC = () => {
         app.interest_to_work_for_client || 'N/A',
         app.modified_by || 'System',
         getRemarkField(app.remarks, 'Pay Rate'),
-        getRemarkField(app.remarks, 'Gross Revenue'),
-        getRemarkField(app.remarks, 'Taxes'),
-        getRemarkField(app.remarks, 'TDS'),
-        getRemarkField(app.remarks, 'Invoice Amount'),
+        getRemarkField(app.remarks, 'Variable Pay'),
+        getRemarkField(app.remarks, 'Offer Value'),
         getRemarkField(app.remarks, 'Profit Amount'),
         getRemarkField(app.remarks, 'Date of Join')
       ];
@@ -637,10 +645,8 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Modified By</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Pay Rate</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Gross Revenue</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Taxes</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>TDS</th>
-                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Invoice Amount</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Variable Pay</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Offer Value</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Profit Amount</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Date of Join</th>
                 {showActionColumn && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
@@ -770,10 +776,8 @@ export const Applications: React.FC = () => {
                                   setStatusUpdateValue(app.status as ApplicationStatus);
                                   setStatusUpdateComment('');
                                   setPayRateInput(getRemarkField(app.remarks, 'Pay Rate') !== 'N/A' ? getRemarkField(app.remarks, 'Pay Rate') : '');
-                                  setGrossRevenueInput(getRemarkField(app.remarks, 'Gross Revenue') !== 'N/A' ? getRemarkField(app.remarks, 'Gross Revenue') : '');
-                                  setTaxesInput(getRemarkField(app.remarks, 'Taxes') !== 'N/A' ? getRemarkField(app.remarks, 'Taxes') : '');
-                                  setTdsInput(getRemarkField(app.remarks, 'TDS') !== 'N/A' ? getRemarkField(app.remarks, 'TDS') : '');
-                                  setInvoiceAmountInput(getRemarkField(app.remarks, 'Invoice Amount') !== 'N/A' ? getRemarkField(app.remarks, 'Invoice Amount') : '');
+                                  setVariablePayInput(getRemarkField(app.remarks, 'Variable Pay') !== 'N/A' ? getRemarkField(app.remarks, 'Variable Pay') : '');
+                                  setOfferValueInput(getRemarkField(app.remarks, 'Offer Value') !== 'N/A' ? getRemarkField(app.remarks, 'Offer Value') : '');
                                   setProfitAmountInput(getRemarkField(app.remarks, 'Profit Amount') !== 'N/A' ? getRemarkField(app.remarks, 'Profit Amount') : '');
                                   setDateOfJoinInput(getRemarkField(app.remarks, 'Date of Join') !== 'N/A' ? getRemarkField(app.remarks, 'Date of Join') : '');
                                 }}
@@ -827,16 +831,10 @@ export const Applications: React.FC = () => {
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Pay Rate'), 110)}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Gross Revenue'), 110)}</Typography>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Variable Pay'), 110)}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Taxes'), 110)}</Typography>
-                      </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'TDS'), 110)}</Typography>
-                      </td>
-                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Invoice Amount'), 110)}</Typography>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Offer Value'), 110)}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Profit Amount'), 110)}</Typography>
@@ -1057,7 +1055,7 @@ export const Applications: React.FC = () => {
               {statusUpdateValue === 'Offer Sent' && (
                 <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: 'primary.main' }}>
-                    FINANCIAL DETAILS (REQUIRED FOR OFFER SENT)
+                    FINANCIAL DETAILS (OFFER SENT)
                   </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
@@ -1076,11 +1074,10 @@ export const Applications: React.FC = () => {
                       <TextField
                         fullWidth
                         size="small"
-                        required
-                        label="Gross Revenue *"
-                        placeholder="e.g. $70/hr"
-                        value={grossRevenueInput}
-                        onChange={(e) => setGrossRevenueInput(e.target.value)}
+                        label="Variable Pay (Optional)"
+                        placeholder="e.g. $10/hr"
+                        value={variablePayInput}
+                        onChange={(e) => setVariablePayInput(e.target.value)}
                         InputProps={{ sx: { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -1089,34 +1086,10 @@ export const Applications: React.FC = () => {
                         fullWidth
                         size="small"
                         required
-                        label="Taxes *"
-                        placeholder="e.g. $5/hr"
-                        value={taxesInput}
-                        onChange={(e) => setTaxesInput(e.target.value)}
-                        InputProps={{ sx: { borderRadius: '8px' } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        required
-                        label="TDS *"
-                        placeholder="e.g. 10%"
-                        value={tdsInput}
-                        onChange={(e) => setTdsInput(e.target.value)}
-                        InputProps={{ sx: { borderRadius: '8px' } }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        required
-                        label="Invoice Amount *"
+                        label="Offer Value *"
                         placeholder="e.g. $10,000"
-                        value={invoiceAmountInput}
-                        onChange={(e) => setInvoiceAmountInput(e.target.value)}
+                        value={offerValueInput}
+                        onChange={(e) => setOfferValueInput(e.target.value)}
                         InputProps={{ sx: { borderRadius: '8px' } }}
                       />
                     </Grid>
@@ -1171,11 +1144,9 @@ export const Applications: React.FC = () => {
             disabled={
               statusUpdateValue === 'Offer Sent' &&
               (!payRateInput.trim() ||
-                !grossRevenueInput.trim() ||
-                !taxesInput.trim() ||
-                !tdsInput.trim() ||
-                !invoiceAmountInput.trim() ||
-                !profitAmountInput.trim())
+                !offerValueInput.trim() ||
+                !profitAmountInput.trim() ||
+                !dateOfJoinInput.trim())
             }
             startIcon={<Check size={16} />}
             sx={{ borderRadius: '8px', fontWeight: 700, px: 3 }}

@@ -59,6 +59,16 @@ export const DrillDownPage: React.FC = () => {
 
   const getRemarkFieldVal = (remarks: string | undefined | null, fieldName: string): string => {
     if (!remarks) return 'N/A';
+    if (fieldName === 'Variable Pay') {
+      const matchVar = remarks.match(new RegExp(`^(Variable Pay|Gross Revenue):[ \\t]*(.+)`, 'im'));
+      const val = matchVar ? matchVar[2].trim() : 'N/A';
+      return val && val !== '' ? val : 'N/A';
+    }
+    if (fieldName === 'Offer Value') {
+      const matchOffer = remarks.match(new RegExp(`^(Offer Value|Invoice Amount):[ \\t]*(.+)`, 'im'));
+      const val = matchOffer ? matchOffer[2].trim() : 'N/A';
+      return val && val !== '' ? val : 'N/A';
+    }
     const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
     const value = match ? match[1].trim() : 'N/A';
     return value && value !== '' ? value : 'N/A';
@@ -335,10 +345,8 @@ export const DrillDownPage: React.FC = () => {
                 'Manager',
                 'Placement Type',
                 'Pay Rate',
-                'Gross Revenue',
-                'Taxes',
-                'TDS',
-                'Invoice Amount',
+                'Variable Pay',
+                'Offer Value',
                 'Profit Amount',
                 'Date of Join'
               ];
@@ -359,10 +367,8 @@ export const DrillDownPage: React.FC = () => {
                   hierarchyInfo.manager,
                   placementType,
                   getRemarkFieldVal(app.remarks, 'Pay Rate'),
-                  getRemarkFieldVal(app.remarks, 'Client Bill Rate'),
-                  getRemarkFieldVal(app.remarks, 'Taxes'),
-                  getRemarkFieldVal(app.remarks, 'TDS'),
-                  getRemarkFieldVal(app.remarks, 'Invoice Amount'),
+                  getRemarkFieldVal(app.remarks, 'Variable Pay'),
+                  getRemarkFieldVal(app.remarks, 'Offer Value'),
                   getProfitAmount(app.remarks) || 'N/A',
                   getRemarkFieldVal(app.remarks, 'Date of Join')
                 ];
@@ -389,7 +395,7 @@ export const DrillDownPage: React.FC = () => {
                 'Applicant Status', 'Job Title', 'Job Type', 'Client Name', 'Tentative Start Date',
                 'Manager', 'Team Lead', 'Recruiter', 'PAN Card', 'Aadhaar', 'Alt Mobile',
                 'Source', 'Interest to Work', 'Modified By',
-                'Pay Rate', 'Gross Revenue', 'Taxes', 'TDS', 'Invoice Amount', 'Profit Amount', 'Date of Join'
+                'Pay Rate', 'Variable Pay', 'Offer Value', 'Profit Amount', 'Date of Join'
               ];
               const rows = uniqueCandidates.map((cand: any) => {
                 const app = cand.primaryApp;
@@ -430,10 +436,8 @@ export const DrillDownPage: React.FC = () => {
                   app.interest_to_work_for_client || 'N/A',
                   app.modified_by || 'System',
                   getRemarkFieldVal(app.remarks, 'Pay Rate'),
-                  getRemarkFieldVal(app.remarks, 'Gross Revenue'),
-                  getRemarkFieldVal(app.remarks, 'Taxes'),
-                  getRemarkFieldVal(app.remarks, 'TDS'),
-                  getRemarkFieldVal(app.remarks, 'Invoice Amount'),
+                  getRemarkFieldVal(app.remarks, 'Variable Pay'),
+                  getRemarkFieldVal(app.remarks, 'Offer Value'),
                   getRemarkFieldVal(app.remarks, 'Profit Amount'),
                   getRemarkFieldVal(app.remarks, 'Date of Join')
                 ];
@@ -501,10 +505,8 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Manager</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Placement Type</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Pay Rate</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Gross Revenue</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Taxes</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>TDS</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Invoice Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Variable Pay</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Offer Value</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', textAlign: 'right' }}>Profit Amount</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem' }}>Date of Join</TableCell>
                   </TableRow>
@@ -531,10 +533,8 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Source</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Interest to Work</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Pay Rate</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Gross Revenue</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Taxes</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>TDS</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Invoice Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Variable Pay</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Offer Value</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Profit Amount</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Date of Join</TableCell>
                     {!shouldHideAction && (
@@ -766,10 +766,8 @@ export const DrillDownPage: React.FC = () => {
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(hierarchyInfo.manager, 110)}</TableCell>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(placementType, 100)}</TableCell>
                         <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Pay Rate'), 100)}</TableCell>
-                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Client Bill Rate'), 100)}</TableCell>
-                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Taxes'), 100)}</TableCell>
-                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'TDS'), 100)}</TableCell>
-                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Invoice Amount'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Variable Pay'), 100)}</TableCell>
+                        <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Offer Value'), 100)}</TableCell>
                         <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getProfitAmount(app.remarks), 100)}</TableCell>
                         <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Date of Join'), 110)}</TableCell>
                       </TableRow>
@@ -918,16 +916,10 @@ export const DrillDownPage: React.FC = () => {
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Pay Rate'), 110)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Gross Revenue'), 110)}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Variable Pay'), 110)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Taxes'), 110)}</Typography>
-                          </TableCell>
-                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'TDS'), 110)}</Typography>
-                          </TableCell>
-                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Invoice Amount'), 110)}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Offer Value'), 110)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Profit Amount'), 110)}</Typography>
