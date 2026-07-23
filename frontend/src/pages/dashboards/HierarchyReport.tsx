@@ -764,13 +764,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                   borderBottom: `2px solid ${theme.palette.divider}`,
                   backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b'
                 }}>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, minWidth: '300px' }}>User Name</TableCell>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Jobs Count</TableCell>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Client Submissions</TableCell>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Interview Schedules</TableCell>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Offer Sent</TableCell>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Offer Accepted</TableCell>
-                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center' }}>Onboard</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, minWidth: '300px', whiteSpace: 'nowrap' }}>User Name</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Jobs Count</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Client Submissions</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Interview Schedules</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Offer Sent</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Offer Accepted</TableCell>
+                  <TableCell style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 800, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Onboard</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

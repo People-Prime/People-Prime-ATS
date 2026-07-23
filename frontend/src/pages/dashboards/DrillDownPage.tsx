@@ -513,32 +513,33 @@ export const DrillDownPage: React.FC = () => {
                 ) : isApplicantsType ? (
                   <TableRow sx={{ backgroundColor: theme.palette.action.hover }}>
                     <TableCell sx={{ width: '45px', padding: '6px 8px' }}></TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Applicant ID</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Applicant Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Email</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Code</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>City</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>State</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Applicant Status</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Title</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Job Type</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Client Name</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Tentative Start Date</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Manager</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Team Lead</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Recruiter</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>PAN Card</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Aadhaar</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Alt Mobile</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Source</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Interest to Work</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Pay Rate</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Variable Pay</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Offer Value</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Profit Amount</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px' }}>Date of Join</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Applicant ID</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Applicant Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Email</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Job Code</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>City</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>State</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Applicant Status</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Job Title</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Job Type</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Client Name</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Tentative Start Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Manager</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Team Lead</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Recruiter</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>PAN Card</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Aadhaar</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Alt Mobile</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Source</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Interest to Work</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Modified By</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Pay Rate</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Variable Pay</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Offer Value</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Profit Amount</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Date of Join</TableCell>
                     {!shouldHideAction && (
-                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', textAlign: 'center' }}>Actions</TableCell>
+                      <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</TableCell>
                     )}
                   </TableRow>
                 ) : isHierarchyType ? (
@@ -860,9 +861,6 @@ export const DrillDownPage: React.FC = () => {
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="subtitle2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem', fontWeight: 750 }}>{renderCellText(app.position, 150)}</Typography>
                           </TableCell>
-                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.recruiter || app.assigned_employee?.full_name || 'System', 110)}</Typography>
-                          </TableCell>
                           {(() => {
                             const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
                             const jobPosting = applications.find((a: any) => !a.candidate_name && getRemarkFieldVal(a.remarks, 'Job Code') === jobCode);
@@ -911,6 +909,9 @@ export const DrillDownPage: React.FC = () => {
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Interest to Work'), 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.modified_by || 'System', 110)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Pay Rate'), 110)}</Typography>
