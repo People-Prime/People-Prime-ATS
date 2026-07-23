@@ -39,7 +39,7 @@ import {
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
 import { api } from '../services/api';
-import { DashboardCalendar } from './dashboards/DashboardCalendar';
+import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 import { Application, ApplicationStatus } from '../types';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
@@ -82,13 +82,7 @@ export const JobPostings: React.FC = () => {
     }
   }, [startDate, endDate, currentUser]);
 
-  const todayStr = (): string => {
-    const d = new Date();
-    const yy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yy}-${mm}-${dd}`;
-  };
+
 
   const teamsList = React.useMemo(() => {
     const unique = new Map();

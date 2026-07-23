@@ -25,7 +25,7 @@ import { useAppSelector, useAppDispatch } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 import { getPlacedAppsWithCodes, isStatusAllowedForMetric } from './dashboards/PipelineKPIs';
-import { DashboardCalendar } from './dashboards/DashboardCalendar';
+import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
@@ -49,13 +49,7 @@ export const Placements: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
-  const todayStr = (): string => {
-    const d = new Date();
-    const yy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yy}-${mm}-${dd}`;
-  };
+
 
   const teamsList = useMemo(() => {
     const unique = new Map();
