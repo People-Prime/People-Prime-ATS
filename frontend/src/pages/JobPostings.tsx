@@ -448,9 +448,11 @@ export const JobPostings: React.FC = () => {
     const isJobPostingApp = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     if (!isJobPostingApp) return false;
 
-    // 0. Date Filter (for all roles)
-    const appDate = (app.created_at || '').slice(0, 10);
-    if (appDate < startDate || appDate > endDate) return false;
+    // 0. Date Filter (bypassed when search term is active for dynamic all-time search)
+    if (!searchTerm.trim()) {
+      const appDate = (app.created_at || '').slice(0, 10);
+      if (appDate < startDate || appDate > endDate) return false;
+    }
 
     // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
     if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {

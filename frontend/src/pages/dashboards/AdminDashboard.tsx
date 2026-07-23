@@ -147,8 +147,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
 
   // 1. APPLICANTS DATA PREPARATION (from all teams)
   const displayApplicants = useMemo(() => {
+    const baseApps = applicantsSearch ? deduplicatedApps : dateFilteredApps;
     // Applicants are applications with a candidate name
-    const apps = dateFilteredApps.filter(app => app.candidate_name);
+    const apps = baseApps.filter(app => app.candidate_name);
 
     // Filter by search term
     const filtered = apps.filter(app => {
@@ -188,12 +189,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         allSubmissions: apps
       };
     });
-  }, [dateFilteredApps, applicantsSearch]);
+  }, [dateFilteredApps, deduplicatedApps, applicantsSearch]);
 
   // 2. JOB POSTINGS DATA PREPARATION (from all teams)
   const displayJobs = useMemo(() => {
+    const baseApps = jobsSearch ? deduplicatedApps : dateFilteredApps;
     // Requirements: candidate_name is empty or has a job code
-    const reqs = dateFilteredApps.filter(app => {
+    const reqs = baseApps.filter(app => {
       return getRemarkField(app.remarks, 'Job Code') !== 'N/A';
     });
 
@@ -237,11 +239,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
-  }, [dateFilteredApps, jobsSearch]);
+  }, [dateFilteredApps, deduplicatedApps, jobsSearch]);
 
   // 3. PLACEMENTS DATA PREPARATION (from all teams)
   const displayPlacements = useMemo(() => {
-    const placed = dateFilteredApps.filter(app => app.status === 'Placed');
+    const baseApps = placementsSearch ? deduplicatedApps : dateFilteredApps;
+    const placed = baseApps.filter(app => app.status === 'Placed');
 
     // Sort ascending for consistent Placement Code generation
     const sorted = [...placed].sort((a, b) => {
@@ -272,7 +275,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
         getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term)
       );
     });
-  }, [dateFilteredApps, placementsSearch]);
+  }, [dateFilteredApps, deduplicatedApps, placementsSearch]);
 
 
 

@@ -224,9 +224,11 @@ export const Placements: React.FC = () => {
   const placedCandidates = useMemo(() => {
     const allPlacedWithCodes = getPlacedAppsWithCodes(applications);
     return allPlacedWithCodes.filter(app => {
-      // 0. Date Filter (for all roles) based on status transition to Placed
-      const appDate = getStatusTransitionDate(app, 'Placed', notes);
-      if (appDate < startDate || appDate > endDate) return false;
+      // 0. Date Filter (bypassed when searching for dynamic all-time search)
+      if (!searchTerm.trim()) {
+        const appDate = getStatusTransitionDate(app, 'Placed', notes);
+        if (appDate < startDate || appDate > endDate) return false;
+      }
 
       // Hierarchy/Role visibility filter
       const assignedEmail = app.assigned_employee?.email?.toLowerCase();
@@ -234,7 +236,7 @@ export const Placements: React.FC = () => {
 
       return true;
     });
-  }, [applications, allowedEmails, currentUser, startDate, endDate]);
+  }, [applications, allowedEmails, currentUser, startDate, endDate, searchTerm]);
 
   // Filter based on search term
   const filteredCandidates = useMemo(() => {
