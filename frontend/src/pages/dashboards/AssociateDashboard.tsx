@@ -13,7 +13,9 @@ import {
   Wrench,
   Plus
 } from 'lucide-react';
-import { useAppSelector } from '../../redux/store';
+import { useAppSelector, useAppDispatch } from '../../redux/store';
+import { setApplications } from '../../redux/applicationsSlice';
+import { api } from '../../services/api';
 import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
@@ -34,6 +36,7 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
 export const AssociateDashboard: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { applications } = useAppSelector(state => state.applications);
@@ -55,7 +58,16 @@ export const AssociateDashboard: React.FC = () => {
       localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
       localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
     }
-  }, [startDate, endDate, currentUser]);
+
+    let url = 'applications/?all_applicants=true';
+    if (startDate && endDate) {
+      url += `&start_date=${startDate}&end_date=${endDate}`;
+    }
+    api.get(url).then((res: any) => {
+      const list = res.data?.results ?? res.data ?? [];
+      dispatch(setApplications(list));
+    }).catch(() => {});
+  }, [startDate, endDate, currentUser, dispatch]);
 
   const getJobCandidates = (selectedApp: any) => {
     const matches = deduplicatedApps.filter(app =>

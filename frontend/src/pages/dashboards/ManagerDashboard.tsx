@@ -4,11 +4,14 @@ import {
   Typography, 
   Button
 } from '@mui/material';
-import { useAppSelector } from '../../redux/store';
+import { useAppSelector, useAppDispatch } from '../../redux/store';
+import { setApplications } from '../../redux/applicationsSlice';
+import { api } from '../../services/api';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
 export const ManagerDashboard: React.FC = () => {
+  const dispatch = useAppDispatch();
   const { user: currentUser } = useAppSelector(state => state.auth);
 
   const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
@@ -20,7 +23,16 @@ export const ManagerDashboard: React.FC = () => {
       localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
       localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
     }
-  }, [startDate, endDate, currentUser]);
+
+    let url = 'applications/?all_applicants=true';
+    if (!showAllTimeKPIs && startDate && endDate) {
+      url += `&start_date=${startDate}&end_date=${endDate}`;
+    }
+    api.get(url).then((res: any) => {
+      const list = res.data?.results ?? res.data ?? [];
+      dispatch(setApplications(list));
+    }).catch(() => {});
+  }, [startDate, endDate, currentUser, showAllTimeKPIs, dispatch]);
 
 
 

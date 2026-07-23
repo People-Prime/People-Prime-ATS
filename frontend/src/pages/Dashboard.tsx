@@ -11,18 +11,30 @@ import { ManagerDashboard } from './dashboards/ManagerDashboard';
 export const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
   const { user: currentUser } = useAppSelector(state => state.auth);
-  const { applications } = useAppSelector(state => state.applications);
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
   // Load applications from API so all sub-dashboards have access
   useEffect(() => {
-    if (applications.length === 0) {
-      api.get('applications/?all_applicants=true').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {});
+    const todayStr = () => {
+      const d = new Date();
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yy}-${mm}-${dd}`;
+    };
+    const start = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
+    const end = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
+
+    let url = 'applications/?all_applicants=true';
+    if (start && end) {
+      url += `&start_date=${start}&end_date=${end}`;
     }
-  }, [dispatch, applications.length]);
+
+    api.get(url).then((res: any) => {
+      const list = res.data?.results ?? res.data ?? [];
+      dispatch(setApplications(list));
+    }).catch(() => {});
+  }, [dispatch, currentUser?.email]);
 
   return (
     <Box className="animate-fade-in">

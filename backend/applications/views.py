@@ -165,8 +165,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 search_query |= Q(id=int(global_search))
             qs = qs.exclude(candidate_name='').filter(search_query)
 
-        # Apply date range filtering if not on the main dashboard and not in global search
-        if not all_applicants and not global_search:
+        # Apply date range filtering if not in global search
+        if not global_search:
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
             if start_date and end_date:
