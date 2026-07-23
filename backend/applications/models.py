@@ -10,6 +10,7 @@ class ApplicationStatus(models.TextChoices):
     INTERVIEW_COMPLETED = 'Interview Completed', 'Interview Completed'
     OFFER_SENT = 'Offer Sent', 'Offer Sent'
     OFFER_ACCEPTED = 'Offer Accepted', 'Offer Accepted'
+    OFFER_REJECTED = 'Offer Rejected', 'Offer Rejected'
     SELECTED = 'Selected', 'Selected'
     REJECTED = 'Rejected', 'Rejected'
     ON_HOLD = 'On Hold', 'On Hold'

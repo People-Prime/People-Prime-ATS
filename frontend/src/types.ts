@@ -61,6 +61,7 @@ export type ApplicationStatus =
   | 'Interview Completed'
   | 'Offer Sent'
   | 'Offer Accepted'
+  | 'Offer Rejected'
   | 'Selected'
   | 'Rejected'
   | 'On Hold'

@@ -766,6 +766,9 @@ Remarks: ${candidateForm.remarks}`;
       'Under Review': 'warning',
       'Interview Scheduled': 'secondary',
       'Interview Completed': 'secondary',
+      'Offer Sent': 'warning',
+      'Offer Accepted': 'success',
+      'Offer Rejected': 'error',
       'Selected': 'success',
       'Rejected': 'error',
       'On Hold': 'default',
@@ -1601,7 +1604,7 @@ Remarks: ${candidateForm.remarks}`;
                       Transition Pipeline Status
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                       {(['New', 'Submitted', 'Placed', 'Under Review', 'Interview Scheduled', 'Interview Completed', 'Selected', 'Rejected', 'On Hold', 'Closed'] as ApplicationStatus[]).map((statusOption) => (
+                       {(['New', 'Submitted', 'Placed', 'Under Review', 'Interview Scheduled', 'Interview Completed', 'Offer Sent', 'Offer Accepted', 'Offer Rejected', 'Selected', 'Rejected', 'On Hold', 'Closed'] as ApplicationStatus[]).map((statusOption) => (
                         <Chip
                           key={statusOption}
                           label={statusOption}
@@ -1854,6 +1857,9 @@ Remarks: ${candidateForm.remarks}`;
                   <MenuItem value="Under Review">Under Review</MenuItem>
                   <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                   <MenuItem value="Interview Completed">Interview Completed</MenuItem>
+                  <MenuItem value="Offer Sent">Offer Sent</MenuItem>
+                  <MenuItem value="Offer Accepted">Offer Accepted</MenuItem>
+                  <MenuItem value="Offer Rejected">Offer Rejected</MenuItem>
                   <MenuItem value="Selected">Selected</MenuItem>
                   <MenuItem value="Rejected">Rejected</MenuItem>
                   <MenuItem value="On Hold">On Hold</MenuItem>

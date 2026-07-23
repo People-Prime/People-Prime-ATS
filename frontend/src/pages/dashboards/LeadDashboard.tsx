@@ -235,6 +235,9 @@ export const LeadDashboard: React.FC = () => {
                   <MenuItem value="Under Review">Under Review</MenuItem>
                   <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
                   <MenuItem value="Interview Completed">Interview Completed</MenuItem>
+                  <MenuItem value="Offer Sent">Offer Sent</MenuItem>
+                  <MenuItem value="Offer Accepted">Offer Accepted</MenuItem>
+                  <MenuItem value="Offer Rejected">Offer Rejected</MenuItem>
                   <MenuItem value="Selected">Selected</MenuItem>
                   <MenuItem value="Rejected">Rejected</MenuItem>
                   <MenuItem value="On Hold">On Hold</MenuItem>
