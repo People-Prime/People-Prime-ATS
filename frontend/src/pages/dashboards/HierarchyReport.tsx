@@ -120,11 +120,27 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   };
 
   const handleMetricClick = (userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
-    const emails = isSelfRow ? [userEmail] : getDescendantEmails(userEmail);
-    const userApps = deduplicatedApps.filter(app =>
-      app.assigned_employee?.email &&
-      emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
-    );
+    const cleanEmail = userEmail.replace(/_(cwr|fte)$/i, '').toLowerCase();
+
+    const getDescendantsClean = (em: string): string[] => {
+      const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === em.toLowerCase());
+      return [em.toLowerCase(), ...direct.flatMap(d => getDescendantsClean(d.email))];
+    };
+
+    const emails = isSelfRow ? [cleanEmail] : getDescendantsClean(cleanEmail);
+    const targetUserObjs = filteredUsers.filter(u => emails.includes(u.email.toLowerCase()));
+    const targetFullNames = targetUserObjs.map(u => u.full_name?.toLowerCase()).filter(Boolean);
+
+    const userApps = deduplicatedApps.filter(app => {
+      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+      if (assignedEmail && emails.includes(assignedEmail)) return true;
+      if (app.recruiter) {
+        const rec = app.recruiter.toLowerCase();
+        if (emails.includes(rec)) return true;
+        if (targetFullNames.includes(rec)) return true;
+      }
+      return false;
+    });
 
     let filtered: any[] = [];
     let label = '';
@@ -212,23 +228,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   };
 
   const renderClickableMetric = (value: number, userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
-    if (value === 0) {
-      return (
-        <Typography variant="body2" sx={{ fontWeight: isSelfRow ? 500 : 700, color: 'text.secondary', fontSize: '0.75rem' }}>
-          0
-        </Typography>
-      );
-    }
     return (
       <Typography
         variant="body2"
         sx={{
           fontWeight: isSelfRow ? 500 : 700,
           fontSize: '0.75rem',
-          color: 'primary.main',
+          color: value === 0 ? 'text.secondary' : 'primary.main',
           cursor: 'pointer',
           '&:hover': {
-            color: 'primary.dark',
+            color: value === 0 ? 'text.primary' : 'primary.dark',
             textDecoration: 'underline'
           }
         }}
