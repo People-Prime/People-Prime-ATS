@@ -91,6 +91,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
     if (role === 'ADMIN') {
       links.push({ text: 'Applicants', icon: <FileSpreadsheet size={16} />, path: '/applications' });
       links.push({ text: 'Job Postings', icon: <Briefcase size={16} />, path: '/job-postings' });
+      links.push({ text: 'Placements', icon: <Award size={16} />, path: '/placements' });
     } else {
       links.push({ text: (role === 'TEAM_LEAD' || role === 'ASSOCIATE_ANALYST' || role === 'SENIOR_ANALYST' || role === 'CEO' || role === 'REPORTING_TEAM') ? 'Applicants' : 'Applications', icon: <FileSpreadsheet size={16} />, path: '/applications' });
       links.push({ text: 'Job Postings', icon: <Briefcase size={16} />, path: '/job-postings' });
