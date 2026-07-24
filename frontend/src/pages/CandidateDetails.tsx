@@ -85,12 +85,18 @@ export const CandidateDetails: React.FC = () => {
     // 1. Filter out standalone candidates (which have Job Code = N/A)
     const jobPostingApps = applications.filter(app => getRemarkField(app.remarks, 'Job Code') !== 'N/A');
 
-    // 2. Filter by assignee role if associate
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+
+    // 2. Filter by assignee role if associate AND only include today's assigned/created jobs
     const filtered = jobPostingApps.filter(app => {
       if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
-        return app.assigned_employee?.email?.toLowerCase() === currentUser?.email?.toLowerCase();
+        if (app.assigned_employee?.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) {
+          return false;
+        }
       }
-      return true;
+      const jobDate = (app.created_at || '').slice(0, 10);
+      return jobDate === todayISO || jobDate === todayLocal;
     });
 
     // 3. Group by position + client so we only show one entry per unique Job Posting in the list
