@@ -315,7 +315,7 @@ export const Applications: React.FC = () => {
 
       // Filter out 'N/A' job codes from submissions IF there is at least one real job code assigned
       const hasRealJob = apps.some(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A');
-      const filteredSubmissions = hasRealJob 
+      const filteredSubmissions = hasRealJob
         ? apps.filter(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A')
         : [];
 
@@ -669,38 +669,38 @@ export const Applications: React.FC = () => {
                       }}
                     >
                       <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                        <Box 
+                        <Box
                           onClick={(e) => {
                             e.stopPropagation();
                             setExpandedCandidates(prev => ({ ...prev, [cand.key]: !prev[cand.key] }));
                           }}
-                          sx={{ 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            cursor: 'pointer', 
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
                             gap: 0.5,
                             userSelect: 'none'
                           }}
                         >
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontWeight: 900, 
-                              color: 'primary.main', 
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 900,
+                              color: 'primary.main',
                               fontSize: '1rem',
                               lineHeight: 1
                             }}
                           >
                             {isExpanded ? '−' : '+'}
                           </Typography>
-                          <Box 
-                            sx={{ 
-                              bgcolor: 'primary.main', 
-                              color: '#fff', 
-                              fontSize: '0.65rem', 
-                              fontWeight: 700, 
-                              px: 0.5, 
-                              py: 0.1, 
+                          <Box
+                            sx={{
+                              bgcolor: 'primary.main',
+                              color: '#fff',
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              px: 0.5,
+                              py: 0.1,
                               borderRadius: '3px',
                               display: 'flex',
                               alignItems: 'center',
@@ -732,7 +732,7 @@ export const Applications: React.FC = () => {
                         const directJobCode = getRemarkField(app.remarks, 'Job Code');
                         // Find a submission that has a real Job Code, or default to direct properties
                         const realSubmission = cand.allSubmissions.find(s => getRemarkField(s.remarks, 'Job Code') !== 'N/A');
-                        
+
                         const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkField(realSubmission.remarks, 'Job Code') : 'N/A');
                         const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
 
@@ -743,7 +743,7 @@ export const Applications: React.FC = () => {
 
                         const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
                         const recruiterEmails = siblingApps.map(a => a.assigned_employee?.email).filter(Boolean) as string[];
-                        
+
                         // Fallback to primary recruiter if no assignee exists on the sibling requirements
                         if (recruiterEmails.length === 0 && app.assigned_employee?.email) {
                           recruiterEmails.push(app.assigned_employee.email);
@@ -764,12 +764,12 @@ export const Applications: React.FC = () => {
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                               <Typography
                                 variant="body2"
-                                sx={{ 
-                                  fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem', 
-                                  fontWeight: 700, 
-                                  color: 'primary.main', 
-                                  cursor: isReadOnly ? 'default' : 'pointer', 
-                                  '&:hover': { textDecoration: isReadOnly ? 'none' : 'underline' } 
+                                sx={{
+                                  fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem',
+                                  fontWeight: 700,
+                                  color: 'primary.main',
+                                  cursor: isReadOnly ? 'default' : 'pointer',
+                                  '&:hover': { textDecoration: isReadOnly ? 'none' : 'underline' }
                                 }}
                                 onClick={isReadOnly ? undefined : (e) => {
                                   e.stopPropagation();
