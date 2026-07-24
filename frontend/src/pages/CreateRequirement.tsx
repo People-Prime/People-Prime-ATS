@@ -139,7 +139,7 @@ export const CreateRequirement: React.FC = () => {
           endDate: extractField('End Date') === 'N/A' ? '' : extractField('End Date'),
           location: extractField('Location') || '',
           jobStatus: extractField('Job Status') || 'Active',
-          jobType: extractField('Job Type') || 'Full-time',
+          jobType: extractField('Job Type') || '',
           client: app.client_name || '',
           clientJobId: extractField('Client Job ID') || '',
           requiredDocs: extractField('Required Documents') || 'Resume, ID Proof',
@@ -164,7 +164,17 @@ export const CreateRequirement: React.FC = () => {
     setError('');
     setSuccess('');
 
-    if (!formData.client || !formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate || !formData.jobType || !formData.description) {
+    if (!formData.client || !formData.client.trim()) {
+      setError('Client Name is a mandatory field. Please enter the Client Name before creating and assigning the requirement.');
+      return;
+    }
+
+    if (!formData.jobType || !formData.jobType.trim()) {
+      setError('Job Type is a mandatory field. Please select an option from the Job Type dropdown menu before creating and assigning the requirement.');
+      return;
+    }
+
+    if (!formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate || !formData.description) {
       setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate, Job Type, Detailed Job Description).');
       return;
     }
