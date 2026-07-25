@@ -151,7 +151,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/applications/create" 
                       element={
-                        <ProtectedRoute allowedRoles={['TEAM_LEAD', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'SUB_LEAD']}>
                           <CreateRequirement />
                         </ProtectedRoute>
                       } 
@@ -159,7 +159,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/applications/create/:applicationId" 
                       element={
-                        <ProtectedRoute allowedRoles={['TEAM_LEAD', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'TEAM_LEAD', 'SUB_LEAD']}>
                           <CreateRequirement />
                         </ProtectedRoute>
                       } 
@@ -168,7 +168,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/candidates/create" 
                       element={
-                        <ProtectedRoute allowedRoles={['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'TEAM_LEAD', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'TEAM_LEAD', 'SUB_LEAD']}>
                           <CreateCandidate />
                         </ProtectedRoute>
                       } 
@@ -177,7 +177,7 @@ export const App: React.FC = () => {
                     <Route 
                       path="/candidates/create/:applicationId" 
                       element={
-                        <ProtectedRoute allowedRoles={['ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'TEAM_LEAD', 'SUB_LEAD']}>
+                        <ProtectedRoute allowedRoles={['ADMIN', 'CEO', 'SENIOR_MANAGER', 'JUNIOR_MANAGER', 'ASSOCIATE_ANALYST', 'SENIOR_ANALYST', 'TEAM_LEAD', 'SUB_LEAD']}>
                           <CreateCandidate />
                         </ProtectedRoute>
                       } 

@@ -63,6 +63,9 @@ export const CreateCandidate: React.FC = () => {
   );
 
   const myApplications = useMemo(() => {
+    if (activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'SENIOR_MANAGER' || activeRole === 'JUNIOR_MANAGER' || activeRole === 'REPORTING_TEAM') {
+      return applications;
+    }
     if (activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') {
       return applications.filter(app =>
         app.assigned_employee && teamMembers.some(member => member.email?.toLowerCase() === app.assigned_employee?.email?.toLowerCase())
