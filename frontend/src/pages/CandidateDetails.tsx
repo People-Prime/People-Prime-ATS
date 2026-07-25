@@ -218,7 +218,33 @@ export const CandidateDetails: React.FC = () => {
     const direct = extractField(rem, 'Resume Link');
     if (direct && direct !== 'N/A') return direct;
     const match = rem.match(/(s3:\/\/[^\s\n"']+|(https?:\/\/[^\s\n"']+\.(pdf|docx|doc)))/i);
-    return match ? match[0] : '';
+    if (match) return match[0];
+
+    // Fallback: search all other application records for the same candidate (by email, phone, or name)
+    if (selectedApp && applications.length > 0) {
+      const email = selectedApp.candidate_email?.toLowerCase().trim();
+      const phone = selectedApp.candidate_phone?.replace(/\D/g, '');
+      const name = selectedApp.candidate_name?.toLowerCase().trim();
+
+      const sibling = applications.find(a => {
+        const matchesEmail = email && email !== '' && a.candidate_email?.toLowerCase().trim() === email;
+        const matchesPhone = phone && phone !== '' && a.candidate_phone?.replace(/\D/g, '') === phone;
+        const matchesName = name && name !== '' && a.candidate_name?.toLowerCase().trim() === name;
+        if (matchesEmail || matchesPhone || matchesName) {
+          const sRem = a.remarks || '';
+          return sRem.includes('Resume Link:') || /(s3:\/\/|https?:\/\/.*?\.(pdf|docx|doc))/i.test(sRem);
+        }
+        return false;
+      });
+
+      if (sibling) {
+        const sibDirect = extractField(sibling.remarks, 'Resume Link');
+        if (sibDirect && sibDirect !== 'N/A') return sibDirect;
+        const sibMatch = (sibling.remarks || '').match(/(s3:\/\/[^\s\n"']+|(https?:\/\/[^\s\n"']+\.(pdf|docx|doc)))/i);
+        if (sibMatch) return sibMatch[0];
+      }
+    }
+    return '';
   };
 
   const parsedDetails = {
