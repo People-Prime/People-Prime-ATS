@@ -92,6 +92,38 @@ export const JobPostings: React.FC = () => {
     return Array.from(unique.values());
   }, [users]);
 
+  // Calculate team members for Team Lead role filtering
+  const myTeamUserEmails = React.useMemo(() => {
+    if (!currentUser) return new Set<string>();
+    const myEmail = currentUser.email?.toLowerCase();
+    const emailSet = new Set<string>();
+    if (myEmail) emailSet.add(myEmail);
+
+    const myTeamIds = (currentUser.teams || []).map(t => String(t.id));
+
+    const addDownline = (leadEmail: string) => {
+      users.forEach(u => {
+        const uEmail = u.email?.toLowerCase();
+        if (!uEmail || emailSet.has(uEmail)) return;
+
+        const directReport = u.reporting_to?.email?.toLowerCase() === leadEmail.toLowerCase();
+        const listReport = u.reporting_to_list?.some((r: any) => r.email?.toLowerCase() === leadEmail.toLowerCase());
+
+        const userTeamIds = (u.teams || []).map(t => String(t.id));
+        const sameTeam = myTeamIds.length > 0 && userTeamIds.some(id => myTeamIds.includes(id));
+
+        if (directReport || listReport || sameTeam) {
+          emailSet.add(uEmail);
+          addDownline(uEmail);
+        }
+      });
+    };
+
+    if (myEmail) addDownline(myEmail);
+
+    return emailSet;
+  }, [currentUser, users]);
+
   // Drawer detail states
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
@@ -468,6 +500,10 @@ export const JobPostings: React.FC = () => {
     if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
       // Associates only see items assigned to them
       if (app.assigned_employee?.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) return false;
+    } else if (activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') {
+      // Team Leads only see items assigned to themselves or associates in their team
+      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+      if (!assignedEmail || !myTeamUserEmails.has(assignedEmail)) return false;
     }
     
     // 2. Status Filter
