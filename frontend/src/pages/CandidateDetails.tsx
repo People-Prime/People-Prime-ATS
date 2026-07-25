@@ -135,6 +135,13 @@ export const CandidateDetails: React.FC = () => {
         const job = applications.find(a => String(a.id) === jobId);
         if (!job) continue;
 
+        let finalRemarks = selectedApp.remarks || '';
+        if (job.remarks) {
+          if (!finalRemarks.includes(job.remarks)) {
+            finalRemarks = finalRemarks ? `${finalRemarks}\n--------------------------\n${job.remarks}` : job.remarks;
+          }
+        }
+
         const payload = {
           candidate_name: selectedApp.candidate_name,
           candidate_email: selectedApp.candidate_email,
@@ -146,7 +153,7 @@ export const CandidateDetails: React.FC = () => {
           experience: selectedApp.experience,
           technology: selectedApp.technology,
           recruiter: selectedApp.recruiter || currentUser?.full_name || '',
-          remarks: job.remarks,
+          remarks: finalRemarks,
           status: 'Submitted',
           assigned_employee_id: job.assigned_employee?.email || null
         };
