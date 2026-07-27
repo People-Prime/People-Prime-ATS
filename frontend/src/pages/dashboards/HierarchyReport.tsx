@@ -152,16 +152,26 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       const seen = new Set<string>();
       const dateFiltered = userApps.filter(app => {
         const d = (app.created_at || '').slice(0, 10);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+        return !app.candidate_name || !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       dateFiltered.forEach(app => {
-        const jobCode = getRemarkField(app.remarks, 'Job Code');
-        if (jobCode === 'N/A' || !jobCode) return;
+        let jobCode = getRemarkField(app.remarks, 'Job Code');
+        if (jobCode === 'N/A' || !jobCode) {
+          jobCode = !app.candidate_name
+            ? `PPW-${String(app.id).padStart(4, '0')}`
+            : `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+        }
+        if (!jobCode) return;
         const key = jobCode.toUpperCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
           const group = dateFiltered.filter(a => {
-            const code = getRemarkField(a.remarks, 'Job Code');
+            let code = getRemarkField(a.remarks, 'Job Code');
+            if (code === 'N/A' || !code) {
+              code = !a.candidate_name
+                ? `PPW-${String(a.id).padStart(4, '0')}`
+                : `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
+            }
             return code && code.toUpperCase().trim() === key;
           });
           const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
@@ -291,9 +301,15 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       const d = (app.created_at || '').slice(0, 10);
       const dateMatch = !app.candidate_name || !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       if (!dateMatch) return;
-      const jobCode = getRemarkField(app.remarks, 'Job Code');
-      if (jobCode === 'N/A' || !jobCode) return;
-      seenJobs.add(jobCode.toUpperCase().trim());
+      let jobCode = getRemarkField(app.remarks, 'Job Code');
+      if (jobCode === 'N/A' || !jobCode) {
+        jobCode = !app.candidate_name
+          ? `PPW-${String(app.id).padStart(4, '0')}`
+          : `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+      }
+      if (jobCode) {
+        seenJobs.add(jobCode.toUpperCase().trim());
+      }
     });
     const jobsCount = seenJobs.size;
 
