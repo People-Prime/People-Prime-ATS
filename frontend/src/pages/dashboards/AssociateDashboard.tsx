@@ -98,18 +98,25 @@ export const AssociateDashboard: React.FC = () => {
     const seen = new Set<string>();
     const unique: typeof dateFilteredApps = [];
     dateFilteredApps.forEach(app => {
-      const key = `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}|${app.experience}`;
+      const jobCode = getRemarkField(app.remarks, 'Job Code');
+      const key = (jobCode && jobCode !== 'N/A') 
+        ? jobCode.toUpperCase().trim() 
+        : `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}`;
       if (!seen.has(key)) {
         seen.add(key);
-        // Find the record with candidate_name if it exists, otherwise use this one
-        const matches = dateFilteredApps.filter(m =>
-          m.client_name?.toLowerCase() === app.client_name?.toLowerCase() &&
-          m.position?.toLowerCase() === app.position?.toLowerCase() &&
-          m.technology?.toLowerCase() === app.technology?.toLowerCase() &&
-          Number(m.experience) === Number(app.experience)
-        );
-        const withCandidate = matches.find(m => m.candidate_name);
-        unique.push(withCandidate || app);
+        const matches = dateFilteredApps.filter(m => {
+          const mCode = getRemarkField(m.remarks, 'Job Code');
+          if (jobCode && jobCode !== 'N/A') {
+            return mCode && mCode.toUpperCase().trim() === key;
+          }
+          return (
+            m.client_name?.toLowerCase() === app.client_name?.toLowerCase() &&
+            m.position?.toLowerCase() === app.position?.toLowerCase() &&
+            m.technology?.toLowerCase() === app.technology?.toLowerCase()
+          );
+        });
+        const rep = matches.find(m => !m.candidate_name) || matches[0];
+        unique.push(rep);
       }
     });
     return unique;
