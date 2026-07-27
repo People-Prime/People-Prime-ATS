@@ -902,8 +902,19 @@ export const Applications: React.FC = () => {
                                 <TableRow key={sub.id}>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>
                                     {(() => {
-                                      const code = getRemarkField(sub.remarks, 'Job Code');
-                                      return (code && code !== 'N/A') ? code : `PPW - ${String(sub.id).padStart(4, '0')}`;
+                                      let code = getRemarkField(sub.remarks, 'Job Code');
+                                      if (!code || code === 'N/A') {
+                                        const parentJob = applications.find(a =>
+                                          !a.candidate_name &&
+                                          a.position?.toLowerCase().trim() === sub.position?.toLowerCase().trim() &&
+                                          a.client_name?.toLowerCase().trim() === sub.client_name?.toLowerCase().trim()
+                                        );
+                                        if (parentJob) {
+                                          const parentCode = getRemarkField(parentJob.remarks, 'Job Code');
+                                          code = (parentCode && parentCode !== 'N/A') ? parentCode : `PPW - ${String(parentJob.id).padStart(4, '0')}`;
+                                        }
+                                      }
+                                      return (code && code !== 'N/A') ? code : 'N/A';
                                     })()}
                                   </TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 700 }}>{sub.position}</TableCell>
