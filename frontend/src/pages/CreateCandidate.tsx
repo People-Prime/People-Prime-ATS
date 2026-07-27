@@ -109,7 +109,7 @@ export const CreateCandidate: React.FC = () => {
     aadhaar: '',
     alternateMobileNumber: '',
     source: '',
-    interestToWorkForClient: 'Yes', // Default option can be 'Yes'
+    interestToWorkForClient: '',
 
     // Job Details
     jobCode: '',
@@ -251,7 +251,7 @@ export const CreateCandidate: React.FC = () => {
       aadhaar: app.aadhaar || '',
       alternateMobileNumber: app.alternate_mobile_number || '',
       source: app.source || '',
-      interestToWorkForClient: app.interest_to_work_for_client || 'Yes',
+      interestToWorkForClient: app.interest_to_work_for_client || '',
 
       // Job Details
       jobCode: extractField('Job Code') || `PPW-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -305,6 +305,11 @@ export const CreateCandidate: React.FC = () => {
 
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.city || !formData.state || !formData.degree || !formData.source) {
       setError('Please fill in all candidate contact details, city, state, qualification, and source.');
+      return;
+    }
+
+    if (!formData.interestToWorkForClient || !formData.interestToWorkForClient.trim()) {
+      setError('Interest to Work for Client is a mandatory field. Please select an option from the dropdown menu.');
       return;
     }
 
@@ -624,11 +629,12 @@ Recruiter Remarks: ${formData.remarks}`;
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Interest to Work for Client</InputLabel>
+                <FormControl fullWidth size="small" required>
+                  <InputLabel>Interest to Work for Client *</InputLabel>
                   <Select
                     value={formData.interestToWorkForClient}
-                    label="Interest to Work for Client"
+                    label="Interest to Work for Client *"
+                    required
                     onChange={(e) => setFormData({ ...formData, interestToWorkForClient: e.target.value })}
                   >
                     <MenuItem value="Yes">Yes</MenuItem>
