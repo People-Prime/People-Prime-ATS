@@ -91,11 +91,11 @@ export const AssociateDashboard: React.FC = () => {
     });
   };
 
-  // Filter by date range when range is selected
+  // Filter by date range when range is selected (always preserve open requirements without candidate_name)
   const dateFilteredApps = (startDate && endDate)
     ? myApplications.filter(app => {
       const d = (app.created_at || '').slice(0, 10);
-      return d >= startDate && d <= endDate;
+      return !app.candidate_name || (d >= startDate && d <= endDate);
     })
     : myApplications;
 
