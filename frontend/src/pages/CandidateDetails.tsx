@@ -135,10 +135,22 @@ export const CandidateDetails: React.FC = () => {
         const job = applications.find(a => String(a.id) === jobId);
         if (!job) continue;
 
+        let realJobCode = getRemarkField(job.remarks, 'Job Code');
+        if (realJobCode === 'N/A' || !realJobCode || realJobCode.includes('Auto Generated')) {
+          realJobCode = `PPW - ${String(job.id).padStart(4, '0')}`;
+        }
+
+        let cleanJobRemarks = job.remarks || '';
+        if (cleanJobRemarks.includes('Job Code: PPW - [Auto Generated]')) {
+          cleanJobRemarks = cleanJobRemarks.replace('Job Code: PPW - [Auto Generated]', `Job Code: ${realJobCode}`);
+        } else if (!cleanJobRemarks.includes('Job Code:')) {
+          cleanJobRemarks = `Job Code: ${realJobCode}\n${cleanJobRemarks}`;
+        }
+
         let finalRemarks = selectedApp.remarks || '';
-        if (job.remarks) {
-          if (!finalRemarks.includes(job.remarks)) {
-            finalRemarks = finalRemarks ? `${finalRemarks}\n--------------------------\n${job.remarks}` : job.remarks;
+        if (cleanJobRemarks) {
+          if (!finalRemarks.includes(cleanJobRemarks)) {
+            finalRemarks = finalRemarks ? `${finalRemarks}\n--------------------------\n${cleanJobRemarks}` : cleanJobRemarks;
           }
         }
 

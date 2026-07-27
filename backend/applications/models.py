@@ -77,11 +77,11 @@ class Application(models.Model):
                     app._saving_related_statuses = True
                     app.save(update_fields=['status'])
         
-        if is_new and not self.candidate_name and has_placeholder:
+        if is_new and has_placeholder:
             job_code = f"PPW - {self.id:04d}"
             if 'Job Code: PPW - [Auto Generated]' in remarks:
                 self.remarks = remarks.replace('Job Code: PPW - [Auto Generated]', f'Job Code: {job_code}')
-            elif 'Job Code: ' not in remarks:
+            elif not self.candidate_name and 'Job Code: ' not in remarks:
                 if remarks:
                     self.remarks = f"Job Code: {job_code}\n{remarks}"
                 else:
