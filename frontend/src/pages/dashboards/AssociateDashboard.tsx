@@ -43,10 +43,15 @@ export const AssociateDashboard: React.FC = () => {
 
   const deduplicatedApps = getUniqueSubmissions(applications);
 
-  const myApplications = deduplicatedApps.filter(app =>
-    app.assigned_employee?.email === currentUser?.email &&
-    getRemarkField(app.remarks, 'Job Code') !== 'N/A'
-  );
+  const myApplications = deduplicatedApps.filter(app => {
+    const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+    const recruiterStr = app.recruiter?.toLowerCase() || '';
+    const myEmail = currentUser?.email?.toLowerCase() || '';
+    const myName = currentUser?.full_name?.toLowerCase() || '';
+
+    return (assignedEmail && assignedEmail === myEmail) ||
+      (recruiterStr && (recruiterStr === myEmail || recruiterStr === myName));
+  });
 
 
   const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
