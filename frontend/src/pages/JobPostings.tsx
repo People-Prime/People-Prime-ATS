@@ -543,10 +543,17 @@ export const JobPostings: React.FC = () => {
       const key = jobCode.toUpperCase().trim();
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
-        // Find all applications belonging to this exact Job Code
+        // Find all applications belonging to this exact Job Code (or matching candidate submissions)
         const group = applications.filter(a => {
           const code = getRemarkField(a.remarks, 'Job Code');
-          return code && code.toUpperCase().trim() === key;
+          if (code && code.toUpperCase().trim() === key) return true;
+          if (a.candidate_name) {
+            return (
+              a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+              a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+            );
+          }
+          return false;
         });
         const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
         (rep as any).associatedIds = group.map(a => String(a.id));

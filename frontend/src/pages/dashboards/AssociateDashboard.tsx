@@ -70,15 +70,21 @@ export const AssociateDashboard: React.FC = () => {
   }, [startDate, endDate, currentUser, dispatch]);
 
   const getJobCandidates = (selectedApp: any) => {
-    const matches = deduplicatedApps.filter(app =>
-      app.candidate_name &&
-      app.position?.toLowerCase() === selectedApp.position?.toLowerCase() &&
-      app.client_name?.toLowerCase() === selectedApp.client_name?.toLowerCase() &&
-      app.technology?.toLowerCase() === selectedApp.technology?.toLowerCase()
-    );
+    const jobCode = getRemarkField(selectedApp.remarks, 'Job Code');
+    const matches = applications.filter(app => {
+      if (!app.candidate_name) return false;
+      const appJobCode = getRemarkField(app.remarks, 'Job Code');
+      if (jobCode && jobCode !== 'N/A' && appJobCode && appJobCode !== 'N/A') {
+        if (appJobCode.toUpperCase().trim() === jobCode.toUpperCase().trim()) return true;
+      }
+      return (
+        app.position?.toLowerCase().trim() === selectedApp.position?.toLowerCase().trim() &&
+        app.client_name?.toLowerCase().trim() === selectedApp.client_name?.toLowerCase().trim()
+      );
+    });
     const seen = new Set<string>();
     return matches.filter(app => {
-      const email = app.candidate_email?.toLowerCase() || '';
+      const email = app.candidate_email?.toLowerCase() || app.candidate_name?.toLowerCase() || '';
       if (!email || seen.has(email)) return false;
       seen.add(email);
       return true;
