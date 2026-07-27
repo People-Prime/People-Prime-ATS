@@ -37,7 +37,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
-import { changeApplicationStatus, addApplicationNote, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
+import { changeApplicationStatus, addApplicationNote, addApplication, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 import { Application, ApplicationStatus } from '../types';
@@ -619,24 +619,34 @@ Skills: ${candidateForm.skills}
 --------------------------
 Remarks: ${candidateForm.remarks}`;
 
+    const assignedEmployeeEmail = selectedApp.assigned_employee?.email || currentUser?.email || null;
+
     const payload = {
       candidate_name: fullName,
       candidate_email: candidateForm.email,
       candidate_phone: candidateForm.phone,
       experience: parseFloat(candidateForm.experience) || selectedApp.experience,
       technology: candidateForm.skills || selectedApp.technology,
-      recruiter: candidateForm.recruiter,
+      recruiter: candidateForm.recruiter || currentUser?.full_name || '',
       remarks: formattedRemarks,
-      status: 'Submitted'
+      status: 'Submitted',
+      assigned_employee_id: assignedEmployeeEmail
     };
 
     try {
-      const res = await api.put(`applications/${selectedApp.id}/`, payload);
-      await api.post(`applications/${selectedApp.id}/add-note/`, {
+      let res;
+      if (!selectedApp.candidate_name) {
+        // If this is a blank requirement, post a new candidate submission record so parent requirement stays open and assigned
+        res = await api.post('applications/', payload);
+        dispatch(addApplication(res.data));
+      } else {
+        res = await api.put(`applications/${selectedApp.id}/`, payload);
+        dispatch(updateApplication(res.data));
+      }
+      await api.post(`applications/${res.data.id}/add-note/`, {
         content: `Candidate Sourced: Sourced ${fullName} and submitted application for review.`
       });
 
-      dispatch(updateApplication(res.data));
       setSelectedApp(res.data);
 
       dispatch(addApplicationNote({

@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { ArrowLeft, Briefcase, MapPin, Mail, Phone, ExternalLink } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../redux/store';
-import { setApplications, addApplication, updateApplication } from '../redux/applicationsSlice';
+import { setApplications, addApplication } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 
 const extractField = (remarks: string, fieldName: string): string => {
@@ -142,6 +142,8 @@ export const CandidateDetails: React.FC = () => {
           }
         }
 
+        const assignedEmployeeEmail = job.assigned_employee?.email || currentUser?.email || null;
+
         const payload = {
           candidate_name: selectedApp.candidate_name,
           candidate_email: selectedApp.candidate_email,
@@ -155,19 +157,12 @@ export const CandidateDetails: React.FC = () => {
           recruiter: selectedApp.recruiter || currentUser?.full_name || '',
           remarks: finalRemarks,
           status: 'Submitted',
-          assigned_employee_id: job.assigned_employee?.email || null
+          assigned_employee_id: assignedEmployeeEmail
         };
 
-        let res;
-        if (!job.candidate_name) {
-          // Fill blank requirement
-          res = await api.put(`applications/${job.id}/`, payload);
-          dispatch(updateApplication(res.data));
-        } else {
-          // Post new application record
-          res = await api.post('applications/', payload);
-          dispatch(addApplication(res.data));
-        }
+        // Post new candidate submission record so original job requirement stays open and assigned
+        const res = await api.post('applications/', payload);
+        dispatch(addApplication(res.data));
 
         await api.post(`applications/${res.data.id}/add-note/`, {
           content: `Submitted candidate "${selectedApp.candidate_name}" to this job opening.`
