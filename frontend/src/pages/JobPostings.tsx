@@ -477,14 +477,15 @@ export const JobPostings: React.FC = () => {
 
   // Filter applications based on search and selected filter and roles
   const filteredApps = applications.filter((app) => {
-    // Only show applications associated with a real job requirement (Job Code is present and not N/A)
-    const isJobPostingApp = getRemarkField(app.remarks, 'Job Code') !== 'N/A';
+    // Always include open job requirement records (!app.candidate_name) or items with valid Job Code
+    const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
+    const isJobPostingApp = !app.candidate_name || (jobCodeVal !== 'N/A' && jobCodeVal !== '');
     if (!isJobPostingApp) return false;
 
-    // 0. Date Filter (bypassed when search term is active for dynamic all-time search)
+    // 0. Date Filter (bypassed when search term is active or for open job requirements)
     if (!searchTerm.trim()) {
       const appDate = (app.created_at || '').slice(0, 10);
-      if (appDate < startDate || appDate > endDate) return false;
+      if (app.candidate_name && (appDate < startDate || appDate > endDate)) return false;
     }
 
     // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
@@ -538,14 +539,23 @@ export const JobPostings: React.FC = () => {
   const seenKeys = new Set<string>();
 
   displayApps.forEach(app => {
-    const jobCode = getRemarkField(app.remarks, 'Job Code');
+    let jobCode = getRemarkField(app.remarks, 'Job Code');
+    if (jobCode === 'N/A' || !jobCode) {
+      if (!app.candidate_name) {
+        jobCode = `PPW - ${String(app.id).padStart(4, '0')}`;
+      }
+    }
+
     if (jobCode && jobCode !== 'N/A') {
       const key = jobCode.toUpperCase().trim();
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
         // Find all applications belonging to this exact Job Code (or matching candidate submissions)
         const group = applications.filter(a => {
-          const code = getRemarkField(a.remarks, 'Job Code');
+          let code = getRemarkField(a.remarks, 'Job Code');
+          if (code === 'N/A' || !code) {
+            if (!a.candidate_name) code = `PPW - ${String(a.id).padStart(4, '0')}`;
+          }
           if (code && code.toUpperCase().trim() === key) return true;
           if (a.candidate_name) {
             return (
