@@ -170,9 +170,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
             if start_date and end_date:
-                # Always preserve open job requirements (candidate_name='') so recruiters never lose their assigned job postings
                 qs = qs.filter(
-                    Q(candidate_name='') |
                     Q(created_at__date__gte=start_date, created_at__date__lte=end_date) |
                     Q(updated_at__date__gte=start_date, updated_at__date__lte=end_date)
                 )

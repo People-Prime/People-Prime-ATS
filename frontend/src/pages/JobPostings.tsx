@@ -482,10 +482,10 @@ export const JobPostings: React.FC = () => {
     const isJobPostingApp = !app.candidate_name || (jobCodeVal !== 'N/A' && jobCodeVal !== '');
     if (!isJobPostingApp) return false;
 
-    // 0. Date Filter (bypassed when search term is active or for open job requirements)
+    // 0. Date Filter (bypassed when search term is active)
     if (!searchTerm.trim()) {
-      const appDate = (app.created_at || '').slice(0, 10);
-      if (app.candidate_name && (appDate < startDate || appDate > endDate)) return false;
+      const appDate = ((app.updated_at || app.created_at) || '').slice(0, 10);
+      if (appDate < startDate || appDate > endDate) return false;
     }
 
     // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
