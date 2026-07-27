@@ -91,11 +91,30 @@ export const AssociateDashboard: React.FC = () => {
     });
   };
 
-  // Filter by date range when range is selected (shows jobs created/assigned within selected date range)
+  // Filter by date range when range is selected (includes jobs created/assigned or having candidate submissions within selected date range)
   const dateFilteredApps = (startDate && endDate)
     ? myApplications.filter(app => {
       const d = ((app.updated_at || app.created_at) || '').slice(0, 10);
-      return d >= startDate && d <= endDate;
+      const isWithinDate = d >= startDate && d <= endDate;
+      if (isWithinDate) return true;
+      if (!app.candidate_name) {
+        const jobCode = getRemarkField(app.remarks, 'Job Code');
+        const hasSubmissionsInDate = myApplications.some(sub => {
+          if (!sub.candidate_name) return false;
+          const subDate = ((sub.updated_at || sub.created_at) || '').slice(0, 10);
+          if (subDate < startDate || subDate > endDate) return false;
+          const subCode = getRemarkField(sub.remarks, 'Job Code');
+          if (jobCode && jobCode !== 'N/A' && subCode && subCode !== 'N/A') {
+            return subCode.toUpperCase().trim() === jobCode.toUpperCase().trim();
+          }
+          return (
+            sub.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+            sub.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+          );
+        });
+        if (hasSubmissionsInDate) return true;
+      }
+      return false;
     })
     : myApplications;
 

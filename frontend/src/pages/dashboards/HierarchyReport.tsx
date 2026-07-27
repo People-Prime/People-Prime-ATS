@@ -308,16 +308,36 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     const seenJobs = new Set<string>();
     userApps.forEach(app => {
       const d = ((app.updated_at || app.created_at) || '').slice(0, 10);
-      const dateMatch = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      if (!dateMatch) return;
+      const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+
       let jobCode = getRemarkField(app.remarks, 'Job Code');
       if (jobCode === 'N/A' || !jobCode) {
         jobCode = !app.candidate_name
           ? `PPW-${String(app.id).padStart(4, '0')}`
           : `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
       }
-      if (jobCode) {
+      if (!jobCode) return;
+
+      if (isWithinDate) {
         seenJobs.add(jobCode.toUpperCase().trim());
+      } else if (!app.candidate_name) {
+        // Count job requirement if user submitted candidates for this job requirement within date range
+        const hasSubmissionsInDate = userApps.some(sub => {
+          if (!sub.candidate_name) return false;
+          const subDate = ((sub.updated_at || sub.created_at) || '').slice(0, 10);
+          if (effectiveStartDate && effectiveEndDate && (subDate < effectiveStartDate || subDate > effectiveEndDate)) return false;
+          const subCode = getRemarkField(sub.remarks, 'Job Code');
+          if (jobCode && jobCode !== 'N/A' && subCode && subCode !== 'N/A') {
+            return subCode.toUpperCase().trim() === jobCode.toUpperCase().trim();
+          }
+          return (
+            sub.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+            sub.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+          );
+        });
+        if (hasSubmissionsInDate) {
+          seenJobs.add(jobCode.toUpperCase().trim());
+        }
       }
     });
     const jobsCount = seenJobs.size;
