@@ -79,8 +79,8 @@ export const AssociateDashboard: React.FC = () => {
     const matches = applications.filter(app => {
       if (!app.candidate_name) return false;
       const appJobCode = getRemarkField(app.remarks, 'Job Code');
-      if (jobCode && jobCode !== 'N/A' && appJobCode && appJobCode !== 'N/A') {
-        if (appJobCode.toUpperCase().trim() === jobCode.toUpperCase().trim()) return true;
+      if (appJobCode && appJobCode !== 'N/A') {
+        return jobCode && jobCode !== 'N/A' && appJobCode.toUpperCase().trim() === jobCode.toUpperCase().trim();
       }
       return (
         app.position?.toLowerCase().trim() === selectedApp.position?.toLowerCase().trim() &&

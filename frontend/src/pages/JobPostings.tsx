@@ -556,8 +556,12 @@ export const JobPostings: React.FC = () => {
           if (code === 'N/A' || !code) {
             if (!a.candidate_name) code = `PPW - ${String(a.id).padStart(4, '0')}`;
           }
-          if (code && code.toUpperCase().trim() === key) return true;
+          if (code && code !== 'N/A' && code.toUpperCase().trim() === key) return true;
           if (a.candidate_name) {
+            const candidateJobCode = getRemarkField(a.remarks, 'Job Code');
+            if (candidateJobCode && candidateJobCode !== 'N/A') {
+              return candidateJobCode.toUpperCase().trim() === key;
+            }
             return (
               a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
               a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
