@@ -947,13 +947,12 @@ Remarks: ${candidateForm.remarks}`;
             <tbody>
               {groupedApps.map((app) => {
                 const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
-                // Stable key always based on position+client (matches grouping logic)
-                const jobCodeKey = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
-                const jobApplicants = applications.filter(a =>
-                  a.candidate_name &&
-                  a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-                  a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-                );
+                const jobCodeKey = jobCodeVal && jobCodeVal !== 'N/A' 
+                  ? jobCodeVal.toUpperCase().trim() 
+                  : `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
+                
+                // Use the exact candidate group matching this Job Code
+                const jobApplicants = (app.associatedApps || []).filter((a: any) => a.candidate_name);
 
                 const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
                 const recruitersText = Array.from(new Set(
@@ -1214,7 +1213,7 @@ Remarks: ${candidateForm.remarks}`;
                             </tr>
                           </thead>
                           <tbody>
-                            {jobApplicants.map((applicant) => (
+                            {jobApplicants.map((applicant: any) => (
                               <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
                                 {activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM' ? (
