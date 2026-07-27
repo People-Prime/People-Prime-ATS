@@ -292,9 +292,18 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
-    const userApps = deduplicatedApps.filter(app =>
-      app.assigned_employee?.email?.toLowerCase() === email.toLowerCase()
-    );
+    const targetUserObj = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const userFullName = targetUserObj?.full_name?.toLowerCase() || '';
+
+    const userApps = deduplicatedApps.filter(app => {
+      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+      if (assignedEmail === email.toLowerCase()) return true;
+      if (app.recruiter) {
+        const rec = app.recruiter.toLowerCase();
+        if (rec === email.toLowerCase() || (userFullName && rec === userFullName)) return true;
+      }
+      return false;
+    });
 
     const seenJobs = new Set<string>();
     userApps.forEach(app => {
