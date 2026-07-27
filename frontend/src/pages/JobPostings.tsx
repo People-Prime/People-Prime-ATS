@@ -550,8 +550,12 @@ export const JobPostings: React.FC = () => {
       const key = jobCode.toUpperCase().trim();
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
-        // Find all applications belonging to this exact Job Code (or matching candidate submissions)
+        // Find all applications belonging to this exact Job Code within the selected date range
         const group = applications.filter(a => {
+          if (!searchTerm.trim()) {
+            const aDate = ((a.updated_at || a.created_at) || '').slice(0, 10);
+            if (aDate < startDate || aDate > endDate) return false;
+          }
           let code = getRemarkField(a.remarks, 'Job Code');
           if (code === 'N/A' || !code) {
             if (!a.candidate_name) code = `PPW - ${String(a.id).padStart(4, '0')}`;
@@ -586,6 +590,10 @@ export const JobPostings: React.FC = () => {
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
         const group = applications.filter(a => {
+          if (!searchTerm.trim()) {
+            const aDate = ((a.updated_at || a.created_at) || '').slice(0, 10);
+            if (aDate < startDate || aDate > endDate) return false;
+          }
           const code = getRemarkField(a.remarks, 'Job Code');
           if (code && code !== 'N/A') return false;
           return (
