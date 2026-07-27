@@ -313,19 +313,15 @@ export const Applications: React.FC = () => {
   const uniqueCandidates = useMemo(() => {
     return Object.entries(candidateGroups).map(([key, apps]) => {
 
-      // Filter out 'N/A' job codes from submissions IF there is at least one real job code assigned
-      const hasRealJob = apps.some(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A');
-      const filteredSubmissions = hasRealJob
-        ? apps.filter(a => getRemarkField(a.remarks, 'Job Code') !== 'N/A')
-        : [];
-
-      // Deduplicate submissions by Job Code so the same job is not listed twice
-      const seenJobCodes = new Set<string>();
-      const uniqueSubmissions = filteredSubmissions.filter(a => {
-        const code = getRemarkField(a.remarks, 'Job Code');
-        if (code === 'N/A') return true;
-        if (seenJobCodes.has(code)) return false;
-        seenJobCodes.add(code);
+      // Deduplicate submissions by Job Code or Position + Client so the same job is not listed twice
+      const seenJobKeys = new Set<string>();
+      const uniqueSubmissions = apps.filter(a => {
+        let code = getRemarkField(a.remarks, 'Job Code');
+        if (code === 'N/A' || !code) {
+          code = `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
+        }
+        if (!code || code.includes('n/a|n/a') || seenJobKeys.has(code.toUpperCase().trim())) return false;
+        seenJobKeys.add(code.toUpperCase().trim());
         return true;
       });
 
@@ -904,7 +900,12 @@ export const Applications: React.FC = () => {
                             <TableBody>
                               {cand.allSubmissions.map((sub) => (
                                 <TableRow key={sub.id}>
-                                  <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{getRemarkField(sub.remarks, 'Job Code')}</TableCell>
+                                  <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>
+                                    {(() => {
+                                      const code = getRemarkField(sub.remarks, 'Job Code');
+                                      return (code && code !== 'N/A') ? code : `PPW - ${String(sub.id).padStart(4, '0')}`;
+                                    })()}
+                                  </TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 700 }}>{sub.position}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{sub.recruiter || sub.assigned_employee?.full_name || 'System'}</TableCell>
                                   <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 750, color: 'primary.main' }}>{sub.status}</TableCell>
