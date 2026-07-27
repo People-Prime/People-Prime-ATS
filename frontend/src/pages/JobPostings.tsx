@@ -484,7 +484,7 @@ export const JobPostings: React.FC = () => {
 
     // 0. Date Filter (bypassed when search term is active)
     if (!searchTerm.trim()) {
-      const appDate = ((app.updated_at || app.created_at) || '').slice(0, 10);
+      const appDate = (app.created_at || '').slice(0, 10);
       if (appDate < startDate || appDate > endDate) return false;
     }
 
@@ -553,7 +553,7 @@ export const JobPostings: React.FC = () => {
         // Find all applications belonging to this exact Job Code within the selected date range
         const group = applications.filter(a => {
           if (!searchTerm.trim()) {
-            const aDate = ((a.updated_at || a.created_at) || '').slice(0, 10);
+            const aDate = (a.created_at || '').slice(0, 10);
             if (aDate < startDate || aDate > endDate) return false;
           }
           let code = getRemarkField(a.remarks, 'Job Code');
@@ -591,7 +591,7 @@ export const JobPostings: React.FC = () => {
         seenKeys.add(key);
         const group = applications.filter(a => {
           if (!searchTerm.trim()) {
-            const aDate = ((a.updated_at || a.created_at) || '').slice(0, 10);
+            const aDate = (a.created_at || '').slice(0, 10);
             if (aDate < startDate || aDate > endDate) return false;
           }
           const code = getRemarkField(a.remarks, 'Job Code');
