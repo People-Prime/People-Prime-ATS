@@ -533,17 +533,17 @@ export const JobPostings: React.FC = () => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  // Group ALL apps: by unique Job Code for Reporting Team, otherwise by position + client_name
+  // Group ALL apps strictly by unique Job Code (PPW-XXXX) across all roles
   const groupedApps: any[] = [];
-  
-  if (activeRole === 'REPORTING_TEAM') {
-    const seen = new Set<string>();
-    displayApps.forEach(app => {
-      const jobCode = getRemarkField(app.remarks, 'Job Code');
-      if (jobCode === 'N/A' || !jobCode) return;
+  const seenKeys = new Set<string>();
+
+  displayApps.forEach(app => {
+    const jobCode = getRemarkField(app.remarks, 'Job Code');
+    if (jobCode && jobCode !== 'N/A') {
       const key = jobCode.toUpperCase().trim();
-      if (!seen.has(key)) {
-        seen.add(key);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        // Find all applications belonging to this exact Job Code
         const group = applications.filter(a => {
           const code = getRemarkField(a.remarks, 'Job Code');
           return code && code.toUpperCase().trim() === key;
@@ -559,34 +559,32 @@ export const JobPostings: React.FC = () => {
         
         groupedApps.push(rep);
       }
-    });
-  } else {
-    const groups: Record<string, Application[]> = {};
-    displayApps.forEach(app => {
+    } else {
+      // Fallback for legacy requirements without a Job Code
       const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
-      if (!groups[key]) {
-        groups[key] = [];
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        const group = applications.filter(a => {
+          const code = getRemarkField(a.remarks, 'Job Code');
+          if (code && code !== 'N/A') return false;
+          return (
+            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+          );
+        });
+        const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+        (rep as any).associatedIds = group.map(a => String(a.id));
+        (rep as any).associatedApps = group;
+        
+        const employeeNames = group
+          .map(a => a.assigned_employee?.full_name)
+          .filter(Boolean);
+        (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
+        
+        groupedApps.push(rep);
       }
-      groups[key].push(app);
-    });
-
-    Object.keys(groups).forEach(key => {
-      const group = groups[key];
-      const rep = { ...(
-        group.find(a => !a.candidate_name) ||
-        group[0]
-      )};
-      (rep as any).associatedIds = group.map(a => String(a.id));
-      (rep as any).associatedApps = group;
-      
-      const employeeNames = group
-        .map(a => a.assigned_employee?.full_name)
-        .filter(Boolean);
-      (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
-      
-      groupedApps.push(rep);
-    });
-  }
+    }
+  });
 
   // Handle redirection to edit candidate/requirement details
   const handleAppSelect = (app: Application) => {
