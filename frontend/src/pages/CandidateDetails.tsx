@@ -82,8 +82,15 @@ export const CandidateDetails: React.FC = () => {
     const candidate = applications.find(a => String(a.id) === applicationId);
     if (!candidate) return [];
 
-    // Include open requirements (!app.candidate_name) or items with Job Code
-    const jobPostingApps = applications.filter(app => !app.candidate_name || getRemarkField(app.remarks, 'Job Code') !== 'N/A');
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const todayLocal = new Date().toLocaleDateString('en-CA');
+
+    // Only include open requirement postings (!app.candidate_name) assigned or updated TODAY
+    const jobPostingApps = applications.filter(app => {
+      if (app.candidate_name) return false;
+      const appDate = ((app.updated_at || app.created_at) || '').slice(0, 10);
+      return appDate === todayISO || appDate === todayLocal;
+    });
 
     // Filter by assignee role or recruiter match
     const filtered = jobPostingApps.filter(app => {

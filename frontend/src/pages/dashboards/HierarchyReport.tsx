@@ -307,8 +307,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     const seenJobs = new Set<string>();
     userApps.forEach(app => {
-      const d = (app.created_at || '').slice(0, 10);
-      const dateMatch = !app.candidate_name || !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      const d = ((app.updated_at || app.created_at) || '').slice(0, 10);
+      const dateMatch = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       if (!dateMatch) return;
       let jobCode = getRemarkField(app.remarks, 'Job Code');
       if (jobCode === 'N/A' || !jobCode) {
