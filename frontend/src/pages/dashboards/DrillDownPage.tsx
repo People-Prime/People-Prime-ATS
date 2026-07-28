@@ -74,6 +74,21 @@ export const DrillDownPage: React.FC = () => {
     return value && value !== '' ? value : 'N/A';
   };
 
+  const resolveCandidateJobCode = (targetApp: any): string => {
+    const direct = getRemarkFieldVal(targetApp?.remarks, 'Job Code');
+    if (direct !== 'N/A' && direct !== '') return direct;
+    const parentJob = applications.find((a: any) =>
+      !a.candidate_name &&
+      a.position?.toLowerCase().trim() === targetApp?.position?.toLowerCase().trim() &&
+      a.client_name?.toLowerCase().trim() === targetApp?.client_name?.toLowerCase().trim()
+    );
+    if (parentJob) {
+      const pCode = getRemarkFieldVal(parentJob.remarks, 'Job Code');
+      return (pCode && pCode !== 'N/A') ? pCode : `PPW - ${String(parentJob.id).padStart(4, '0')}`;
+    }
+    return targetApp?.id ? `PPW - ${String(targetApp.id).padStart(4, '0')}` : 'N/A';
+  };
+
   const renderCellText = (text: string | null | undefined, maxWidth: number = 130) => {
     const val = text || 'N/A';
     if (isCEOOroughReportingTeam) {
@@ -399,9 +414,8 @@ export const DrillDownPage: React.FC = () => {
               ];
               const rows = uniqueCandidates.map((cand: any) => {
                 const app = cand.primaryApp;
-                const directJobCode = getRemarkFieldVal(app.remarks, 'Job Code');
-                const realSubmission = cand.allSubmissions.find((s: any) => getRemarkFieldVal(s.remarks, 'Job Code') !== 'N/A');
-                const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkFieldVal(realSubmission.remarks, 'Job Code') : 'N/A');
+                const realSubmission = cand.allSubmissions?.find((s: any) => getRemarkFieldVal(s.remarks, 'Job Code') !== 'N/A');
+                const displayJobCode = resolveCandidateJobCode(app);
                 const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
                 const jobPosting = applications.find((a: any) => !a.candidate_name && getRemarkFieldVal(a.remarks, 'Job Code') === displayJobCode);
                 const displayJobType = jobPosting ? getRemarkFieldVal(jobPosting.remarks, 'Job Type') : 'N/A';
@@ -858,7 +872,7 @@ export const DrillDownPage: React.FC = () => {
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.candidate_email, 140)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Job Code'), 90)}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(resolveCandidateJobCode(app), 90)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(app.city || '—', 90)}</Typography>
@@ -982,7 +996,7 @@ export const DrillDownPage: React.FC = () => {
                                 <TableBody>
                                   {cand.allSubmissions.map((sub: any) => (
                                     <TableRow key={sub.id}>
-                                      <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{getRemarkFieldVal(sub.remarks, 'Job Code')}</TableCell>
+                                      <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{resolveCandidateJobCode(sub)}</TableCell>
                                       <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 700 }}>{sub.position}</TableCell>
                                       <TableCell sx={{ fontSize: '0.7rem', py: 1 }}>{sub.recruiter || sub.assigned_employee?.full_name || 'System'}</TableCell>
                                       <TableCell sx={{ fontSize: '0.7rem', py: 1, fontWeight: 750, color: 'primary.main' }}>{sub.status}</TableCell>
