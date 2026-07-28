@@ -152,7 +152,21 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       const seen = new Set<string>();
       const dateFiltered = userApps.filter(app => {
         const d = (app.created_at || '').slice(0, 10);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+        const directInDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+        if (directInDate) return true;
+        // Include candidate submissions whose parent job was created within the date range
+        if (app.candidate_name) {
+          const parentJob = deduplicatedApps.find((a: any) =>
+            !a.candidate_name &&
+            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+          );
+          if (parentJob) {
+            const parentDate = (parentJob.created_at || '').slice(0, 10);
+            return !effectiveStartDate || !effectiveEndDate || (parentDate >= effectiveStartDate && parentDate <= effectiveEndDate);
+          }
+        }
+        return false;
       });
       dateFiltered.forEach(app => {
         let jobCode = getRemarkField(app.remarks, 'Job Code');
@@ -347,6 +361,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           if (parentJob) {
             const pCode = getRemarkField(parentJob.remarks, 'Job Code');
             jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
+            // Use parent job's creation date for strict date filtering (Option 2)
+            const parentDate = (parentJob.created_at || '').slice(0, 10);
+            const parentInDate = !effectiveStartDate || !effectiveEndDate || (parentDate >= effectiveStartDate && parentDate <= effectiveEndDate);
+            if (parentInDate) {
+              seenJobs.add(jobCode.toUpperCase().trim());
+            }
+            return;
           } else {
             return;
           }
@@ -600,7 +621,20 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           const dateFiltered = (effectiveStartDate && effectiveEndDate)
             ? descendantApps.filter(app => {
               const d = (app.created_at || '').slice(0, 10);
-              return d >= effectiveStartDate && d <= effectiveEndDate;
+              const directInDate = d >= effectiveStartDate && d <= effectiveEndDate;
+              if (directInDate) return true;
+              if (app.candidate_name) {
+                const parentJob = deduplicatedApps.find((a: any) =>
+                  !a.candidate_name &&
+                  a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+                  a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+                );
+                if (parentJob) {
+                  const parentDate = (parentJob.created_at || '').slice(0, 10);
+                  return parentDate >= effectiveStartDate && parentDate <= effectiveEndDate;
+                }
+              }
+              return false;
             })
             : descendantApps;
 
