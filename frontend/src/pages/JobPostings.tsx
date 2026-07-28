@@ -475,152 +475,128 @@ export const JobPostings: React.FC = () => {
     if (status !== null) setStatusFilter(status);
   }, [location.search]);
 
-  // Filter applications based on search and selected filter and roles
-  const filteredApps = applications.filter((app) => {
-    // 0. Date Filter (bypassed when search term is active)
-    if (!searchTerm.trim()) {
-      const appDate = (app.created_at || '').slice(0, 10);
-      if (appDate < startDate || appDate > endDate) return false;
-    }
+  // 1. Single-pass linear pre-computation map for resolved Job Codes (O(N) time)
+  const jobCodeMap = React.useMemo(() => {
+    const parentJobCodeByPosClient = new Map<string, string>();
+    const resolvedCodeByAppId = new Map<number | string, string>();
 
-    // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
-    if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
-      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (!assignedEmail) return false;
-      const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
-      const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
-      if (!isMemberOfTeam) return false;
-    }
+    // Pass 1: Index all parent Job Openings (!candidate_name)
+    applications.forEach((a: any) => {
+      if (!a.candidate_name) {
+        const directCode = getRemarkField(a.remarks, 'Job Code');
+        const finalCode = (directCode && directCode !== 'N/A') ? directCode : `PPW - ${String(a.id).padStart(4, '0')}`;
+        resolvedCodeByAppId.set(a.id, finalCode);
 
-    // 1. Role-based restrictions
-    if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
-      // Associates only see items assigned to them
-      if (app.assigned_employee?.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) return false;
-    } else if (activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') {
-      // Team Leads only see items assigned to themselves or associates in their team
-      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (!assignedEmail || !myTeamUserEmails.has(assignedEmail)) return false;
-    }
-    
-    // 2. Status Filter
-    if (statusFilter !== 'ALL') {
-      if (statusFilter === 'HAS_CANDIDATE' && !app.candidate_name) return false;
-      else if (statusFilter === 'INTERVIEWS' && !['Interview Scheduled', 'Interview Completed'].includes(app.status)) return false;
-      else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
-    }
-
-    // 3. Text Search
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
-      const matchClient = app.client_name.toLowerCase().includes(term);
-      const matchPosition = app.position.toLowerCase().includes(term);
-      const matchTech = app.technology.toLowerCase().includes(term);
-      const matchAppId = String(app.id).toLowerCase().includes(term);
-      const matchJobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term);
-      return matchCandidate || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
-    }
-
-    return true;
-  });
-
-  const displayApps = filteredApps
-    .sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-
-  // Group ALL apps strictly by unique Job Code (PPW-XXXX) across all roles
-  const groupedApps: any[] = [];
-  const seenKeys = new Set<string>();
-
-  displayApps.forEach(app => {
-    let jobCode = getRemarkField(app.remarks, 'Job Code');
-    if (jobCode === 'N/A' || !jobCode) {
-      if (!app.candidate_name) {
-        jobCode = `PPW - ${String(app.id).padStart(4, '0')}`;
-      } else {
-        const parentJob = applications.find(a =>
-          !a.candidate_name &&
-          a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-          a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-        );
-        if (parentJob) {
-          const pCode = getRemarkField(parentJob.remarks, 'Job Code');
-          jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW - ${String(parentJob.id).padStart(4, '0')}`;
-        } else {
-          jobCode = `PPW - ${String(app.id).padStart(4, '0')}`;
+        const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
+        if (!parentJobCodeByPosClient.has(posKey)) {
+          parentJobCodeByPosClient.set(posKey, finalCode);
         }
       }
-    }
+    });
 
-    if (jobCode && jobCode !== 'N/A') {
-      const key = jobCode.toUpperCase().trim();
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        // Find all applications belonging to this exact Job Code within the selected date range
-        const group = applications.filter(a => {
-          if (!searchTerm.trim()) {
-            const aDate = (a.created_at || '').slice(0, 10);
-            if (aDate < startDate || aDate > endDate) return false;
-          }
-          let code = getRemarkField(a.remarks, 'Job Code');
-          if (code === 'N/A' || !code) {
-            if (!a.candidate_name) code = `PPW - ${String(a.id).padStart(4, '0')}`;
-          }
-          if (code && code !== 'N/A' && code.toUpperCase().trim() === key) return true;
-          if (a.candidate_name) {
-            const candidateJobCode = getRemarkField(a.remarks, 'Job Code');
-            if (candidateJobCode && candidateJobCode !== 'N/A') {
-              return candidateJobCode.toUpperCase().trim() === key;
-            }
-            return (
-              a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-              a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-            );
-          }
-          return false;
-        });
-        const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
-        (rep as any).associatedIds = group.map(a => String(a.id));
-        (rep as any).associatedApps = group;
-        
-        const employeeNames = group
-          .map(a => a.assigned_employee?.full_name)
-          .filter(Boolean);
-        (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
-        
-        groupedApps.push(rep);
+    // Pass 2: Index all candidate submissions
+    applications.forEach((a: any) => {
+      if (a.candidate_name) {
+        const directCode = getRemarkField(a.remarks, 'Job Code');
+        if (directCode && directCode !== 'N/A') {
+          resolvedCodeByAppId.set(a.id, directCode);
+        } else {
+          const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
+          const parentCode = parentJobCodeByPosClient.get(posKey);
+          resolvedCodeByAppId.set(a.id, parentCode || `PPW - ${String(a.id).padStart(4, '0')}`);
+        }
       }
-    } else {
-      // Fallback for legacy requirements without a Job Code
-      const key = `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        const group = applications.filter(a => {
-          if (!searchTerm.trim()) {
-            const aDate = (a.created_at || '').slice(0, 10);
-            if (aDate < startDate || aDate > endDate) return false;
-          }
-          const code = getRemarkField(a.remarks, 'Job Code');
-          if (code && code !== 'N/A') return false;
-          return (
-            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-          );
-        });
-        const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
-        (rep as any).associatedIds = group.map(a => String(a.id));
-        (rep as any).associatedApps = group;
-        
-        const employeeNames = group
-          .map(a => a.assigned_employee?.full_name)
-          .filter(Boolean);
-        (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
-        
-        groupedApps.push(rep);
+    });
+
+    return resolvedCodeByAppId;
+  }, [applications]);
+
+  // 2. High-performance O(N) memoized grouping
+  const groupedApps = React.useMemo(() => {
+    const filteredApps = applications.filter((app: any) => {
+      if (!searchTerm.trim()) {
+        const appDate = (app.created_at || '').slice(0, 10);
+        if (appDate < startDate || appDate > endDate) return false;
       }
-    }
-  });
+
+      if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
+        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+        if (!assignedEmail) return false;
+        const recruiterUser = users.find((u: any) => u.email.toLowerCase() === assignedEmail);
+        const isMemberOfTeam = recruiterUser?.teams?.some((t: any) => String(t.id) === selectedTeamId);
+        if (!isMemberOfTeam) return false;
+      }
+
+      if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
+        if (app.assigned_employee?.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) return false;
+      } else if (activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') {
+        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+        if (!assignedEmail || !myTeamUserEmails.has(assignedEmail)) return false;
+      }
+
+      if (statusFilter !== 'ALL') {
+        if (statusFilter === 'HAS_CANDIDATE' && !app.candidate_name) return false;
+        else if (statusFilter === 'INTERVIEWS' && !['Interview Scheduled', 'Interview Completed'].includes(app.status)) return false;
+        else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
+      }
+
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
+        const matchClient = app.client_name?.toLowerCase().includes(term);
+        const matchPosition = app.position?.toLowerCase().includes(term);
+        const matchTech = app.technology?.toLowerCase().includes(term);
+        const matchAppId = String(app.id).toLowerCase().includes(term);
+        const matchJobCode = (jobCodeMap.get(app.id) || '').toLowerCase().includes(term);
+        return matchCandidate || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
+      }
+
+      return true;
+    }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Pre-group applications linearly
+    const appsByJobCode = new Map<string, any[]>();
+    applications.forEach((a: any) => {
+      if (!searchTerm.trim()) {
+        const aDate = (a.created_at || '').slice(0, 10);
+        if (aDate < startDate || aDate > endDate) return;
+      }
+      const code = jobCodeMap.get(a.id);
+      if (code) {
+        const key = code.toUpperCase().trim();
+        if (!appsByJobCode.has(key)) {
+          appsByJobCode.set(key, []);
+        }
+        appsByJobCode.get(key)!.push(a);
+      }
+    });
+
+    const result: any[] = [];
+    const seenKeys = new Set<string>();
+
+    filteredApps.forEach((app: any) => {
+      const code = jobCodeMap.get(app.id);
+      if (code) {
+        const key = code.toUpperCase().trim();
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          const group = appsByJobCode.get(key) || [app];
+          const rep = { ...(group.find((a: any) => !a.candidate_name) || group[0]) };
+          (rep as any).associatedIds = group.map((a: any) => String(a.id));
+          (rep as any).associatedApps = group;
+
+          const employeeNames = group
+            .map((a: any) => a.assigned_employee?.full_name)
+            .filter(Boolean);
+          (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
+
+          result.push(rep);
+        }
+      }
+    });
+
+    return result;
+  }, [applications, startDate, endDate, searchTerm, statusFilter, activeRole, currentUser, selectedTeamId, myTeamUserEmails, users, jobCodeMap]);
 
   // Handle redirection to edit candidate/requirement details
   const handleAppSelect = (app: Application) => {
