@@ -581,7 +581,13 @@ export const DrillDownPage: React.FC = () => {
               </TableHead>
               <TableBody>
                 {isJobsType ? (
-                  modalData.map((app: any) => {
+                  modalData
+                    .filter((app: any) => {
+                      const hasTitle = app.position && app.position !== 'N/A' && app.position.trim() !== '';
+                      const hasClient = app.client_name && app.client_name !== 'N/A' && app.client_name.trim() !== '';
+                      return !app.candidate_name || hasTitle || hasClient;
+                    })
+                    .map((app: any) => {
                     const jobCodeVal = (() => {
                       const direct = getRemarkFieldVal(app.remarks, 'Job Code');
                       if (direct !== 'N/A') return direct;

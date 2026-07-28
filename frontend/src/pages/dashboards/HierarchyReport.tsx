@@ -169,7 +169,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
               const pCode = getRemarkField(parentJob.remarks, 'Job Code');
               jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
             } else {
-              jobCode = `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+              return;
             }
           }
         }
@@ -348,7 +348,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             const pCode = getRemarkField(parentJob.remarks, 'Job Code');
             jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
           } else {
-            jobCode = `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+            return;
           }
         }
       }
@@ -620,7 +620,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                   const pCode = getRemarkField(parentJob.remarks, 'Job Code');
                   jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
                 } else {
-                  jobCode = `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+                  return;
                 }
               }
             }

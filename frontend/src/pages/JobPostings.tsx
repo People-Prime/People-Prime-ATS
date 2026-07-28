@@ -503,7 +503,9 @@ export const JobPostings: React.FC = () => {
         } else {
           const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
           const parentCode = parentJobCodeByPosClient.get(posKey);
-          resolvedCodeByAppId.set(a.id, parentCode || `PPW - ${String(a.id).padStart(4, '0')}`);
+          if (parentCode) {
+            resolvedCodeByAppId.set(a.id, parentCode);
+          }
         }
       }
     });
