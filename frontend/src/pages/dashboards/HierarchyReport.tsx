@@ -152,25 +152,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       const seen = new Set<string>();
       const dateFiltered = userApps.filter(app => {
         const d = (app.created_at || '').slice(0, 10);
-        const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-        if (isWithinDate) return true;
-        if (!app.candidate_name) {
-          return userApps.some(sub => {
-            if (!sub.candidate_name) return false;
-            const subDate = (sub.created_at || '').slice(0, 10);
-            if (effectiveStartDate && effectiveEndDate && (subDate < effectiveStartDate || subDate > effectiveEndDate)) return false;
-            const jobCode = getRemarkField(app.remarks, 'Job Code');
-            const subCode = getRemarkField(sub.remarks, 'Job Code');
-            if (jobCode && jobCode !== 'N/A' && subCode && subCode !== 'N/A') {
-              return subCode.toUpperCase().trim() === jobCode.toUpperCase().trim();
-            }
-            return (
-              sub.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-              sub.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-            );
-          });
-        }
-        return false;
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       dateFiltered.forEach(app => {
         let jobCode = getRemarkField(app.remarks, 'Job Code');
@@ -370,29 +352,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           }
         }
       }
-      if (!jobCode) return;
-
-      if (isWithinDate) {
-        seenJobs.add(jobCode.toUpperCase().trim());
-      } else if (!app.candidate_name) {
-        // Count job requirement if user submitted candidates for this job requirement within date range
-        const hasSubmissionsInDate = userApps.some(sub => {
-          if (!sub.candidate_name) return false;
-          const subDate = (sub.created_at || '').slice(0, 10);
-          if (effectiveStartDate && effectiveEndDate && (subDate < effectiveStartDate || subDate > effectiveEndDate)) return false;
-          const subCode = getRemarkField(sub.remarks, 'Job Code');
-          if (jobCode && jobCode !== 'N/A' && subCode && subCode !== 'N/A') {
-            return subCode.toUpperCase().trim() === jobCode.toUpperCase().trim();
-          }
-          return (
-            sub.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-            sub.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-          );
-        });
-        if (hasSubmissionsInDate) {
-          seenJobs.add(jobCode.toUpperCase().trim());
-        }
-      }
+      if (!isWithinDate) return;
+      seenJobs.add(jobCode.toUpperCase().trim());
     });
     const jobsCount = seenJobs.size;
 
