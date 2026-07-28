@@ -568,7 +568,20 @@ export const DrillDownPage: React.FC = () => {
               <TableBody>
                 {isJobsType ? (
                   modalData.map((app: any) => {
-                    const jobCodeVal = getRemarkFieldVal(app.remarks, 'Job Code');
+                    const jobCodeVal = (() => {
+                      const direct = getRemarkFieldVal(app.remarks, 'Job Code');
+                      if (direct !== 'N/A') return direct;
+                      const parentJob = applications.find((a: any) =>
+                        !a.candidate_name &&
+                        a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+                        a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+                      );
+                      if (parentJob) {
+                        const parentCode = getRemarkFieldVal(parentJob.remarks, 'Job Code');
+                        return (parentCode && parentCode !== 'N/A') ? parentCode : `PPW - ${String(parentJob.id).padStart(4, '0')}`;
+                      }
+                      return !app.candidate_name ? `PPW - ${String(app.id).padStart(4, '0')}` : '—';
+                    })();
                     const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
                     const recruitersText = Array.from(new Set(
                       app.associatedApps

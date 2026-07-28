@@ -175,9 +175,21 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       dateFiltered.forEach(app => {
         let jobCode = getRemarkField(app.remarks, 'Job Code');
         if (jobCode === 'N/A' || !jobCode) {
-          jobCode = !app.candidate_name
-            ? `PPW-${String(app.id).padStart(4, '0')}`
-            : `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+          if (!app.candidate_name) {
+            jobCode = `PPW-${String(app.id).padStart(4, '0')}`;
+          } else {
+            const parentJob = deduplicatedApps.find(a =>
+              !a.candidate_name &&
+              a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+              a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+            );
+            if (parentJob) {
+              const pCode = getRemarkField(parentJob.remarks, 'Job Code');
+              jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
+            } else {
+              jobCode = `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+            }
+          }
         }
         if (!jobCode) return;
         const key = jobCode.toUpperCase().trim();
@@ -186,9 +198,21 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           const group = dateFiltered.filter(a => {
             let code = getRemarkField(a.remarks, 'Job Code');
             if (code === 'N/A' || !code) {
-              code = !a.candidate_name
-                ? `PPW-${String(a.id).padStart(4, '0')}`
-                : `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
+              if (!a.candidate_name) {
+                code = `PPW-${String(a.id).padStart(4, '0')}`;
+              } else {
+                const parentJob = deduplicatedApps.find(pj =>
+                  !pj.candidate_name &&
+                  pj.position?.toLowerCase().trim() === a.position?.toLowerCase().trim() &&
+                  pj.client_name?.toLowerCase().trim() === a.client_name?.toLowerCase().trim()
+                );
+                if (parentJob) {
+                  const pCode = getRemarkField(parentJob.remarks, 'Job Code');
+                  code = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
+                } else {
+                  code = `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
+                }
+              }
             }
             return code && code.toUpperCase().trim() === key;
           });
@@ -609,8 +633,25 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
           const seen = new Set<string>();
           dateFiltered.forEach(app => {
-            const jobCode = getRemarkField(app.remarks, 'Job Code');
-            if (jobCode === 'N/A' || !jobCode) return;
+            let jobCode = getRemarkField(app.remarks, 'Job Code');
+            if (jobCode === 'N/A' || !jobCode) {
+              if (!app.candidate_name) {
+                jobCode = `PPW-${String(app.id).padStart(4, '0')}`;
+              } else {
+                const parentJob = deduplicatedApps.find(a =>
+                  !a.candidate_name &&
+                  a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+                  a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+                );
+                if (parentJob) {
+                  const pCode = getRemarkField(parentJob.remarks, 'Job Code');
+                  jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
+                } else {
+                  jobCode = `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+                }
+              }
+            }
+            if (!jobCode) return;
             seen.add(jobCode.toUpperCase().trim());
           });
 
