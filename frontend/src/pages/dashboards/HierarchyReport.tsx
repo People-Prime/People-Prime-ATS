@@ -151,13 +151,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     if (metricType === 'JOBS') {
       const seen = new Set<string>();
       const dateFiltered = userApps.filter(app => {
-        const d = ((app.updated_at || app.created_at) || '').slice(0, 10);
+        const d = (app.created_at || '').slice(0, 10);
         const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
         if (isWithinDate) return true;
         if (!app.candidate_name) {
           return userApps.some(sub => {
             if (!sub.candidate_name) return false;
-            const subDate = ((sub.updated_at || sub.created_at) || '').slice(0, 10);
+            const subDate = (sub.created_at || '').slice(0, 10);
             if (effectiveStartDate && effectiveEndDate && (subDate < effectiveStartDate || subDate > effectiveEndDate)) return false;
             const jobCode = getRemarkField(app.remarks, 'Job Code');
             const subCode = getRemarkField(sub.remarks, 'Job Code');
@@ -325,7 +325,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     const seenJobs = new Set<string>();
     userApps.forEach(app => {
-      const d = ((app.updated_at || app.created_at) || '').slice(0, 10);
+      const d = (app.created_at || '').slice(0, 10);
       const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
 
       let jobCode = getRemarkField(app.remarks, 'Job Code');
@@ -342,7 +342,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         // Count job requirement if user submitted candidates for this job requirement within date range
         const hasSubmissionsInDate = userApps.some(sub => {
           if (!sub.candidate_name) return false;
-          const subDate = ((sub.updated_at || sub.created_at) || '').slice(0, 10);
+          const subDate = (sub.created_at || '').slice(0, 10);
           if (effectiveStartDate && effectiveEndDate && (subDate < effectiveStartDate || subDate > effectiveEndDate)) return false;
           const subCode = getRemarkField(sub.remarks, 'Job Code');
           if (jobCode && jobCode !== 'N/A' && subCode && subCode !== 'N/A') {
