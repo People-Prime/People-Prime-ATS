@@ -477,11 +477,6 @@ export const JobPostings: React.FC = () => {
 
   // Filter applications based on search and selected filter and roles
   const filteredApps = applications.filter((app) => {
-    // Always include open job requirement records (!app.candidate_name) or items with valid Job Code
-    const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
-    const isJobPostingApp = !app.candidate_name || (jobCodeVal !== 'N/A' && jobCodeVal !== '');
-    if (!isJobPostingApp) return false;
-
     // 0. Date Filter (bypassed when search term is active)
     if (!searchTerm.trim()) {
       const appDate = (app.created_at || '').slice(0, 10);
@@ -543,6 +538,18 @@ export const JobPostings: React.FC = () => {
     if (jobCode === 'N/A' || !jobCode) {
       if (!app.candidate_name) {
         jobCode = `PPW - ${String(app.id).padStart(4, '0')}`;
+      } else {
+        const parentJob = applications.find(a =>
+          !a.candidate_name &&
+          a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+          a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+        );
+        if (parentJob) {
+          const pCode = getRemarkField(parentJob.remarks, 'Job Code');
+          jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW - ${String(parentJob.id).padStart(4, '0')}`;
+        } else {
+          jobCode = `PPW - ${String(app.id).padStart(4, '0')}`;
+        }
       }
     }
 
@@ -1051,9 +1058,26 @@ Remarks: ${candidateForm.remarks}`;
                         </Box>
                       </td>
                       <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', color: jobCodeVal !== 'N/A' ? 'inherit' : 'text.disabled' }}>
-                          {renderCellText(jobCodeVal !== 'N/A' ? jobCodeVal : '—', 95)}
-                        </Typography>
+                        {(() => {
+                          const displayHeaderCode = (() => {
+                            if (jobCodeVal !== 'N/A' && jobCodeVal !== '') return jobCodeVal;
+                            const parentJob = applications.find(a =>
+                              !a.candidate_name &&
+                              a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+                              a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+                            );
+                            if (parentJob) {
+                              const pCode = getRemarkField(parentJob.remarks, 'Job Code');
+                              return (pCode && pCode !== 'N/A') ? pCode : `PPW - ${String(parentJob.id).padStart(4, '0')}`;
+                            }
+                            return `PPW - ${String(app.id).padStart(4, '0')}`;
+                          })();
+                          return (
+                            <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', color: 'inherit' }}>
+                              {renderCellText(displayHeaderCode, 95)}
+                            </Typography>
+                          );
+                        })()}
                       </td>
                       <td style={{ padding: '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography
