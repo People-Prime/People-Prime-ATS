@@ -354,9 +354,21 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
       let jobCode = getRemarkField(app.remarks, 'Job Code');
       if (jobCode === 'N/A' || !jobCode) {
-        jobCode = !app.candidate_name
-          ? `PPW-${String(app.id).padStart(4, '0')}`
-          : `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+        if (!app.candidate_name) {
+          jobCode = `PPW-${String(app.id).padStart(4, '0')}`;
+        } else {
+          const parentJob = deduplicatedApps.find(a =>
+            !a.candidate_name &&
+            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+          );
+          if (parentJob) {
+            const pCode = getRemarkField(parentJob.remarks, 'Job Code');
+            jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
+          } else {
+            jobCode = `${app.client_name?.toLowerCase().trim()}|${app.position?.toLowerCase().trim()}`;
+          }
+        }
       }
       if (!jobCode) return;
 
