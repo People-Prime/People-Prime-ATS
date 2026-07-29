@@ -50,6 +50,11 @@ class Application(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Career Portal fields (only applicable to job posting records where candidate_name is empty)
+    publish_to_career_page = models.BooleanField(default=False)
+    publish_to_linkedin = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.position} - {self.client_name}"
 
