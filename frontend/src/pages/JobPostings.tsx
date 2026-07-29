@@ -475,10 +475,12 @@ export const JobPostings: React.FC = () => {
     if (status !== null) setStatusFilter(status);
   }, [location.search]);
 
-  // 1. Single-pass linear pre-computation map for resolved Job Codes (O(N) time)
-  const jobCodeMap = React.useMemo(() => {
+  // 1. Single-pass linear pre-computation map for resolved Job Codes & Parent Jobs (O(N) time)
+  const { jobCodeMap, parentJobMap } = React.useMemo(() => {
     const parentJobCodeByPosClient = new Map<string, string>();
+    const parentJobObjByPosClient = new Map<string, any>();
     const resolvedCodeByAppId = new Map<number | string, string>();
+    const parentJobByAppId = new Map<number | string, any>();
 
     // Pass 1: Index all parent Job Openings (!candidate_name)
     applications.forEach((a: any) => {
@@ -486,10 +488,12 @@ export const JobPostings: React.FC = () => {
         const directCode = getRemarkField(a.remarks, 'Job Code');
         const finalCode = (directCode && directCode !== 'N/A') ? directCode : `PPW - ${String(a.id).padStart(4, '0')}`;
         resolvedCodeByAppId.set(a.id, finalCode);
+        parentJobByAppId.set(a.id, a);
 
         const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
         if (!parentJobCodeByPosClient.has(posKey)) {
           parentJobCodeByPosClient.set(posKey, finalCode);
+          parentJobObjByPosClient.set(posKey, a);
         }
       }
     });
@@ -500,24 +504,29 @@ export const JobPostings: React.FC = () => {
         const directCode = getRemarkField(a.remarks, 'Job Code');
         if (directCode && directCode !== 'N/A') {
           resolvedCodeByAppId.set(a.id, directCode);
+          const parent = applications.find((pj: any) => !pj.candidate_name && getRemarkField(pj.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim());
+          if (parent) parentJobByAppId.set(a.id, parent);
         } else {
           const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
           const parentCode = parentJobCodeByPosClient.get(posKey);
+          const parentObj = parentJobObjByPosClient.get(posKey);
           if (parentCode) {
             resolvedCodeByAppId.set(a.id, parentCode);
+            if (parentObj) parentJobByAppId.set(a.id, parentObj);
           }
         }
       }
     });
 
-    return resolvedCodeByAppId;
+    return { jobCodeMap: resolvedCodeByAppId, parentJobMap: parentJobByAppId };
   }, [applications]);
 
   // 2. High-performance O(N) memoized grouping
   const groupedApps = React.useMemo(() => {
     const filteredApps = applications.filter((app: any) => {
       if (!searchTerm.trim()) {
-        const appDate = (app.created_at || '').slice(0, 10);
+        const parentJob = parentJobMap.get(app.id) || app;
+        const appDate = (parentJob.created_at || '').slice(0, 10);
         if (appDate < startDate || appDate > endDate) return false;
       }
 
@@ -560,7 +569,8 @@ export const JobPostings: React.FC = () => {
     const appsByJobCode = new Map<string, any[]>();
     applications.forEach((a: any) => {
       if (!searchTerm.trim()) {
-        const aDate = (a.created_at || '').slice(0, 10);
+        const parentJob = parentJobMap.get(a.id) || a;
+        const aDate = (parentJob.created_at || '').slice(0, 10);
         if (aDate < startDate || aDate > endDate) return;
       }
       const code = jobCodeMap.get(a.id);
@@ -583,7 +593,8 @@ export const JobPostings: React.FC = () => {
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
           const group = appsByJobCode.get(key) || [app];
-          const rep = { ...(group.find((a: any) => !a.candidate_name) || group[0]) };
+          const parent = parentJobMap.get(app.id);
+          const rep = { ...(parent || group.find((a: any) => !a.candidate_name) || group[0]) };
           (rep as any).associatedIds = group.map((a: any) => String(a.id));
           (rep as any).associatedApps = group;
 
