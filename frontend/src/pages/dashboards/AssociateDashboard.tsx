@@ -124,33 +124,44 @@ export const AssociateDashboard: React.FC = () => {
     : myApplications;
 
 
+  const findParentJob = (app: any): any => {
+    if (!app) return null;
+    if (!app.candidate_name) return app;
+    const directCode = getRemarkField(app.remarks, 'Job Code');
+    if (directCode && directCode !== 'N/A') {
+      const parentByCode = applications.find(a =>
+        !a.candidate_name &&
+        getRemarkField(a.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim()
+      );
+      if (parentByCode) return parentByCode;
+    }
+    const normPos = app.position?.toLowerCase().trim();
+    const normClient = app.client_name?.toLowerCase().trim();
+    if (!normPos || !normClient) return null;
+    return applications.find(a =>
+      !a.candidate_name &&
+      a.position?.toLowerCase().trim() === normPos &&
+      a.client_name?.toLowerCase().trim() === normClient
+    ) || null;
+  };
+
   const uniqueJobOpenings = React.useMemo(() => {
     const seen = new Set<string>();
     const unique: typeof dateFilteredApps = [];
     dateFilteredApps.forEach(app => {
-      const jobCode = getRemarkField(app.remarks, 'Job Code');
+      const parentJob = findParentJob(app) || app;
+      const jobCode = getRemarkField(parentJob.remarks, 'Job Code');
       const key = (jobCode && jobCode !== 'N/A') 
         ? jobCode.toUpperCase().trim() 
-        : `${app.client_name?.toLowerCase()}|${app.position?.toLowerCase()}|${app.technology?.toLowerCase()}`;
+        : `${parentJob.client_name?.toLowerCase().trim()}|${parentJob.position?.toLowerCase().trim()}`;
       if (!seen.has(key)) {
         seen.add(key);
-        const matches = dateFilteredApps.filter(m => {
-          const mCode = getRemarkField(m.remarks, 'Job Code');
-          if (jobCode && jobCode !== 'N/A') {
-            return mCode && mCode.toUpperCase().trim() === key;
-          }
-          return (
-            m.client_name?.toLowerCase() === app.client_name?.toLowerCase() &&
-            m.position?.toLowerCase() === app.position?.toLowerCase() &&
-            m.technology?.toLowerCase() === app.technology?.toLowerCase()
-          );
-        });
-        const rep = matches.find(m => !m.candidate_name) || matches[0];
+        const rep = { ...(parentJob || app) };
         unique.push(rep);
       }
     });
     return unique;
-  }, [dateFilteredApps]);
+  }, [dateFilteredApps, applications]);
 
   // Status Chip helper
   const getStatusChip = (status: string) => {
