@@ -31,9 +31,26 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'client_name', 'city', 'state', 'position', 'technology', 'experience', 'recruiter',
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
-            'modified_by', 'created_at', 'updated_at', 'notes', 'transition_dates'
+            'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'published_at',
+            'created_at', 'updated_at', 'notes', 'transition_dates'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'modified_by']
+        read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'modified_by']
+
+    def create(self, validated_data):
+        publish_career = validated_data.get('publish_to_career_page', False)
+        publish_linkedin = validated_data.get('publish_to_linkedin', False)
+        if (publish_career or publish_linkedin) and not validated_data.get('published_at'):
+            from django.utils import timezone
+            validated_data['published_at'] = timezone.now()
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        publish_career = validated_data.get('publish_to_career_page', instance.publish_to_career_page)
+        publish_linkedin = validated_data.get('publish_to_linkedin', instance.publish_to_linkedin)
+        if (publish_career or publish_linkedin) and not instance.published_at:
+            from django.utils import timezone
+            validated_data['published_at'] = timezone.now()
+        return super().update(instance, validated_data)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

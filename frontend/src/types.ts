@@ -94,6 +94,9 @@ export interface Application {
   created_at: string;
   updated_at: string;
   modified_by?: string;
+  publish_to_career_page?: boolean;
+  publish_to_linkedin?: boolean;
+  published_at?: string | null;
 }
 
 export interface ApplicationNote {

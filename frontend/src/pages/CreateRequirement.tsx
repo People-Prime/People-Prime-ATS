@@ -17,7 +17,8 @@ import {
   Divider,
   Stack,
   Checkbox,
-  ListItemText
+  ListItemText,
+  FormControlLabel
 } from '@mui/material';
 import { Upload } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
@@ -65,7 +66,11 @@ export const CreateRequirement: React.FC = () => {
 
     // Document options
     docSource: '',
-    fileName: ''
+    fileName: '',
+
+    // Publishing Options
+    publishToCareerPage: false,
+    publishToLinkedin: false
   });
 
   const [error, setError] = useState('');
@@ -153,7 +158,9 @@ export const CreateRequirement: React.FC = () => {
           description: extractField('Description') || '',
           noticePeriod: extractField('Notice Period') || 'Immediate',
           docSource: extractField('Source Option') || 'PC',
-          fileName: extractField('FileName') === 'No document uploaded' ? '' : extractField('FileName')
+          fileName: extractField('FileName') === 'No document uploaded' ? '' : extractField('FileName'),
+          publishToCareerPage: Boolean(app.publish_to_career_page),
+          publishToLinkedin: Boolean(app.publish_to_linkedin)
         });
       }
     }
@@ -248,7 +255,9 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             technology: formData.primarySkills,
             experience: parseFloat(formData.experience) || 0.0,
             assigned_employee_id: email,
-            remarks: formattedRemarks
+            remarks: formattedRemarks,
+            publish_to_career_page: formData.publishToCareerPage,
+            publish_to_linkedin: formData.publishToLinkedin
           };
 
           if (existing) {
@@ -309,7 +318,9 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             technology: formData.primarySkills,
             experience: parseFloat(formData.experience) || 0.0,
             assigned_employee_id: assignedUser ? assignedUser.email : null,
-            remarks: formattedRemarks
+            remarks: formattedRemarks,
+            publish_to_career_page: formData.publishToCareerPage,
+            publish_to_linkedin: formData.publishToLinkedin
           };
 
           const response = await api.post('applications/', payload);
@@ -689,6 +700,49 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   {formData.fileName || 'No file attached'}
                 </Typography>
               </Stack>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            {/* SECTION 5: PUBLISHING OPTIONS */}
+            <Typography variant="subtitle1" color="primary" fontWeight={800} sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              🌐 Publishing Options
+            </Typography>
+            <Box sx={{ mb: 3 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.publishToCareerPage}
+                        onChange={(e) => setFormData(prev => ({ ...prev, publishToCareerPage: e.target.checked }))}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Typography variant="body2" fontWeight={600}>
+                        Publish to Company Career Page
+                      </Typography>
+                    }
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.publishToLinkedin}
+                        onChange={(e) => setFormData(prev => ({ ...prev, publishToLinkedin: e.target.checked }))}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Typography variant="body2" fontWeight={600}>
+                        Publish to LinkedIn
+                      </Typography>
+                    }
+                  />
+                </Grid>
+              </Grid>
             </Box>
 
             {/* Form actions */}
