@@ -60,6 +60,14 @@ class ApplicationSerializer(serializers.ModelSerializer):
             dates[obj.status] = obj.created_at.strftime('%Y-%m-%d')
         return dates
 
+class PublicJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Application
+        fields = [
+            'id', 'position', 'client_name', 'technology', 'experience',
+            'city', 'state', 'remarks', 'published_at', 'created_at'
+        ]
+
     def validate(self, data):
         candidate_email = data.get('candidate_email')
         candidate_phone = data.get('candidate_phone')

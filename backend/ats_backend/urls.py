@@ -9,4 +9,5 @@ urlpatterns = [
     path('api/users/', include('users.urls')),
     path('api/teams/', include('teams.urls')),
     path('api/applications/', include('applications.urls')),
+    path('api/public/jobs/', include('applications.public_urls')),
 ]
