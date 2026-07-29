@@ -114,6 +114,50 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return getUniqueSubmissions(applications);
   }, [applications]);
 
+  const findParentJobForApp = (app: any): any => {
+    if (!app) return null;
+    if (!app.candidate_name) return app;
+
+    // 1. First try matching by explicit Job Code from remarks
+    const directCode = getRemarkField(app.remarks, 'Job Code');
+    if (directCode && directCode !== 'N/A') {
+      const parentByCode = deduplicatedApps.find(a =>
+        !a.candidate_name &&
+        getRemarkField(a.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim()
+      );
+      if (parentByCode) return parentByCode;
+    }
+
+    // 2. Second, try matching by position + client_name
+    const normPos = app.position?.toLowerCase().trim();
+    const normClient = app.client_name?.toLowerCase().trim();
+    if (!normPos || !normClient) return null;
+
+    const candidates = deduplicatedApps.filter(a =>
+      !a.candidate_name &&
+      a.position?.toLowerCase().trim() === normPos &&
+      a.client_name?.toLowerCase().trim() === normClient
+    );
+    if (candidates.length === 0) return null;
+
+    // Prefer parent job within effective date filter range
+    if (effectiveStartDate && effectiveEndDate) {
+      const inRange = candidates.find(a => {
+        const d = (a.created_at || '').slice(0, 10);
+        return d >= effectiveStartDate && d <= effectiveEndDate;
+      });
+      if (inRange) return inRange;
+    }
+
+    // Fallback to most recent matching job created on or before candidate submission date
+    const subDate = (app.created_at || '').slice(0, 10);
+    const onOrBefore = candidates
+      .filter(a => (a.created_at || '').slice(0, 10) <= subDate)
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+
+    return onOrBefore || candidates[0];
+  };
+
   const getDescendantEmails = (email: string): string[] => {
     const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
     return [email, ...direct.flatMap(d => getDescendantEmails(d.email))];
@@ -151,68 +195,33 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     if (metricType === 'JOBS') {
       const seen = new Set<string>();
       const dateFiltered = userApps.filter(app => {
-        const d = (app.created_at || '').slice(0, 10);
-        const directInDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-        if (directInDate) return true;
-        // Include candidate submissions whose parent job was created within the date range
-        if (app.candidate_name) {
-          const parentJob = deduplicatedApps.find((a: any) =>
-            !a.candidate_name &&
-            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-          );
-          if (parentJob) {
-            const parentDate = (parentJob.created_at || '').slice(0, 10);
-            return !effectiveStartDate || !effectiveEndDate || (parentDate >= effectiveStartDate && parentDate <= effectiveEndDate);
-          }
-        }
-        return false;
+        const parentJob = findParentJobForApp(app);
+        if (!parentJob) return false;
+        const d = (parentJob.created_at || '').slice(0, 10);
+        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       dateFiltered.forEach(app => {
-        let jobCode = getRemarkField(app.remarks, 'Job Code');
+        const parentJob = findParentJobForApp(app);
+        if (!parentJob) return;
+        let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
         if (jobCode === 'N/A' || !jobCode) {
-          if (!app.candidate_name) {
-            jobCode = `PPW-${String(app.id).padStart(4, '0')}`;
-          } else {
-            const parentJob = deduplicatedApps.find(a =>
-              !a.candidate_name &&
-              a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-              a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-            );
-            if (parentJob) {
-              const pCode = getRemarkField(parentJob.remarks, 'Job Code');
-              jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
-            } else {
-              return;
-            }
-          }
+          jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
         }
         if (!jobCode) return;
         const key = jobCode.toUpperCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
           const group = dateFiltered.filter(a => {
-            let code = getRemarkField(a.remarks, 'Job Code');
+            const pJob = findParentJobForApp(a);
+            if (!pJob) return false;
+            let code = getRemarkField(pJob.remarks, 'Job Code');
             if (code === 'N/A' || !code) {
-              if (!a.candidate_name) {
-                code = `PPW-${String(a.id).padStart(4, '0')}`;
-              } else {
-                const parentJob = deduplicatedApps.find(pj =>
-                  !pj.candidate_name &&
-                  pj.position?.toLowerCase().trim() === a.position?.toLowerCase().trim() &&
-                  pj.client_name?.toLowerCase().trim() === a.client_name?.toLowerCase().trim()
-                );
-                if (parentJob) {
-                  const pCode = getRemarkField(parentJob.remarks, 'Job Code');
-                  code = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
-                } else {
-                  code = `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
-                }
-              }
+              code = `PPW-${String(pJob.id).padStart(4, '0')}`;
             }
             return code && code.toUpperCase().trim() === key;
           });
-          const rep = { ...(group.find(a => !a.candidate_name) || group[0]) };
+          const parent = findParentJobForApp(group[0]);
+          const rep = { ...(parent || group.find(a => !a.candidate_name) || group[0]) };
           rep.associatedApps = group;
           filtered.push(rep);
         }
@@ -345,35 +354,17 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     const seenJobs = new Set<string>();
     userApps.forEach(app => {
-      const d = (app.created_at || '').slice(0, 10);
+      const parentJob = findParentJobForApp(app);
+      if (!parentJob) return;
+      const d = (parentJob.created_at || '').slice(0, 10);
       const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-
-      let jobCode = getRemarkField(app.remarks, 'Job Code');
-      if (jobCode === 'N/A' || !jobCode) {
-        if (!app.candidate_name) {
-          jobCode = `PPW-${String(app.id).padStart(4, '0')}`;
-        } else {
-          const parentJob = deduplicatedApps.find(a =>
-            !a.candidate_name &&
-            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-          );
-          if (parentJob) {
-            const pCode = getRemarkField(parentJob.remarks, 'Job Code');
-            jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
-            // Use parent job's creation date for strict date filtering (Option 2)
-            const parentDate = (parentJob.created_at || '').slice(0, 10);
-            const parentInDate = !effectiveStartDate || !effectiveEndDate || (parentDate >= effectiveStartDate && parentDate <= effectiveEndDate);
-            if (parentInDate) {
-              seenJobs.add(jobCode.toUpperCase().trim());
-            }
-            return;
-          } else {
-            return;
-          }
-        }
-      }
       if (!isWithinDate) return;
+
+      let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
+      if (jobCode === 'N/A' || !jobCode) {
+        jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
+      }
+      if (!jobCode) return;
       seenJobs.add(jobCode.toUpperCase().trim());
     });
     const jobsCount = seenJobs.size;
@@ -618,45 +609,18 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
           );
 
-          const dateFiltered = (effectiveStartDate && effectiveEndDate)
-            ? descendantApps.filter(app => {
-              const d = (app.created_at || '').slice(0, 10);
-              const directInDate = d >= effectiveStartDate && d <= effectiveEndDate;
-              if (directInDate) return true;
-              if (app.candidate_name) {
-                const parentJob = deduplicatedApps.find((a: any) =>
-                  !a.candidate_name &&
-                  a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-                  a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-                );
-                if (parentJob) {
-                  const parentDate = (parentJob.created_at || '').slice(0, 10);
-                  return parentDate >= effectiveStartDate && parentDate <= effectiveEndDate;
-                }
-              }
-              return false;
-            })
-            : descendantApps;
-
           const seen = new Set<string>();
-          dateFiltered.forEach(app => {
-            let jobCode = getRemarkField(app.remarks, 'Job Code');
+          descendantApps.forEach(app => {
+            const parentJob = findParentJobForApp(app);
+            if (!parentJob) return;
+            if (effectiveStartDate && effectiveEndDate) {
+              const d = (parentJob.created_at || '').slice(0, 10);
+              if (d < effectiveStartDate || d > effectiveEndDate) return;
+            }
+
+            let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
             if (jobCode === 'N/A' || !jobCode) {
-              if (!app.candidate_name) {
-                jobCode = `PPW-${String(app.id).padStart(4, '0')}`;
-              } else {
-                const parentJob = deduplicatedApps.find(a =>
-                  !a.candidate_name &&
-                  a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
-                  a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
-                );
-                if (parentJob) {
-                  const pCode = getRemarkField(parentJob.remarks, 'Job Code');
-                  jobCode = (pCode && pCode !== 'N/A') ? pCode : `PPW-${String(parentJob.id).padStart(4, '0')}`;
-                } else {
-                  return;
-                }
-              }
+              jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
             }
             if (!jobCode) return;
             seen.add(jobCode.toUpperCase().trim());
