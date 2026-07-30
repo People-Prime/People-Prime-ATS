@@ -207,7 +207,31 @@ class PublicJobSerializer(serializers.ModelSerializer):
         return result if result else None
 
     def get_required_documents(self, obj):
-        return self._extract_field(obj.remarks, 'Required Documents')
+        import re
+        remarks = obj.remarks or ''
+        if 'Required Documents:' not in remarks:
+            return None
+
+        after_req = remarks.split('Required Documents:', 1)[1]
+        lines = after_req.split('\n')
+        doc_lines = []
+
+        stop_header = re.compile(r'^\s*\[.+\]')
+        stop_key = re.compile(
+            r'^\s*(Address|Work Mode|Employee Type|Zip Code|Source Option|FileName|Job Code|Client Bill Rate|Pay Rate|Start Date|End Date|Location|Job Status|Job Type|Client Job ID|Degree|Notice Period|Technical Proficiency|Description):\s*',
+            re.IGNORECASE
+        )
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stop_header.match(stripped) or stop_key.match(stripped):
+                break
+            doc_lines.append(stripped)
+
+        result = ", ".join(doc_lines).strip()
+        return result if result and result != 'N/A' else None
 
 class ApplicationCreateSerializer(ApplicationSerializer):
     class Meta(ApplicationSerializer.Meta):
