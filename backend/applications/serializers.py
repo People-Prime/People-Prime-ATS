@@ -78,38 +78,136 @@ class ApplicationSerializer(serializers.ModelSerializer):
         return dates
 
 class PublicJobSerializer(serializers.ModelSerializer):
+    job_code = serializers.SerializerMethodField()
+    required_skills = serializers.SerializerMethodField()
+    experience = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
+    job_type = serializers.SerializerMethodField()
+    work_mode = serializers.SerializerMethodField()
+    notice_period = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    required_documents = serializers.SerializerMethodField()
+
     class Meta:
         model = Application
         fields = [
-            'id', 'position', 'technology', 'experience',
-            'city', 'state', 'remarks', 'published_at', 'created_at'
+            'id', 'job_code', 'position', 'technology', 'required_skills',
+            'experience', 'city', 'state', 'location', 'job_type',
+            'work_mode', 'notice_period', 'description', 'required_documents',
+            'published_at', 'created_at'
         ]
 
-    def validate(self, data):
-        candidate_email = data.get('candidate_email')
-        candidate_phone = data.get('candidate_phone')
-        position = data.get('position')
-        client_name = data.get('client_name')
-        assigned_employee = data.get('assigned_employee')
-        instance = self.instance
+    def _extract_field(self, remarks, field_name):
+        import re
+        if not remarks:
+            return None
+        match = re.search(r'' + field_name + r':\s*(.*)', remarks)
+        if match:
+            val = match.group(1).strip()
+            return val if val and val != 'N/A' else None
+        return None
 
-        if candidate_email and candidate_phone and position and client_name and assigned_employee:
-            # Only block if the SAME associate tries to assign the same candidate to the same job twice
-            existing_assignments = Application.objects.exclude(candidate_name='').filter(
-                assigned_employee=assigned_employee,
-                candidate_email__iexact=candidate_email.strip(),
-                candidate_phone=candidate_phone.strip(),
-                position__iexact=position.strip(),
-                client_name__iexact=client_name.strip()
+    def get_job_code(self, obj):
+        return self._extract_field(obj.remarks, 'Job Code')
+
+    def get_required_skills(self, obj):
+        import re
+        remarks = obj.remarks or ''
+        skills = []
+        seen_lower = set()
+
+        def add_skill(s):
+            item = s.strip()
+            if item and item.lower() not in seen_lower:
+                seen_lower.add(item.lower())
+                skills.append(item)
+
+        # Priority 1: Technical Proficiency in remarks
+        if 'Technical Proficiency:' in remarks:
+            after_prof = remarks.split('Technical Proficiency:', 1)[1]
+            lines = after_prof.split('\n')
+            stop_header = re.compile(r'^\s*\[.+\]')
+            stop_key = re.compile(
+                r'^\s*(Notice Period|Required Documents|Source Option|FileName|Job Code|Client Bill Rate|Pay Rate|Start Date|End Date|Location|Job Status|Job Type|Client Job ID|Address|Work Mode|Employee Type|Zip Code|Degree):\s*',
+                re.IGNORECASE
             )
-            if instance:
-                existing_assignments = existing_assignments.exclude(id=instance.id)
-            if existing_assignments.exists():
-                raise serializers.ValidationError({
-                    "non_field_errors": "CANDIDATE_ALREADY_ASSIGNED_TO_JOB"
-                })
 
-        return data
+            for line in lines:
+                if stop_header.match(line) or stop_key.match(line):
+                    break
+                clean_line = re.sub(r'^[•\*\-\s]+', '', line).strip()
+                if clean_line:
+                    for sub in clean_line.split(','):
+                        add_skill(sub)
+
+            if skills:
+                return skills
+
+        # Priority 2: Fallback to Application.technology
+        tech = obj.technology or ''
+        if tech:
+            for item in tech.split(','):
+                add_skill(item)
+            if skills:
+                return skills
+
+        return []
+
+    def get_experience(self, obj):
+        if obj.experience is None:
+            return None
+        try:
+            val = float(obj.experience)
+            if val == 0:
+                return "0 Years"
+            if val.is_integer():
+                return f"{int(val)} Years"
+            return f"{val} Years"
+        except (ValueError, TypeError):
+            return None
+
+    def get_location(self, obj):
+        loc = self._extract_field(obj.remarks, 'Location')
+        if loc:
+            return loc
+        city_state = [f for f in [obj.city, obj.state] if f]
+        return ", ".join(city_state) if city_state else None
+
+    def get_job_type(self, obj):
+        return self._extract_field(obj.remarks, 'Job Type')
+
+    def get_work_mode(self, obj):
+        return self._extract_field(obj.remarks, 'Work Mode')
+
+    def get_notice_period(self, obj):
+        return self._extract_field(obj.remarks, 'Notice Period')
+
+    def get_description(self, obj):
+        import re
+        remarks = obj.remarks or ''
+        if 'Description:' not in remarks:
+            return None
+
+        after_desc = remarks.split('Description:', 1)[1]
+        lines = after_desc.split('\n')
+        desc_lines = []
+
+        stop_header = re.compile(r'^\s*\[.+\]')
+        stop_key = re.compile(
+            r'^\s*(Technical Proficiency|Notice Period|Required Documents|Source Option|FileName|Job Code|Client Bill Rate|Pay Rate|Start Date|End Date|Location|Job Status|Job Type|Client Job ID|Address|Work Mode|Employee Type|Zip Code|Degree):\s*',
+            re.IGNORECASE
+        )
+
+        for line in lines:
+            if stop_header.match(line) or stop_key.match(line):
+                break
+            desc_lines.append(line)
+
+        result = "\n".join(desc_lines).strip()
+        return result if result else None
+
+    def get_required_documents(self, obj):
+        return self._extract_field(obj.remarks, 'Required Documents')
 
 class ApplicationCreateSerializer(ApplicationSerializer):
     class Meta(ApplicationSerializer.Meta):
