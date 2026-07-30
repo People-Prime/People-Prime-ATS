@@ -81,7 +81,7 @@ class PublicJobSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = [
-            'id', 'position', 'client_name', 'technology', 'experience',
+            'id', 'position', 'technology', 'experience',
             'city', 'state', 'remarks', 'published_at', 'created_at'
         ]
 
