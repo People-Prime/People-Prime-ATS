@@ -15,6 +15,7 @@ import { OrgHierarchy } from './pages/OrgHierarchy';
 import { CreateRequirement } from './pages/CreateRequirement';
 import { CreateCandidate } from './pages/CreateCandidate';
 import { CandidateDetails } from './pages/CandidateDetails';
+import { CareerPortalCandidateDetails } from './pages/CareerPortalCandidateDetails';
 import { ViewCandidates } from './pages/ViewCandidates';
 import { JobDetails } from './pages/JobDetails';
 import { JobPostings } from './pages/JobPostings';
@@ -188,6 +189,15 @@ export const App: React.FC = () => {
                       element={
                         <ProtectedRoute>
                           <CandidateDetails />
+                        </ProtectedRoute>
+                      } 
+                    />
+
+                    <Route 
+                      path="/career-portal-candidates/:applicantId/details" 
+                      element={
+                        <ProtectedRoute>
+                          <CareerPortalCandidateDetails />
                         </ProtectedRoute>
                       } 
                     />

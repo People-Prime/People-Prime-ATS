@@ -34,9 +34,7 @@ import {
   Check, 
   MessageSquare,
   Building,
-  RefreshCw,
-  Mail,
-  Briefcase
+  RefreshCw
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, addApplication, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
@@ -82,7 +80,6 @@ export const JobPostings: React.FC = () => {
   const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
   const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
   const [expandedPortalSections, setExpandedPortalSections] = useState<Record<number, boolean>>({});
-  const [selectedPortalApplicantModal, setSelectedPortalApplicantModal] = useState<CareerPortalApplicant | null>(null);
 
   const fetchPortalApplicants = async () => {
     try {
@@ -1490,7 +1487,7 @@ Remarks: ${candidateForm.remarks}`;
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.id}</td>
                                           <td 
                                             style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, cursor: 'pointer' }}
-                                            onClick={() => setSelectedPortalApplicantModal(pa)}
+                                            onClick={() => navigate(`/career-portal-candidates/${pa.id}/details`)}
                                           >
                                             <Typography variant="body2" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
                                               {pa.first_name}
@@ -2289,161 +2286,6 @@ Remarks: ${candidateForm.remarks}`;
         <DialogActions>
           <Button onClick={() => setClickedTextValue(null)}>Close</Button>
         </DialogActions>
-      </Dialog>
-
-      {/* CAREER PORTAL APPLICANT FULL DETAILS DIALOG */}
-      <Dialog
-        open={!!selectedPortalApplicantModal}
-        onClose={() => setSelectedPortalApplicantModal(null)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: '12px', overflow: 'hidden' }
-        }}
-      >
-        {selectedPortalApplicantModal && (
-          <>
-            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1.5, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Avatar sx={{ bgcolor: 'primary.main', width: 44, height: 44, fontWeight: 800, fontSize: '1.2rem' }}>
-                  {selectedPortalApplicantModal.first_name?.[0] || 'C'}
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.1rem', lineHeight: 1.2 }}>
-                    {selectedPortalApplicantModal.first_name} {selectedPortalApplicantModal.last_name}
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                    Career Portal Applicant (ID: {selectedPortalApplicantModal.id})
-                  </Typography>
-                </Box>
-              </Box>
-              <Chip
-                label={selectedPortalApplicantModal.status || 'New'}
-                color="primary"
-                variant="filled"
-                sx={{ fontWeight: 800, fontSize: '0.75rem', px: 1 }}
-              />
-            </DialogTitle>
-
-            <DialogContent sx={{ py: 3, px: 3 }}>
-              <Grid container spacing={2.5}>
-                {/* Contact Information */}
-                <Grid item xs={12} md={6}>
-                  <Paper variant="outlined" sx={{ p: 2, height: '100%', borderRadius: '8px' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Mail size={16} /> Contact Information
-                    </Typography>
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={12}>
-                        <Typography variant="caption" color="text.secondary" display="block">Email Address</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.email}</Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary" display="block">Mobile Number</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.mobile_number}</Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary" display="block">Alt Mobile Number</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.alternate_mobile_number || 'N/A'}</Typography>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Typography variant="caption" color="text.secondary" display="block">Location</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.city}, {selectedPortalApplicantModal.state}</Typography>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-
-                {/* Professional Profile */}
-                <Grid item xs={12} md={6}>
-                  <Paper variant="outlined" sx={{ p: 2, height: '100%', borderRadius: '8px' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Briefcase size={16} /> Professional Profile
-                    </Typography>
-                    <Grid container spacing={1.5}>
-                      <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary" display="block">Years of Experience</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.years_of_experience} Years</Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary" display="block">Qualification</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.qualification}</Typography>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Typography variant="caption" color="text.secondary" display="block">Current Company</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.current_company}</Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary" display="block">Current CTC</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{Number(selectedPortalApplicantModal.current_ctc).toLocaleString()}</Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="caption" color="text.secondary" display="block">Expected Pay</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>₹{Number(selectedPortalApplicantModal.expected_pay).toLocaleString()}</Typography>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-
-                {/* Primary Skills */}
-                <Grid item xs={12}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '8px' }}>
-                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>Primary Skills</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                      {selectedPortalApplicantModal.primary_skills}
-                    </Typography>
-                  </Paper>
-                </Grid>
-
-                {/* Application Metadata */}
-                <Grid item xs={12}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '8px', bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
-                    <Grid container spacing={2}>
-                      <Grid item xs={3}>
-                        <Typography variant="caption" color="text.secondary" display="block">Application Source</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.source}</Typography>
-                      </Grid>
-                      <Grid item xs={3}>
-                        <Typography variant="caption" color="text.secondary" display="block">Applied Date</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{new Date(selectedPortalApplicantModal.created_at).toLocaleString()}</Typography>
-                      </Grid>
-                      <Grid item xs={3}>
-                        <Typography variant="caption" color="text.secondary" display="block">Status Modified By</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{selectedPortalApplicantModal.modified_by || 'N/A'}</Typography>
-                      </Grid>
-                      <Grid item xs={3}>
-                        <Typography variant="caption" color="text.secondary" display="block">Resume Document</Typography>
-                        {selectedPortalApplicantModal.resume ? (
-                          <Button
-                            size="small"
-                            variant="contained"
-                            color="primary"
-                            onClick={() => window.open(selectedPortalApplicantModal.resume?.startsWith('s3://') ? `https://${selectedPortalApplicantModal.resume.replace('s3://', '').replace('/', '.s3.amazonaws.com/')}` : selectedPortalApplicantModal.resume, '_blank')}
-                            sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 1, mt: 0.5 }}
-                          >
-                            View Resume
-                          </Button>
-                        ) : (
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>N/A</Typography>
-                        )}
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </DialogContent>
-
-            <DialogActions sx={{ p: 2, px: 3, borderTop: `1px solid ${theme.palette.divider}` }}>
-              <Button
-                onClick={() => setSelectedPortalApplicantModal(null)}
-                variant="outlined"
-                sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '6px' }}
-              >
-                Close
-              </Button>
-            </DialogActions>
-          </>
-        )}
       </Dialog>
     </Box>
   );
