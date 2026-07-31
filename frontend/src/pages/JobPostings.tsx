@@ -1390,10 +1390,13 @@ Remarks: ${candidateForm.remarks}`;
                         </table>
                       )}
 
-                      {/* Career Portal Applicants Expandable Section */}
+                       {/* Career Portal Applicants Expandable Section */}
                       {(() => {
                         const reqId = Number(app.id);
-                        const portalApps = portalApplicants.filter(pa => Number(pa.job) === reqId);
+                        // Match portal applicants against ALL job IDs in the same group
+                        // (handles duplicate job postings sharing the same Job Code)
+                        const reqIds = new Set((app.associatedApps || [app]).map((a: any) => Number(a.id)));
+                        const portalApps = portalApplicants.filter(pa => reqIds.has(Number(pa.job)));
                         const portalSearch = portalSearchTerms[reqId] || '';
                         const filteredPortalApps = portalApps.filter(pa => {
                           if (!portalSearch.trim()) return true;
