@@ -24,7 +24,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'cloudinary',
-
     
     # Third party apps
     'corsheaders',
@@ -120,6 +119,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS Config
 CORS_ALLOWED_ORIGINS = [
+    'https://www.people-prime.com',
+    'https://people-prime.com',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://127.0.0.1:3000',
