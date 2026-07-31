@@ -95,7 +95,8 @@ export const JobPostings: React.FC = () => {
     fetchPortalApplicants();
   }, []);
 
-  const handleImportPortalApplicant = async (portalApplicantId: number) => {
+  // @ts-ignore
+  const _handleImportPortalApplicant = async (portalApplicantId: number) => {
     try {
       await api.post(`applications/career-portal-applicants/${portalApplicantId}/import/`);
       // Refresh applications list (so newly created ATS applicant appears immediately!)
@@ -107,6 +108,16 @@ export const JobPostings: React.FC = () => {
       alert("Candidate imported into ATS successfully!");
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to import candidate into ATS.");
+    }
+  };
+
+  const handleUpdatePortalApplicantStatus = async (portalApplicantId: number, newStatus: string) => {
+    try {
+      const res = await api.patch(`applications/career-portal-applicants/${portalApplicantId}/`, { status: newStatus });
+      const updated = res.data;
+      setPortalApplicants(prev => prev.map(p => p.id === portalApplicantId ? updated : p));
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to update status.");
     }
   };
 
@@ -1467,7 +1478,7 @@ Remarks: ${candidateForm.remarks}`;
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
-                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -1501,36 +1512,28 @@ Remarks: ${candidateForm.remarks}`;
                                               'N/A'
                                             )}
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
-                                            <Chip
-                                              label={pa.is_imported ? 'Imported' : pa.status}
-                                              size="small"
-                                              color={pa.is_imported ? 'success' : 'info'}
-                                              variant="outlined"
-                                              sx={{ fontSize: '0.65rem', height: 20, fontWeight: 700 }}
-                                            />
+                                          <td style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
+                                            <FormControl size="small" variant="standard" sx={{ minWidth: 110 }}>
+                                              <Select
+                                                value={pa.status || 'New'}
+                                                onChange={(e) => handleUpdatePortalApplicantStatus(pa.id, e.target.value)}
+                                                disableUnderline
+                                                sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer' }}
+                                              >
+                                                <MenuItem value="New" sx={{ fontSize: '0.7rem' }}>New</MenuItem>
+                                                <MenuItem value="Submitted" sx={{ fontSize: '0.7rem' }}>Submitted</MenuItem>
+                                                <MenuItem value="Under Review" sx={{ fontSize: '0.7rem' }}>Under Review</MenuItem>
+                                                <MenuItem value="Interview Scheduled" sx={{ fontSize: '0.7rem' }}>Interview Scheduled</MenuItem>
+                                                <MenuItem value="Interview Completed" sx={{ fontSize: '0.7rem' }}>Interview Completed</MenuItem>
+                                                <MenuItem value="Selected" sx={{ fontSize: '0.7rem' }}>Selected</MenuItem>
+                                                <MenuItem value="Rejected" sx={{ fontSize: '0.7rem' }}>Rejected</MenuItem>
+                                                <MenuItem value="On Hold" sx={{ fontSize: '0.7rem' }}>On Hold</MenuItem>
+                                                <MenuItem value="Closed" sx={{ fontSize: '0.7rem' }}>Closed</MenuItem>
+                                              </Select>
+                                            </FormControl>
                                           </td>
-                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
-                                            {pa.is_imported ? (
-                                              <Button
-                                                disabled
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{ fontSize: '0.65rem', py: 0.2, px: 1, minWidth: 110, textTransform: 'none', borderRadius: '4px' }}
-                                              >
-                                                Already Imported
-                                              </Button>
-                                            ) : (
-                                              <Button
-                                                size="small"
-                                                variant="contained"
-                                                color="primary"
-                                                onClick={() => handleImportPortalApplicant(pa.id)}
-                                                sx={{ fontSize: '0.65rem', py: 0.2, px: 1, minWidth: 110, textTransform: 'none', borderRadius: '4px', fontWeight: 750 }}
-                                              >
-                                                Import to ATS
-                                              </Button>
-                                            )}
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                            {pa.modified_by || 'N/A'}
                                           </td>
                                         </tr>
                                       ))}

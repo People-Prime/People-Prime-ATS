@@ -134,6 +134,7 @@ class CareerPortalApplicant(models.Model):
     accepted_terms = models.BooleanField(default=True)
     source = models.CharField(max_length=100, default='Company Career Portal')
     status = models.CharField(max_length=50, default='New')
+    modified_by = models.CharField(max_length=255, blank=True, default='')
 
     # Import tracking fields
     is_imported = models.BooleanField(default=False, db_index=True)

@@ -132,6 +132,7 @@ export interface CareerPortalApplicant {
   accepted_terms: boolean;
   source: string;
   status: string;
+  modified_by?: string;
   is_imported: boolean;
   imported_at?: string | null;
   imported_by?: string;

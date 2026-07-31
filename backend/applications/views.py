@@ -718,6 +718,38 @@ class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        status_val = request.data.get('status')
+        if status_val:
+            instance.status = status_val
+            user_display = getattr(request.user, 'full_name', None) or getattr(request.user, 'email', None) or 'System'
+            instance.modified_by = user_display
+            instance.save()
+        return super().partial_update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        status_val = request.data.get('status')
+        if status_val:
+            instance.status = status_val
+            user_display = getattr(request.user, 'full_name', None) or getattr(request.user, 'email', None) or 'System'
+            instance.modified_by = user_display
+            instance.save()
+        return super().update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post', 'patch'], url_path='update-status')
+    def update_status(self, request, pk=None):
+        applicant = self.get_object()
+        new_status = request.data.get('status')
+        if not new_status:
+            return Response({'error': 'Status is required'}, status=status.HTTP_400_BAD_REQUEST)
+        applicant.status = new_status
+        user_display = getattr(request.user, 'full_name', None) or getattr(request.user, 'email', None) or 'System'
+        applicant.modified_by = user_display
+        applicant.save()
+        return Response(self.get_serializer(applicant).data)
+
     @action(detail=True, methods=['post'], url_path='import')
     def import_applicant(self, request, pk=None):
         applicant = self.get_object()

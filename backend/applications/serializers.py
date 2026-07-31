@@ -409,7 +409,7 @@ class CareerPortalApplicantSerializer(serializers.ModelSerializer):
             'id', 'job', 'job_code', 'first_name', 'last_name', 'mobile_number',
             'alternate_mobile_number', 'email', 'qualification', 'years_of_experience',
             'expected_pay', 'primary_skills', 'current_ctc', 'current_company',
-            'state', 'city', 'resume', 'accepted_terms', 'source', 'status',
+            'state', 'city', 'resume', 'accepted_terms', 'source', 'status', 'modified_by',
             'is_imported', 'imported_at', 'imported_by', 'imported_application',
             'created_at', 'updated_at'
         ]
