@@ -239,111 +239,165 @@ class ApplicationCreateSerializer(ApplicationSerializer):
 
 
 class PublicJobApplySerializer(serializers.Serializer):
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
-    mobile_number = serializers.CharField(required=True)
+    first_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    last_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    full_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    mobile = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     alternate_mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
-    email = serializers.EmailField(required=True)
+    alt_mobile = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
+
+    email = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    email_address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     qualification = serializers.CharField(required=True)
-    years_of_experience = serializers.DecimalField(max_digits=4, decimal_places=1, required=True)
-    expected_pay = serializers.DecimalField(max_digits=12, decimal_places=2, required=True)
+    years_of_experience = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    experience = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    expected_pay = serializers.CharField(required=True)
     primary_skills = serializers.CharField(required=True)
-    current_ctc = serializers.DecimalField(max_digits=12, decimal_places=2, required=True)
+    current_ctc = serializers.CharField(required=True)
     current_company = serializers.CharField(required=True)
     state = serializers.CharField(required=True)
     city = serializers.CharField(required=True)
     resume = serializers.FileField(required=True)
-    accepted_terms = serializers.BooleanField(required=True)
 
-    def validate_first_name(self, value):
+    accepted_terms = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    terms_accepted = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate(self, attrs):
         import re
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("First Name is required.")
-        if not re.match(r'^[A-Za-z\s]+$', val):
-            raise serializers.ValidationError("First Name must contain alphabets only.")
-        return val
+        errors = {}
 
-    def validate_last_name(self, value):
-        import re
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("Last Name is required.")
-        if not re.match(r'^[A-Za-z\s]+$', val):
-            raise serializers.ValidationError("Last Name must contain alphabets only.")
-        return val
+        # 1. First & Last Name / Full Name resolution
+        first_name = (attrs.get('first_name') or '').strip()
+        last_name = (attrs.get('last_name') or '').strip()
+        full_name = (attrs.get('full_name') or '').strip()
 
-    def validate_mobile_number(self, value):
-        import re
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("Mobile Number is required.")
-        if not re.match(r'^\d{10}$', val):
-            raise serializers.ValidationError("Mobile Number must be exactly 10 digits.")
-        return val
+        if not first_name and full_name:
+            parts = full_name.split(' ', 1)
+            first_name = parts[0].strip()
+            last_name = parts[1].strip() if len(parts) > 1 else 'N/A'
 
-    def validate_alternate_mobile_number(self, value):
-        import re
-        if value:
-            val = str(value).strip()
-            if val != '':
-                if not re.match(r'^\d{10}$', val):
-                    raise serializers.ValidationError("Alternate Mobile Number must be exactly 10 digits.")
-                return val
-        return ''
+        if not first_name:
+            errors['first_name'] = ["First Name is required."]
+        elif not re.match(r"^[A-Za-z\s\.\'-]+$", first_name):
+            errors['first_name'] = ["First Name must contain valid characters."]
 
-    def validate_email(self, value):
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("Email Address is required.")
-        return val
+        if not last_name:
+            last_name = 'N/A'
+        elif last_name != 'N/A' and not re.match(r"^[A-Za-z\s\.\'-]+$", last_name):
+            errors['last_name'] = ["Last Name must contain valid characters."]
 
-    def validate_qualification(self, value):
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("Qualification is required.")
-        return val
+        attrs['first_name'] = first_name
+        attrs['last_name'] = last_name
 
-    def validate_primary_skills(self, value):
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("Primary Skills are required.")
-        return val
+        # 2. Mobile Number resolution
+        mobile = (attrs.get('mobile_number') or attrs.get('mobile') or attrs.get('phone') or '').strip()
+        clean_mobile = re.sub(r'\D', '', mobile)
+        if len(clean_mobile) >= 10:
+            clean_mobile = clean_mobile[-10:]
+        
+        if not clean_mobile or len(clean_mobile) != 10:
+            errors['mobile_number'] = ["Mobile Number must contain exactly 10 digits."]
+        else:
+            attrs['mobile_number'] = clean_mobile
 
-    def validate_current_company(self, value):
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("Current Company is required.")
-        return val
+        # Alternate Mobile Number
+        alt_mobile = (attrs.get('alternate_mobile_number') or attrs.get('alt_mobile') or '').strip()
+        if alt_mobile:
+            clean_alt = re.sub(r'\D', '', alt_mobile)
+            if len(clean_alt) >= 10:
+                clean_alt = clean_alt[-10:]
+            if len(clean_alt) != 10:
+                errors['alternate_mobile_number'] = ["Alternate Mobile Number must contain 10 digits if provided."]
+            else:
+                attrs['alternate_mobile_number'] = clean_alt
+        else:
+            attrs['alternate_mobile_number'] = ''
 
-    def validate_state(self, value):
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("State is required.")
-        return val
+        # 3. Email resolution
+        email = (attrs.get('email') or attrs.get('email_address') or '').strip()
+        if not email:
+            errors['email'] = ["Email Address is required."]
+        elif not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', email):
+            errors['email'] = ["Enter a valid email address."]
+        else:
+            attrs['email'] = email
 
-    def validate_city(self, value):
-        val = value.strip() if value else ''
-        if not val:
-            raise serializers.ValidationError("City is required.")
-        return val
+        # 4. Years of Experience
+        exp_val = str(attrs.get('years_of_experience') or attrs.get('experience') or '').strip()
+        clean_exp = re.sub(r'[^\d\.]', '', exp_val)
+        if not clean_exp:
+            errors['years_of_experience'] = ["Years of Experience is required."]
+        else:
+            try:
+                attrs['years_of_experience'] = float(clean_exp)
+            except ValueError:
+                errors['years_of_experience'] = ["Years of Experience must be numeric."]
 
-    def validate_resume(self, value):
-        if not value:
-            raise serializers.ValidationError("Resume file is required.")
-        filename = value.name.lower()
-        allowed_extensions = ('.pdf', '.doc', '.docx')
-        if not filename.endswith(allowed_extensions):
-            raise serializers.ValidationError("Unsupported file format. Please upload PDF, DOC, or DOCX.")
-        max_size = 10 * 1024 * 1024  # 10 MB
-        if value.size > max_size:
-            raise serializers.ValidationError("File size exceeds maximum limit of 10 MB.")
-        return value
+        # 5. Expected Pay & Current CTC numeric cleaning
+        pay_val = str(attrs.get('expected_pay') or '').strip()
+        clean_pay = re.sub(r'[^\d\.]', '', pay_val)
+        if not clean_pay:
+            errors['expected_pay'] = ["Expected Pay is required."]
+        else:
+            try:
+                attrs['expected_pay'] = float(clean_pay)
+            except ValueError:
+                errors['expected_pay'] = ["Expected Pay must be numeric."]
 
-    def validate_accepted_terms(self, value):
-        if value is not True:
-            raise serializers.ValidationError("You must accept the Terms & Conditions.")
-        return value
+        ctc_val = str(attrs.get('current_ctc') or '').strip()
+        clean_ctc = re.sub(r'[^\d\.]', '', ctc_val)
+        if not clean_ctc:
+            errors['current_ctc'] = ["Current CTC is required."]
+        else:
+            try:
+                attrs['current_ctc'] = float(clean_ctc)
+            except ValueError:
+                errors['current_ctc'] = ["Current CTC must be numeric."]
+
+        # 6. Qualification, Skills, Company, State, City
+        for field, name in [
+            ('qualification', 'Qualification'),
+            ('primary_skills', 'Primary Skills'),
+            ('current_company', 'Current Company'),
+            ('state', 'State'),
+            ('city', 'City')
+        ]:
+            val = (attrs.get(field) or '').strip()
+            if not val:
+                errors[field] = [f"{name} is required."]
+            else:
+                attrs[field] = val
+
+        # 7. Resume validation
+        resume = attrs.get('resume')
+        if not resume:
+            errors['resume'] = ["Resume file is required."]
+        else:
+            filename = resume.name.lower()
+            allowed_extensions = ('.pdf', '.doc', '.docx')
+            if not filename.endswith(allowed_extensions):
+                errors['resume'] = ["Unsupported file format. Please upload PDF, DOC, or DOCX."]
+            elif resume.size > 10 * 1024 * 1024:
+                errors['resume'] = ["File size exceeds maximum limit of 10 MB."]
+
+        # 8. Accepted Terms resolution
+        terms_raw = attrs.get('accepted_terms') or attrs.get('terms_accepted') or ''
+        terms_str = str(terms_raw).lower().strip()
+        if terms_str not in ['true', '1', 'yes', 'on', 'true'] and terms_raw is not True:
+            errors['accepted_terms'] = ["You must accept the Terms & Conditions."]
+        else:
+            attrs['accepted_terms'] = True
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return attrs
 
 
 class CareerPortalApplicantSerializer(serializers.ModelSerializer):

@@ -87,6 +87,7 @@ class PublicJobApplyAPIView(APIView):
         # 2. Validate Data
         serializer = PublicJobApplySerializer(data=request.data)
         if not serializer.is_valid():
+            print(f"[Public Job Apply 400 Error] Validation failed for job_id={job_id}: {serializer.errors}")
             return Response({
                 "success": False,
                 "errors": serializer.errors
