@@ -236,3 +236,112 @@ class PublicJobSerializer(serializers.ModelSerializer):
 class ApplicationCreateSerializer(ApplicationSerializer):
     class Meta(ApplicationSerializer.Meta):
         pass
+
+
+class PublicJobApplySerializer(serializers.Serializer):
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
+    mobile_number = serializers.CharField(required=True)
+    alternate_mobile_number = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
+    email = serializers.EmailField(required=True)
+    qualification = serializers.CharField(required=True)
+    years_of_experience = serializers.DecimalField(max_digits=4, decimal_places=1, required=True)
+    expected_pay = serializers.DecimalField(max_digits=12, decimal_places=2, required=True)
+    primary_skills = serializers.CharField(required=True)
+    current_ctc = serializers.DecimalField(max_digits=12, decimal_places=2, required=True)
+    current_company = serializers.CharField(required=True)
+    state = serializers.CharField(required=True)
+    city = serializers.CharField(required=True)
+    resume = serializers.FileField(required=True)
+    accepted_terms = serializers.BooleanField(required=True)
+
+    def validate_first_name(self, value):
+        import re
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("First Name is required.")
+        if not re.match(r'^[A-Za-z\s]+$', val):
+            raise serializers.ValidationError("First Name must contain alphabets only.")
+        return val
+
+    def validate_last_name(self, value):
+        import re
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("Last Name is required.")
+        if not re.match(r'^[A-Za-z\s]+$', val):
+            raise serializers.ValidationError("Last Name must contain alphabets only.")
+        return val
+
+    def validate_mobile_number(self, value):
+        import re
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("Mobile Number is required.")
+        if not re.match(r'^\d{10}$', val):
+            raise serializers.ValidationError("Mobile Number must be exactly 10 digits.")
+        return val
+
+    def validate_alternate_mobile_number(self, value):
+        import re
+        if value:
+            val = str(value).strip()
+            if val != '':
+                if not re.match(r'^\d{10}$', val):
+                    raise serializers.ValidationError("Alternate Mobile Number must be exactly 10 digits.")
+                return val
+        return ''
+
+    def validate_email(self, value):
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("Email Address is required.")
+        return val
+
+    def validate_qualification(self, value):
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("Qualification is required.")
+        return val
+
+    def validate_primary_skills(self, value):
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("Primary Skills are required.")
+        return val
+
+    def validate_current_company(self, value):
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("Current Company is required.")
+        return val
+
+    def validate_state(self, value):
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("State is required.")
+        return val
+
+    def validate_city(self, value):
+        val = value.strip() if value else ''
+        if not val:
+            raise serializers.ValidationError("City is required.")
+        return val
+
+    def validate_resume(self, value):
+        if not value:
+            raise serializers.ValidationError("Resume file is required.")
+        filename = value.name.lower()
+        allowed_extensions = ('.pdf', '.doc', '.docx')
+        if not filename.endswith(allowed_extensions):
+            raise serializers.ValidationError("Unsupported file format. Please upload PDF, DOC, or DOCX.")
+        max_size = 10 * 1024 * 1024  # 10 MB
+        if value.size > max_size:
+            raise serializers.ValidationError("File size exceeds maximum limit of 10 MB.")
+        return value
+
+    def validate_accepted_terms(self, value):
+        if value is not True:
+            raise serializers.ValidationError("You must accept the Terms & Conditions.")
+        return value
+
