@@ -5,9 +5,12 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Count, Q
-from applications.models import Application, Note
-from applications.serializers import ApplicationSerializer, ApplicationCreateSerializer, NoteSerializer
+from django.utils import timezone
+from applications.models import Application, Note, CareerPortalApplicant
+from applications.serializers import (
+    ApplicationSerializer, ApplicationCreateSerializer, NoteSerializer,
+    CareerPortalApplicantSerializer
+)
 from users.models import User, Role
 from teams.models import Team
 
@@ -692,3 +695,116 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
 
         return Response({"error": "Stats not resolved for role."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
+    serializer_class = CareerPortalApplicantSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        from django.db.models import Q
+        qs = CareerPortalApplicant.objects.all().order_by('-created_at')
+        job_id = self.request.query_params.get('job_id')
+        if job_id:
+            qs = qs.filter(job_id=job_id)
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(mobile_number__icontains=search)
+            )
+        return qs
+
+    @action(detail=True, methods=['post'], url_path='import')
+    def import_applicant(self, request, pk=None):
+        applicant = self.get_object()
+
+        if applicant.is_imported:
+            return Response(
+                {"error": "Candidate already imported into ATS."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        job = applicant.job
+        full_name = f"{applicant.first_name} {applicant.last_name}".strip()
+
+        # Extract parent job details from remarks
+        def extract_remark(field_name):
+            import re
+            match = re.search(field_name + r':\s*(.*)', job.remarks or '')
+            return match.group(1).strip() if match else ''
+
+        job_code = extract_remark('Job Code')
+        if not job_code or 'Auto Generated' in job_code:
+            job_code = f"PPW - {job.id:04d}"
+
+        # Resume filename
+        resume_url = applicant.resume or ''
+        filename = resume_url.split('/')[-1] if '/' in resume_url else (resume_url or 'Resume.pdf')
+
+        formatted_remarks = f"""[Job Details]
+Job Code: {job_code}
+Client Bill Rate: {extract_remark('Client Bill Rate')}
+Pay Rate: {extract_remark('Pay Rate')}
+Start Date: {extract_remark('Start Date')}
+End Date: {extract_remark('End Date')}
+Location: {extract_remark('Location') or f"{job.city}, {job.state}"}
+Job Status: Active
+Job Type: {extract_remark('Job Type')}
+Client Job ID: {extract_remark('Client Job ID')}
+Required Documents: {extract_remark('Required Documents')}
+Address: {extract_remark('Address')}
+Work Mode: {extract_remark('Work Mode')}
+Employee Type: {extract_remark('Employee Type')}
+Zip Code: {extract_remark('Zip Code')}
+
+[Skills & Candidate Info]
+Qualification: {applicant.qualification}
+Years of Experience: {applicant.years_of_experience}
+Expected Pay: {applicant.expected_pay}
+Primary Skills: {applicant.primary_skills}
+Current CTC: {applicant.current_ctc}
+Current Company: {applicant.current_company}
+Accepted Terms: True
+
+[Document Attachment]
+Source Option: Career Portal
+FileName: {filename}
+Resume Link: {resume_url}"""
+
+        recruiter_name = job.recruiter or (job.assigned_employee.full_name if job.assigned_employee else '')
+
+        # Reuse existing ATS Application creation logic
+        ats_app = Application.objects.create(
+            candidate_name=full_name,
+            candidate_email=applicant.email,
+            candidate_phone=applicant.mobile_number,
+            alternate_mobile_number=applicant.alternate_mobile_number,
+            city=applicant.city,
+            state=applicant.state,
+            client_name=job.client_name,
+            position=job.position,
+            technology=job.technology,
+            experience=applicant.years_of_experience,
+            assigned_employee=job.assigned_employee,
+            recruiter=recruiter_name,
+            status='New',
+            source='Company Career Portal',
+            remarks=formatted_remarks
+        )
+
+        # Mark CareerPortalApplicant as imported
+        applicant.is_imported = True
+        applicant.imported_at = timezone.now()
+        applicant.imported_by = getattr(request.user, 'full_name', '') or getattr(request.user, 'email', '')
+        applicant.imported_application = ats_app
+        applicant.save()
+
+        return Response({
+            "success": True,
+            "message": "Candidate imported into ATS successfully.",
+            "application_id": ats_app.id
+        }, status=status.HTTP_200_OK)
+

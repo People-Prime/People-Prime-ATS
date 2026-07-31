@@ -110,3 +110,32 @@ export interface ApplicationNote {
   content: string;
   created_at: string;
 }
+
+export interface CareerPortalApplicant {
+  id: number;
+  job: number;
+  job_code?: string | null;
+  first_name: string;
+  last_name: string;
+  mobile_number: string;
+  alternate_mobile_number?: string;
+  email: string;
+  qualification: string;
+  years_of_experience: string | number;
+  expected_pay: string | number;
+  primary_skills: string;
+  current_ctc: string | number;
+  current_company: string;
+  state: string;
+  city: string;
+  resume?: string;
+  accepted_terms: boolean;
+  source: string;
+  status: string;
+  is_imported: boolean;
+  imported_at?: string | null;
+  imported_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+

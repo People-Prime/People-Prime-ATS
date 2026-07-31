@@ -136,67 +136,27 @@ class PublicJobApplyAPIView(APIView):
             # Fallback to filename if S3 fails
             resume_link = filename
 
-        # 4. Extract parent job details
-        def extract_remark(fieldName):
-            import re
-            match = re.search(fieldName + r':\s*(.*)', job.remarks or '')
-            return match.group(1).strip() if match else ''
-
-        job_code = extract_remark('Job Code')
-        if not job_code or 'Auto Generated' in job_code:
-            job_code = f"PPW - {job.id:04d}"
-
-        # 5. Format remarks for candidate record
-        formatted_remarks = f"""[Job Details]
-Job Code: {job_code}
-Client Bill Rate: {extract_remark('Client Bill Rate')}
-Pay Rate: {extract_remark('Pay Rate')}
-Start Date: {extract_remark('Start Date')}
-End Date: {extract_remark('End Date')}
-Location: {extract_remark('Location') or f"{job.city}, {job.state}"}
-Job Status: Active
-Job Type: {extract_remark('Job Type')}
-Client Job ID: {extract_remark('Client Job ID')}
-Required Documents: {extract_remark('Required Documents')}
-Address: {extract_remark('Address')}
-Work Mode: {extract_remark('Work Mode')}
-Employee Type: {extract_remark('Employee Type')}
-Zip Code: {extract_remark('Zip Code')}
-
-[Skills & Candidate Info]
-Qualification: {data['qualification']}
-Years of Experience: {data['years_of_experience']}
-Expected Pay: {data['expected_pay']}
-Primary Skills: {data['primary_skills']}
-Current CTC: {data['current_ctc']}
-Current Company: {data['current_company']}
-Accepted Terms: True
-
-[Document Attachment]
-Source Option: Career Portal
-FileName: {filename}
-Resume Link: {resume_link}"""
-
-        full_name = f"{data['first_name']} {data['last_name']}".strip()
-        recruiter_name = job.recruiter or (job.assigned_employee.full_name if job.assigned_employee else '')
-
-        # 6. Create Applicant Record (using existing ATS Application model & assigned recruiter)
-        applicant = Application.objects.create(
-            candidate_name=full_name,
-            candidate_email=data['email'],
-            candidate_phone=data['mobile_number'],
+        # 4. Save Candidate ONLY in CareerPortalApplicant (DO NOT create ATS Application!)
+        from applications.models import CareerPortalApplicant
+        applicant = CareerPortalApplicant.objects.create(
+            job=job,
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            mobile_number=data['mobile_number'],
             alternate_mobile_number=data.get('alternate_mobile_number', ''),
-            city=data['city'],
+            email=data['email'],
+            qualification=data['qualification'],
+            years_of_experience=data['years_of_experience'],
+            expected_pay=data['expected_pay'],
+            primary_skills=data['primary_skills'],
+            current_ctc=data['current_ctc'],
+            current_company=data['current_company'],
             state=data['state'],
-            client_name=job.client_name,
-            position=job.position,
-            technology=job.technology,
-            experience=data['years_of_experience'],
-            assigned_employee=job.assigned_employee,
-            recruiter=recruiter_name,
-            status='New',
+            city=data['city'],
+            resume=resume_link,
+            accepted_terms=True,
             source='Company Career Portal',
-            remarks=formatted_remarks
+            status='New'
         )
 
         return Response({

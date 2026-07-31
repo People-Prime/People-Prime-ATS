@@ -109,3 +109,47 @@ class Note(models.Model):
 
     def __str__(self):
         return f"Note by {self.author.full_name} on {self.application.position}"
+
+
+class CareerPortalApplicant(models.Model):
+    job = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='career_portal_applicants'
+    )
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    mobile_number = models.CharField(max_length=50)
+    alternate_mobile_number = models.CharField(max_length=50, blank=True, default='')
+    email = models.EmailField()
+    qualification = models.CharField(max_length=255)
+    years_of_experience = models.DecimalField(max_digits=4, decimal_places=1)
+    expected_pay = models.DecimalField(max_digits=12, decimal_places=2)
+    primary_skills = models.TextField()
+    current_ctc = models.DecimalField(max_digits=12, decimal_places=2)
+    current_company = models.CharField(max_length=255)
+    state = models.CharField(max_length=100)
+    city = models.CharField(max_length=100)
+    resume = models.TextField(blank=True, default='')
+    accepted_terms = models.BooleanField(default=True)
+    source = models.CharField(max_length=100, default='Company Career Portal')
+    status = models.CharField(max_length=50, default='New')
+
+    # Import tracking fields
+    is_imported = models.BooleanField(default=False, db_index=True)
+    imported_at = models.DateTimeField(null=True, blank=True)
+    imported_by = models.CharField(max_length=255, blank=True, default='')
+    imported_application = models.ForeignKey(
+        Application,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='originating_portal_applicant'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.email}) - Job ID: {self.job_id}"
+

@@ -40,7 +40,7 @@ import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, addApplication, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
 import { api } from '../services/api';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
-import { Application, ApplicationStatus } from '../types';
+import { Application, ApplicationStatus, CareerPortalApplicant } from '../types';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
@@ -74,6 +74,41 @@ export const JobPostings: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [startDate, setStartDate] = useState(() => localStorage.getItem(`job_postings_start_date_${currentUser?.email}`) || todayStr());
   const [endDate, setEndDate] = useState(() => localStorage.getItem(`job_postings_end_date_${currentUser?.email}`) || todayStr());
+
+  // Career Portal Applicants states
+  const [portalApplicants, setPortalApplicants] = useState<CareerPortalApplicant[]>([]);
+  const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
+  const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
+  const [expandedPortalSections, setExpandedPortalSections] = useState<Record<number, boolean>>({});
+
+  const fetchPortalApplicants = async () => {
+    try {
+      const res = await api.get('applications/career-portal-applicants/');
+      const list = res.data?.results ?? res.data ?? [];
+      setPortalApplicants(list);
+    } catch (err) {
+      console.error("Failed to fetch career portal applicants", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPortalApplicants();
+  }, []);
+
+  const handleImportPortalApplicant = async (portalApplicantId: number) => {
+    try {
+      await api.post(`applications/career-portal-applicants/${portalApplicantId}/import/`);
+      // Refresh applications list (so newly created ATS applicant appears immediately!)
+      const appsRes = await api.get('applications/');
+      const list = appsRes.data?.results ?? appsRes.data ?? [];
+      dispatch(setApplications(list));
+      // Refresh career portal applicants
+      await fetchPortalApplicants();
+      alert("Candidate imported into ATS successfully!");
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Failed to import candidate into ATS.");
+    }
+  };
 
   useEffect(() => {
     if (currentUser?.email) {
@@ -939,6 +974,20 @@ Remarks: ${candidateForm.remarks}`;
               </FormControl>
             </Grid>
           )}
+          <Grid item xs={12} sm={6} md={3}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Applicant Source</InputLabel>
+              <Select
+                value={applicantTypeFilter}
+                label="Applicant Source"
+                onChange={(e) => setApplicantTypeFilter(e.target.value as any)}
+              >
+                <MenuItem value="ALL">All Applicants (ATS + Career Portal)</MenuItem>
+                <MenuItem value="ATS">ATS Applicants Only</MenuItem>
+                <MenuItem value="PORTAL">Career Portal Applicants Only</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
 
         </Grid>
       </Card>
@@ -1340,6 +1389,156 @@ Remarks: ${candidateForm.remarks}`;
                           </tbody>
                         </table>
                       )}
+
+                      {/* Career Portal Applicants Expandable Section */}
+                      {(() => {
+                        const reqId = Number(app.id);
+                        const portalApps = portalApplicants.filter(pa => Number(pa.job) === reqId);
+                        const portalSearch = portalSearchTerms[reqId] || '';
+                        const filteredPortalApps = portalApps.filter(pa => {
+                          if (!portalSearch.trim()) return true;
+                          const q = portalSearch.toLowerCase();
+                          const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
+                          return (
+                            fullName.includes(q) ||
+                            pa.email.toLowerCase().includes(q) ||
+                            pa.mobile_number.includes(q)
+                          );
+                        });
+                        const isPortalSectionExpanded = expandedPortalSections[reqId] ?? true;
+
+                        if (applicantTypeFilter === 'ATS') return null;
+
+                        return (
+                          <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                              <Box
+                                sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+                                onClick={() => setExpandedPortalSections(prev => ({ ...prev, [reqId]: !isPortalSectionExpanded }))}
+                              >
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  {isPortalSectionExpanded ? '▼' : '+'} Career Portal Applicants ({portalApps.length})
+                                </Typography>
+                              </Box>
+
+                              {isPortalSectionExpanded && portalApps.length > 0 && (
+                                <TextField
+                                  size="small"
+                                  placeholder="Search portal applicants (Name, Email, Mobile)..."
+                                  value={portalSearch}
+                                  onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                  InputProps={{
+                                    startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                    sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                  }}
+                                  sx={{ width: 280 }}
+                                />
+                              )}
+                            </Box>
+
+                            {isPortalSectionExpanded && (
+                              <>
+                                {filteredPortalApps.length === 0 ? (
+                                  <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
+                                    {portalApps.length === 0
+                                      ? "No candidate applications received from Company Career Portal yet."
+                                      : "No portal applicants match your search keyword."}
+                                  </Typography>
+                                ) : (
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
+                                    <thead>
+                                      <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b' }}>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>App ID</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>First Name</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Last Name</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Mobile</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Exp</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Qualification</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current Company</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current CTC</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Expected Pay</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Primary Skills</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {filteredPortalApps.map((pa) => (
+                                        <tr key={pa.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.id}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.first_name}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.last_name}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{new Date(pa.created_at).toLocaleDateString()}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                            {pa.resume ? (
+                                              <Typography
+                                                variant="caption"
+                                                color="primary"
+                                                sx={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                                onClick={() => window.open(pa.resume?.startsWith('s3://') ? `https://${pa.resume.replace('s3://', '').replace('/', '.s3.amazonaws.com/')}` : pa.resume, '_blank')}
+                                              >
+                                                View Resume
+                                              </Typography>
+                                            ) : (
+                                              'N/A'
+                                            )}
+                                          </td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                            <Chip
+                                              label={pa.is_imported ? 'Imported' : pa.status}
+                                              size="small"
+                                              color={pa.is_imported ? 'success' : 'info'}
+                                              variant="outlined"
+                                              sx={{ fontSize: '0.65rem', height: 20, fontWeight: 700 }}
+                                            />
+                                          </td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                            {pa.is_imported ? (
+                                              <Button
+                                                disabled
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ fontSize: '0.65rem', py: 0.2, px: 1, minWidth: 110, textTransform: 'none', borderRadius: '4px' }}
+                                              >
+                                                Already Imported
+                                              </Button>
+                                            ) : (
+                                              <Button
+                                                size="small"
+                                                variant="contained"
+                                                color="primary"
+                                                onClick={() => handleImportPortalApplicant(pa.id)}
+                                                sx={{ fontSize: '0.65rem', py: 0.2, px: 1, minWidth: 110, textTransform: 'none', borderRadius: '4px', fontWeight: 750 }}
+                                              >
+                                                Import to ATS
+                                              </Button>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </>
+                            )}
+                          </Box>
+                        );
+                      })()}
                     </td>
                   </tr>
                 )}

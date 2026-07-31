@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from applications.models import Application, Note
+from applications.models import Application, Note, CareerPortalApplicant
 from users.serializers import UserMinimalSerializer
 from users.models import User
 
@@ -344,4 +344,32 @@ class PublicJobApplySerializer(serializers.Serializer):
         if value is not True:
             raise serializers.ValidationError("You must accept the Terms & Conditions.")
         return value
+
+
+class CareerPortalApplicantSerializer(serializers.ModelSerializer):
+    job_code = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CareerPortalApplicant
+        fields = [
+            'id', 'job', 'job_code', 'first_name', 'last_name', 'mobile_number',
+            'alternate_mobile_number', 'email', 'qualification', 'years_of_experience',
+            'expected_pay', 'primary_skills', 'current_ctc', 'current_company',
+            'state', 'city', 'resume', 'accepted_terms', 'source', 'status',
+            'is_imported', 'imported_at', 'imported_by', 'imported_application',
+            'created_at', 'updated_at'
+        ]
+
+    def get_job_code(self, obj):
+        if obj.job:
+            import re
+            remarks = obj.job.remarks or ''
+            match = re.search(r'Job Code:\s*(.*)', remarks)
+            if match:
+                val = match.group(1).strip()
+                if val and 'Auto Generated' not in val:
+                    return val
+            return f"PPW - {obj.job.id:04d}"
+        return None
+
 
