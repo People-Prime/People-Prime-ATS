@@ -200,7 +200,15 @@ export const CareerPortalCandidateDetails: React.FC = () => {
                       variant="contained"
                       color="primary"
                       startIcon={<ExternalLink size={16} />}
-                      onClick={() => window.open(applicant.resume?.startsWith('s3://') ? `https://${applicant.resume.replace('s3://', '').replace('/', '.s3.amazonaws.com/')}` : applicant.resume, '_blank')}
+                      onClick={async () => {
+                        try {
+                          const res: any = await api.post('applications/generate-resume-url/', { url: applicant.resume });
+                          window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                        } catch (err: any) {
+                          const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                          alert(`Failed to load resume: ${errMsg}`);
+                        }
+                      }}
                       sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 3 }}
                     >
                       View Resume Document

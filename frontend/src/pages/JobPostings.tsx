@@ -1511,7 +1511,15 @@ Remarks: ${candidateForm.remarks}`;
                                                 variant="caption"
                                                 color="primary"
                                                 sx={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
-                                                onClick={() => window.open(pa.resume?.startsWith('s3://') ? `https://${pa.resume.replace('s3://', '').replace('/', '.s3.amazonaws.com/')}` : pa.resume, '_blank')}
+                                                onClick={async () => {
+                                                   try {
+                                                     const res: any = await api.post('applications/generate-resume-url/', { url: pa.resume });
+                                                     window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                                                   } catch (err: any) {
+                                                     const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                                                     alert(`Failed to load resume: ${errMsg}`);
+                                                   }
+                                                 }}
                                               >
                                                 View Resume
                                               </Typography>
