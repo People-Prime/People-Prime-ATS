@@ -193,7 +193,7 @@ export const JobPostings: React.FC = () => {
 
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
-    if (statusUpdateValue === 'Offer Sent') {
+    if (statusUpdateValue === 'Offer Sent' || statusUpdateValue === 'Placed') {
       if (!payRateInput.trim() || !offerValueInput.trim() || !profitAmountInput.trim() || !dateOfJoinInput.trim()) {
         alert("Please fill in all required financial details (Pay Rate, Offer Value, Profit Amount, Date of Join).");
         return;
@@ -201,7 +201,7 @@ export const JobPostings: React.FC = () => {
     }
     try {
       let updatedRemarks = statusUpdateApp.remarks || '';
-      if (statusUpdateValue === 'Offer Sent') {
+      if (statusUpdateValue === 'Offer Sent' || statusUpdateValue === 'Placed') {
         const fieldsToUpdate: Record<string, string> = {
           'Pay Rate': payRateInput.trim(),
           'Variable Pay': variablePayInput.trim(),
@@ -222,7 +222,7 @@ export const JobPostings: React.FC = () => {
       }
 
       const patchPayload: any = { status: statusUpdateValue };
-      if (statusUpdateValue === 'Offer Sent') {
+      if (statusUpdateValue === 'Offer Sent' || statusUpdateValue === 'Placed') {
         patchPayload.remarks = updatedRemarks;
       }
 
@@ -2172,10 +2172,10 @@ Remarks: ${candidateForm.remarks}`;
                 </Select>
               </FormControl>
 
-              {statusUpdateValue === 'Offer Sent' && (
+              {(statusUpdateValue === 'Offer Sent' || statusUpdateValue === 'Placed') && (
                 <Box sx={{ mb: 3, p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: '8px', bgcolor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: 'primary.main' }}>
-                    FINANCIAL DETAILS (REQUIRED FOR OFFER SENT)
+                    FINANCIAL DETAILS ({statusUpdateValue === 'Placed' ? 'PLACED' : 'REQUIRED FOR OFFER SENT'})
                   </Typography>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
@@ -2262,7 +2262,7 @@ Remarks: ${candidateForm.remarks}`;
             color="primary"
             variant="contained"
             disabled={
-              statusUpdateValue === 'Offer Sent' &&
+              (statusUpdateValue === 'Offer Sent' || statusUpdateValue === 'Placed') &&
               (!payRateInput.trim() ||
                 !offerValueInput.trim() ||
                 !profitAmountInput.trim() ||

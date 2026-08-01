@@ -96,6 +96,8 @@ export const Placements: React.FC = () => {
 
   // Helper to extract numeric profit based on rates
   const getProfitAmount = (remarks: string) => {
+    const directProfit = getRemarkField(remarks, 'Profit Amount');
+    if (directProfit && directProfit !== 'N/A') return directProfit;
     const grossStr = getRemarkField(remarks, 'Client Bill Rate');
     const invStr = getRemarkField(remarks, 'Pay Rate');
     const extractNumber = (s: string) => {
