@@ -17,8 +17,20 @@ def get_s3_bytes_from_storage(resume_path_or_url: str) -> bytes:
     if not resume_path_or_url:
         raise ValueError("Resume path or URL is empty.")
 
-    # Extract S3 object key if full URL is passed
-    if resume_path_or_url.startswith("http://") or resume_path_or_url.startswith("https://"):
+    # Extract S3 object key based on URI format:
+    # - s3://bucket-name/key  → extract key after bucket name
+    # - https://...amazonaws.com/key → extract key from URL path
+    # - plain key like resumes/file.pdf → use as-is
+    if resume_path_or_url.startswith("s3://"):
+        # Format: s3://bucket-name/object-key
+        # Strip "s3://" prefix, then take everything after the first slash (the object key)
+        without_scheme = resume_path_or_url[5:]  # Remove "s3://"
+        slash_pos = without_scheme.find('/')
+        if slash_pos != -1:
+            key = without_scheme[slash_pos + 1:]  # Everything after "bucket-name/"
+        else:
+            key = without_scheme  # Edge case: no slash, use whole string
+    elif resume_path_or_url.startswith("http://") or resume_path_or_url.startswith("https://"):
         parsed = urlparse(resume_path_or_url)
         key = parsed.path.lstrip('/')
     else:
