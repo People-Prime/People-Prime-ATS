@@ -201,6 +201,11 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
+    if (!formData.publishToCareerPage) {
+      setError('⚠️ "Publish to Company Career Page" is mandatory. Please check this box before submitting the job requirement.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (assigneeIds.length === 0) {
@@ -711,20 +716,29 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             <Box sx={{ mb: 3 }}>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.publishToCareerPage}
-                        onChange={(e) => setFormData(prev => ({ ...prev, publishToCareerPage: e.target.checked }))}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Typography variant="body2" fontWeight={600}>
-                        Publish to Company Career Page
+                  <Box>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.publishToCareerPage}
+                          onChange={(e) => setFormData(prev => ({ ...prev, publishToCareerPage: e.target.checked }))}
+                          color="error"
+                          sx={!formData.publishToCareerPage ? { color: 'error.main' } : {}}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" fontWeight={700} sx={{ color: !formData.publishToCareerPage ? 'error.main' : 'text.primary' }}>
+                          Publish to Company Career Page
+                          <Typography component="span" sx={{ color: 'error.main', ml: 0.5 }}>*</Typography>
+                        </Typography>
+                      }
+                    />
+                    {!formData.publishToCareerPage && (
+                      <Typography variant="caption" sx={{ color: 'error.main', display: 'block', ml: 4, mt: -0.5, fontWeight: 600 }}>
+                        ⚠️ This is mandatory — please check this box to publish the job.
                       </Typography>
-                    }
-                  />
+                    )}
+                  </Box>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <FormControlLabel

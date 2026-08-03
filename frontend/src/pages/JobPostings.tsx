@@ -1470,6 +1470,7 @@ Remarks: ${candidateForm.remarks}`;
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>App ID</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>First Name</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Last Name</th>
+                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Mobile</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Exp</th>
@@ -1481,7 +1482,6 @@ Remarks: ${candidateForm.remarks}`;
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
@@ -1500,17 +1500,6 @@ Remarks: ${candidateForm.remarks}`;
                                                 </Typography>
                                               </td>
                                               <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.last_name}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
                                               <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
                                                 {pa.ai_match_score !== null && pa.ai_match_score !== undefined ? (
                                                   <Chip
@@ -1523,6 +1512,17 @@ Remarks: ${candidateForm.remarks}`;
                                                   <Typography variant="caption" color="text.secondary">N/A</Typography>
                                                 )}
                                               </td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
+                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
                                               <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
                                                 {pa.resume ? (
                                                   <Typography
