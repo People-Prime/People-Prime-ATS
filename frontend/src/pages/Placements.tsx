@@ -314,7 +314,8 @@ export const Placements: React.FC = () => {
               'Variable Pay',
               'Offer Value',
               'Profit Amount',
-              'Date of Join'
+              'Date of Join',
+              'Created Date'
             ];
 
             const rows = filteredCandidates.map(app => {
@@ -335,7 +336,8 @@ export const Placements: React.FC = () => {
                 getRemarkField(app.remarks, 'Variable Pay'),
                 getRemarkField(app.remarks, 'Offer Value'),
                 getProfitAmount(app.remarks) || 'N/A',
-                getRemarkField(app.remarks, 'Date of Join')
+                getRemarkField(app.remarks, 'Date of Join'),
+                app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'
               ];
             });
 
@@ -466,6 +468,7 @@ export const Placements: React.FC = () => {
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Offer Value</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'right' }}>Profit Amount</TableCell>
                 <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Date of Join</TableCell>
+                <TableCell sx={{ fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', color: theme.palette.text.secondary }}>Created Date</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -511,6 +514,7 @@ export const Placements: React.FC = () => {
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Offer Value'), 100)}</TableCell>
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getProfitAmount(app.remarks), 100)}</TableCell>
                       <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Date of Join'), 110)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</TableCell>
                     </TableRow>
                   );
                 })

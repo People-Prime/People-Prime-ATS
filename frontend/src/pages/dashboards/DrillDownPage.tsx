@@ -410,7 +410,7 @@ export const DrillDownPage: React.FC = () => {
                 'Applicant Status', 'Job Title', 'Job Type', 'Client Name', 'Tentative Start Date',
                 'Manager', 'Team Lead', 'Recruiter', 'PAN Card', 'Aadhaar', 'Alt Mobile',
                 'Source', 'Interest to Work', 'Modified By',
-                'Pay Rate', 'Variable Pay', 'Offer Value', 'Profit Amount', 'Date of Join'
+                'Pay Rate', 'Variable Pay', 'Offer Value', 'Profit Amount', 'Date of Join', 'Created Date'
               ];
               const rows = uniqueCandidates.map((cand: any) => {
                 const app = cand.primaryApp;
@@ -453,7 +453,8 @@ export const DrillDownPage: React.FC = () => {
                   getRemarkFieldVal(app.remarks, 'Variable Pay'),
                   getRemarkFieldVal(app.remarks, 'Offer Value'),
                   getRemarkFieldVal(app.remarks, 'Profit Amount'),
-                  getRemarkFieldVal(app.remarks, 'Date of Join')
+                  getRemarkFieldVal(app.remarks, 'Date of Join'),
+                  app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'
                 ];
               });
 
@@ -552,6 +553,7 @@ export const DrillDownPage: React.FC = () => {
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Offer Value</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Profit Amount</TableCell>
                     <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Date of Join</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', whiteSpace: 'nowrap' }}>Created Date</TableCell>
                     {!shouldHideAction && (
                       <TableCell sx={{ fontWeight: 700, fontSize: '0.72rem', padding: currentUser?.role === 'CEO' ? '2px 4px' : '6px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</TableCell>
                     )}
@@ -960,6 +962,9 @@ export const DrillDownPage: React.FC = () => {
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Date of Join'), 110)}</Typography>
+                          </TableCell>
+                          <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</Typography>
                           </TableCell>
                           {!shouldHideAction && (
                             <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>

@@ -441,7 +441,8 @@ export const Applications: React.FC = () => {
       'Variable Pay',
       'Offer Value',
       'Profit Amount',
-      'Date of Join'
+      'Date of Join',
+      'Created Date'
     ];
 
     const rows = uniqueCandidates.map((cand) => {
@@ -487,7 +488,8 @@ export const Applications: React.FC = () => {
         getRemarkField(app.remarks, 'Variable Pay'),
         getRemarkField(app.remarks, 'Offer Value'),
         getRemarkField(app.remarks, 'Profit Amount'),
-        getRemarkField(app.remarks, 'Date of Join')
+        getRemarkField(app.remarks, 'Date of Join'),
+        app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'
       ];
     });
 
@@ -646,6 +648,7 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Offer Value</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Profit Amount</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Date of Join</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Created Date</th>
                 {showActionColumn && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
               </tr>
             </thead>
@@ -838,6 +841,9 @@ export const Applications: React.FC = () => {
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Date of Join'), 110)}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</Typography>
                       </td>
                       {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
