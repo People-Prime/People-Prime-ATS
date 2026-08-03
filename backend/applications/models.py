@@ -151,6 +151,10 @@ class CareerPortalApplicant(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # AI Match Shortlisting fields
+    ai_match_score = models.FloatField(null=True, blank=True)
+    ai_scored_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.email}) - Job ID: {self.job_id}"
 

@@ -137,6 +137,8 @@ export interface CareerPortalApplicant {
   is_imported: boolean;
   imported_at?: string | null;
   imported_by?: string;
+  ai_match_score?: number | null;
+  ai_scored_at?: string | null;
   created_at: string;
   updated_at: string;
 }

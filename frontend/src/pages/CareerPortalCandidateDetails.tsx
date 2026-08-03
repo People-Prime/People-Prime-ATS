@@ -192,6 +192,20 @@ export const CareerPortalCandidateDetails: React.FC = () => {
                   <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>Applied Date</Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>{formatDateDDMMYYYY(applicant.created_at)}</Typography>
                 </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>AI Match Shortlisting Score</Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    {applicant.ai_match_score !== null && applicant.ai_match_score !== undefined ? (
+                      <Chip
+                        label={`AI Match: ${applicant.ai_match_score}%`}
+                        color={applicant.ai_match_score >= 70 ? 'success' : applicant.ai_match_score >= 45 ? 'warning' : 'default'}
+                        sx={{ fontWeight: 800, fontSize: '0.85rem', px: 1 }}
+                      />
+                    ) : (
+                      <Typography variant="body1" sx={{ fontWeight: 600, color: 'text.secondary' }}>N/A (Processing / Pending)</Typography>
+                    )}
+                  </Box>
+                </Grid>
 
                 <Grid item xs={12}>
                   <Divider sx={{ my: 2 }} />

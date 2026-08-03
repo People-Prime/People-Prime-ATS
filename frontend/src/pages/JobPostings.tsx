@@ -1481,6 +1481,7 @@ Remarks: ${candidateForm.remarks}`;
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
+                                        <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
                                         <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
@@ -1510,6 +1511,18 @@ Remarks: ${candidateForm.remarks}`;
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                            {pa.ai_match_score !== null && pa.ai_match_score !== undefined ? (
+                                              <Chip
+                                                label={`${pa.ai_match_score}%`}
+                                                size="small"
+                                                color={pa.ai_match_score >= 70 ? 'success' : pa.ai_match_score >= 45 ? 'warning' : 'default'}
+                                                sx={{ fontWeight: 800, fontSize: '0.68rem', height: 20 }}
+                                              />
+                                            ) : (
+                                              <Typography variant="caption" color="text.secondary">N/A</Typography>
+                                            )}
+                                          </td>
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
                                             {pa.resume ? (
                                               <Typography

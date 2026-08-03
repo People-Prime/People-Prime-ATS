@@ -160,6 +160,13 @@ class PublicJobApplyAPIView(APIView):
             status='New'
         )
 
+        # 5. Trigger AI Shortlisting in Celery Background Task (non-blocking)
+        try:
+            from applications.ai.tasks import score_applicant_resume_task
+            score_applicant_resume_task.delay(applicant.id)
+        except Exception as e:
+            print(f"[Public Job Apply View] Non-blocking exception triggering AI task: {e}")
+
         return Response({
             "success": True,
             "message": "Application submitted successfully."

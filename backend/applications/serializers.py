@@ -411,6 +411,7 @@ class CareerPortalApplicantSerializer(serializers.ModelSerializer):
             'expected_pay', 'primary_skills', 'current_ctc', 'current_company',
             'state', 'city', 'resume', 'accepted_terms', 'source', 'status', 'modified_by',
             'is_imported', 'imported_at', 'imported_by', 'imported_application',
+            'ai_match_score', 'ai_scored_at',
             'created_at', 'updated_at'
         ]
 
