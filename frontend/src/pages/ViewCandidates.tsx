@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
+import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { 
@@ -223,10 +224,10 @@ export const ViewCandidates: React.FC = () => {
                       {renderCellText(candidate.recruiter || 'Self', 110)}
                     </TableCell>
                     <TableCell sx={{ py: 2, color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
-                      {candidate.created_at ? new Date(candidate.created_at).toLocaleDateString() : 'N/A'}
+                      {formatDateDDMMYYYY(candidate.created_at)}
                     </TableCell>
                     <TableCell sx={{ py: 2, color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
-                      {candidate.transition_dates?.[candidate.status] || (candidate.updated_at ? new Date(candidate.updated_at).toLocaleDateString() : 'N/A')}
+                      {formatDateDDMMYYYY(candidate.transition_dates?.[candidate.status] || candidate.updated_at)}
                     </TableCell>
                     <TableCell sx={{ py: 2, whiteSpace: 'nowrap' }}>
                       {getStatusChip(candidate.status)}

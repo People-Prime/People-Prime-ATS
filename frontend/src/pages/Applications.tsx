@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -475,7 +476,7 @@ export const Applications: React.FC = () => {
         displayPosition,
         displayJobType,
         displayClientName,
-        displayStartDate,
+        formatDateDDMMYYYY(displayStartDate),
         hierarchyInfo.manager,
         hierarchyInfo.tl,
         app.recruiter || app.assigned_employee?.full_name || 'System',
@@ -489,9 +490,9 @@ export const Applications: React.FC = () => {
         getRemarkField(app.remarks, 'Variable Pay'),
         getRemarkField(app.remarks, 'Offer Value'),
         getRemarkField(app.remarks, 'Profit Amount'),
-        getRemarkField(app.remarks, 'Date of Join'),
-        app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A',
-        app.transition_dates?.[app.status] || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')
+        formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')),
+        formatDateDDMMYYYY(app.created_at),
+        formatDateDDMMYYYY(app.transition_dates?.[app.status] || app.updated_at)
       ];
     });
 
@@ -798,7 +799,7 @@ export const Applications: React.FC = () => {
                               <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(displayClientName, 110)}</Typography>
                             </td>
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(displayStartDate, 110)}</Typography>
+                              <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(formatDateDDMMYYYY(displayStartDate), 110)}</Typography>
                             </td>
                             <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                               <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.manager, 110)}</Typography>
@@ -843,13 +844,13 @@ export const Applications: React.FC = () => {
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Profit Amount'), 110)}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkField(app.remarks, 'Date of Join'), 110)}</Typography>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')), 110)}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</Typography>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{formatDateDDMMYYYY(app.created_at)}</Typography>
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
-                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.transition_dates?.[app.status] || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')}</Typography>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{formatDateDDMMYYYY(app.transition_dates?.[app.status] || app.updated_at)}</Typography>
                       </td>
                       {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>

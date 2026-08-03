@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { 
@@ -1362,8 +1363,8 @@ Remarks: ${candidateForm.remarks}`;
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.source, 110)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.interest_to_work_for_client, 110)}</td>
                                 <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.modified_by || 'N/A', 110)}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.created_at ? new Date(applicant.created_at).toLocaleDateString() : 'N/A'}</td>
-                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.transition_dates?.[applicant.status] || (applicant.updated_at ? new Date(applicant.updated_at).toLocaleDateString() : 'N/A')}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(applicant.created_at)}</td>
+                                <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(applicant.transition_dates?.[applicant.status] || applicant.updated_at)}</td>
                                 {showActionColumn && (
                                   <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                     <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
@@ -1508,7 +1509,7 @@ Remarks: ${candidateForm.remarks}`;
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
-                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{new Date(pa.created_at).toLocaleDateString()}</td>
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
                                           <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
                                             {pa.resume ? (
                                               <Typography

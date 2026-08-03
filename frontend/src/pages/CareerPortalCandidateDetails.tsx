@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -189,7 +190,7 @@ export const CareerPortalCandidateDetails: React.FC = () => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700 }}>Applied Date</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 600 }}>{new Date(applicant.created_at).toLocaleString()}</Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 600 }}>{formatDateDDMMYYYY(applicant.created_at)}</Typography>
                 </Grid>
 
                 <Grid item xs={12}>

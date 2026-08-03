@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatDateDDMMYYYY } from '../../utils/formatters';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -439,7 +440,7 @@ export const DrillDownPage: React.FC = () => {
                   displayPosition,
                   displayJobType,
                   displayClientName,
-                  displayStartDate,
+                  formatDateDDMMYYYY(displayStartDate),
                   hierarchyInfo.manager,
                   hierarchyInfo.tl,
                   app.recruiter || app.assigned_employee?.full_name || 'System',
@@ -453,9 +454,9 @@ export const DrillDownPage: React.FC = () => {
                   getRemarkFieldVal(app.remarks, 'Variable Pay'),
                   getRemarkFieldVal(app.remarks, 'Offer Value'),
                   getRemarkFieldVal(app.remarks, 'Profit Amount'),
-                  getRemarkFieldVal(app.remarks, 'Date of Join'),
-                  app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A',
-                  app.transition_dates?.[app.status] || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')
+                  formatDateDDMMYYYY(getRemarkFieldVal(app.remarks, 'Date of Join')),
+                  formatDateDDMMYYYY(app.created_at),
+                  formatDateDDMMYYYY(app.transition_dates?.[app.status] || app.updated_at)
                 ];
               });
 
@@ -918,7 +919,7 @@ export const DrillDownPage: React.FC = () => {
                                   <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(clientName, 110)}</Typography>
                                 </TableCell>
                                 <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(startDateVal, 110)}</Typography>
+                                  <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(formatDateDDMMYYYY(startDateVal), 110)}</Typography>
                                 </TableCell>
                                 <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                                   <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(hierarchyInfo.manager, 110)}</Typography>
@@ -963,13 +964,13 @@ export const DrillDownPage: React.FC = () => {
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Profit Amount'), 110)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(getRemarkFieldVal(app.remarks, 'Date of Join'), 110)}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{renderCellText(formatDateDDMMYYYY(getRemarkFieldVal(app.remarks, 'Date of Join')), 110)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{formatDateDDMMYYYY(app.created_at)}</Typography>
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
-                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.transition_dates?.[app.status] || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')}</Typography>
+                            <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{formatDateDDMMYYYY(app.transition_dates?.[app.status] || app.updated_at)}</Typography>
                           </TableCell>
                           {!shouldHideAction && (
                             <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>

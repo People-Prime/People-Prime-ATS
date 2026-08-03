@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useTheme } from '@mui/material/styles';
 import {
   Box,
@@ -337,9 +338,9 @@ export const Placements: React.FC = () => {
                 getRemarkField(app.remarks, 'Variable Pay'),
                 getRemarkField(app.remarks, 'Offer Value'),
                 getProfitAmount(app.remarks) || 'N/A',
-                getRemarkField(app.remarks, 'Date of Join'),
-                app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A',
-                app.transition_dates?.Placed || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')
+                formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')),
+                formatDateDDMMYYYY(app.created_at),
+                formatDateDDMMYYYY(app.transition_dates?.Placed || app.updated_at)
               ];
             });
 
@@ -516,9 +517,9 @@ export const Placements: React.FC = () => {
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Variable Pay'), 100)}</TableCell>
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Offer Value'), 100)}</TableCell>
                       <TableCell sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{renderCellText(getProfitAmount(app.remarks), 100)}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(app.remarks, 'Date of Join'), 110)}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{app.transition_dates?.Placed || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{renderCellText(formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')), 110)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(app.created_at)}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(app.transition_dates?.Placed || app.updated_at)}</TableCell>
                     </TableRow>
                   );
                 })
