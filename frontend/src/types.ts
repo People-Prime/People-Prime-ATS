@@ -93,6 +93,7 @@ export interface Application {
   interest_to_work_for_client?: string;
   created_at: string;
   updated_at: string;
+  transition_dates?: Record<string, string>;
   modified_by?: string;
   publish_to_career_page?: boolean;
   publish_to_linkedin?: boolean;

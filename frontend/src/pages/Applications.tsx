@@ -442,7 +442,8 @@ export const Applications: React.FC = () => {
       'Offer Value',
       'Profit Amount',
       'Date of Join',
-      'Created Date'
+      'Created Date',
+      'Status Changed Date'
     ];
 
     const rows = uniqueCandidates.map((cand) => {
@@ -489,7 +490,8 @@ export const Applications: React.FC = () => {
         getRemarkField(app.remarks, 'Offer Value'),
         getRemarkField(app.remarks, 'Profit Amount'),
         getRemarkField(app.remarks, 'Date of Join'),
-        app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'
+        app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A',
+        app.transition_dates?.[app.status] || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')
       ];
     });
 
@@ -649,6 +651,7 @@ export const Applications: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Profit Amount</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Date of Join</th>
                 <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Created Date</th>
+                <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Status Changed Date</th>
                 {showActionColumn && <th style={{ padding: '6px 8px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
               </tr>
             </thead>
@@ -844,6 +847,9 @@ export const Applications: React.FC = () => {
                       </td>
                       <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
                         <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.created_at ? new Date(app.created_at).toLocaleDateString() : 'N/A'}</Typography>
+                      </td>
+                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', whiteSpace: 'nowrap' }}>
+                        <Typography variant="body2" sx={{ fontSize: activeRole === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.transition_dates?.[app.status] || (app.updated_at ? new Date(app.updated_at).toLocaleDateString() : 'N/A')}</Typography>
                       </td>
                       {showActionColumn && (
                         <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>

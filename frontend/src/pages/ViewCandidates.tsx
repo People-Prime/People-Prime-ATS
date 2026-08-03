@@ -205,6 +205,7 @@ export const ViewCandidates: React.FC = () => {
                   <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Email & Phone</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Sourced By</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Created Date</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Status Changed Date</TableCell>
                   <TableCell sx={{ fontWeight: 700, color: 'text.secondary' }}>Status</TableCell>
                 </TableRow>
               </TableHead>
@@ -223,6 +224,9 @@ export const ViewCandidates: React.FC = () => {
                     </TableCell>
                     <TableCell sx={{ py: 2, color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
                       {candidate.created_at ? new Date(candidate.created_at).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell sx={{ py: 2, color: 'text.secondary', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                      {candidate.transition_dates?.[candidate.status] || (candidate.updated_at ? new Date(candidate.updated_at).toLocaleDateString() : 'N/A')}
                     </TableCell>
                     <TableCell sx={{ py: 2, whiteSpace: 'nowrap' }}>
                       {getStatusChip(candidate.status)}
