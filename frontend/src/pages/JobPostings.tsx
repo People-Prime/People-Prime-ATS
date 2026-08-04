@@ -35,7 +35,8 @@ import {
   Check,
   MessageSquare,
   Building,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, addApplication, updateApplication, setApplications, deleteApplication } from '../redux/applicationsSlice';
@@ -119,6 +120,18 @@ export const JobPostings: React.FC = () => {
       setPortalApplicants(prev => prev.map(p => p.id === portalApplicantId ? updated : p));
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to update status.");
+    }
+  };
+
+  const handleDeletePortalApplicant = async (portalApplicantId: number, name: string) => {
+    if (window.confirm(`Are you sure you want to delete the career portal submission for "${name}"?`)) {
+      try {
+        await api.delete(`applications/career-portal-applicants/${portalApplicantId}/`);
+        setPortalApplicants(prev => prev.filter(p => p.id !== portalApplicantId));
+        alert("Career portal applicant deleted successfully.");
+      } catch (err: any) {
+        alert(err?.response?.data?.error || "Failed to delete career portal applicant.");
+      }
     }
   };
 
@@ -1485,6 +1498,9 @@ Remarks: ${candidateForm.remarks}`;
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
                                             <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
+                                            {activeRole === 'ADMIN' && (
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                                            )}
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -1568,6 +1584,18 @@ Remarks: ${candidateForm.remarks}`;
                                               <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
                                                 {pa.modified_by || 'N/A'}
                                               </td>
+                                              {activeRole === 'ADMIN' && (
+                                                <td style={{ padding: '2px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                                  <IconButton
+                                                    size="small"
+                                                    color="error"
+                                                    onClick={() => handleDeletePortalApplicant(pa.id, `${pa.first_name} ${pa.last_name}`)}
+                                                    title="Delete Portal Applicant"
+                                                  >
+                                                    <Trash2 size={14} />
+                                                  </IconButton>
+                                                </td>
+                                              )}
                                             </tr>
                                           ))}
                                         </tbody>

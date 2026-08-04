@@ -741,6 +741,13 @@ class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
             instance.save()
         return super().update(request, *args, **kwargs)
 
+    def destroy(self, request, *args, **kwargs):
+        from users.models import Role
+        if not (request.user.role == Role.ADMIN or request.user.is_superuser):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can delete career portal applicants.")
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post', 'patch'], url_path='update-status')
     def update_status(self, request, pk=None):
         applicant = self.get_object()
