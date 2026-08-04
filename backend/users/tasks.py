@@ -68,14 +68,14 @@ def send_welcome_email_task(email, full_name, password):
             text_content,
             settings.DEFAULT_FROM_EMAIL,
             [email],
-            fail_silently=False,
+            fail_silently=True,
             html_message=html_content
         )
         logger.info(f"[CELERY] Welcome email sent successfully to {email}")
         return True
     except Exception as e:
-        logger.error(f"[CELERY] Failed to send welcome email to {email}: {e}")
-        raise e
+        logger.warning(f"[CELERY] Welcome email skipped or limit reached for {email}: {e}")
+        return False
 
 
 @shared_task
@@ -190,11 +190,11 @@ Team Lead, People Prime Worldwide
             reply_to=[lead_email]
         )
         email_msg.attach_alternative(html_content, "text/html")
-        email_msg.send(fail_silently=False)
+        email_msg.send(fail_silently=True)
         
         logger.info(f"[CELERY] Job assignment email sent successfully to {to_emails}")
         return True
     except Exception as e:
-        logger.error(f"[CELERY] Failed to send job assignment email to {to_emails}: {e}")
-        raise e
+        logger.warning(f"[CELERY] Email sending skipped or limit reached for {to_emails}: {e}")
+        return False
 
