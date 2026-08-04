@@ -11,7 +11,8 @@ import {
   IconButton,
   Alert,
   Toolbar,
-  useTheme
+  useTheme,
+  CircularProgress
 } from '@mui/material';
 import {
   Mail,
@@ -51,6 +52,8 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
 
   const isDark = themeMode === 'dark';
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -58,12 +61,15 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
       return;
     }
 
+    setError('');
+    setSubmitting(true);
     dispatch(loginUser({ email, password }))
       .unwrap()
       .then(() => {
-        navigate('/');
+        navigate('/', { replace: true });
       })
       .catch((err: any) => {
+        setSubmitting(false);
         setError(err || 'Failed to authenticate.');
       });
   };
@@ -503,7 +509,7 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                     variant="contained"
                     size="large"
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || submitting}
                     sx={{
                       py: 1.5,
                       borderRadius: '10px',
@@ -516,7 +522,11 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                       }
                     }}
                   >
-                    {loading ? 'Signing In...' : 'Sign In'}
+                    {loading || submitting ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                        <CircularProgress size={20} color="inherit" /> Signing In...
+                      </Box>
+                    ) : 'Sign In'}
                   </Button>
                 </Box>
               </form>
