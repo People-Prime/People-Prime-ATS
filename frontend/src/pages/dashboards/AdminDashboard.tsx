@@ -101,16 +101,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
       localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
       localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
     }
+  }, [startDate, endDate, currentUser]);
 
-    let url = 'applications/?all_applicants=true';
-    if (!showAllTimeKPIs && startDate && endDate) {
-      url += `&start_date=${startDate}&end_date=${endDate}`;
-    }
-    api.get(url).then((res: any) => {
+  React.useEffect(() => {
+    api.get('applications/?all_applicants=true').then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       dispatch(setApplications(list));
     }).catch(() => {});
-  }, [startDate, endDate, currentUser, showAllTimeKPIs, dispatch]);
+  }, [dispatch]);
 
   // Filter all org-wide applications by selected date
   const dateFilteredApps = useMemo(() => {
