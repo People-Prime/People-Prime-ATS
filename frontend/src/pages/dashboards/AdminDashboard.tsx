@@ -104,11 +104,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   }, [startDate, endDate, currentUser]);
 
   React.useEffect(() => {
-    api.get('applications/?all_applicants=true').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(() => {});
-  }, [dispatch]);
+    if (applications.length === 0) {
+      api.get('applications/?all_applicants=true').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => {});
+    }
+  }, [applications.length, dispatch]);
 
   // Filter all org-wide applications by selected date
   const dateFilteredApps = useMemo(() => {

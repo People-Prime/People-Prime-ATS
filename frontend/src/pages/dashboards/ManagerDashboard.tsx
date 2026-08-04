@@ -25,12 +25,16 @@ export const ManagerDashboard: React.FC = () => {
     }
   }, [startDate, endDate, currentUser]);
 
+  const { applications } = useAppSelector((state: any) => state.applications || { applications: [] });
+
   React.useEffect(() => {
-    api.get('applications/?all_applicants=true').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(() => {});
-  }, [dispatch]);
+    if (applications.length === 0) {
+      api.get('applications/?all_applicants=true').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => {});
+    }
+  }, [applications.length, dispatch]);
 
 
 

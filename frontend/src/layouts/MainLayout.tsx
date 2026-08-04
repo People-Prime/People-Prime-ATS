@@ -39,9 +39,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
   const theme = useTheme();
 
   const { user } = useAppSelector(state => state.auth);
+  const { users } = useAppSelector(state => state.users);
 
   useEffect(() => {
-    if (user) {
+    if (user && users.length === 0) {
       dispatch(fetchUsersStart());
       api.get('users/').then(res => {
         const data = res.data?.results ?? res.data ?? [];
@@ -60,10 +61,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
         }));
         dispatch(fetchUsersSuccess(mappedUsers));
       }).catch(() => { });
-
-
     }
-  }, [dispatch, user]);
+  }, [user, users.length, dispatch]);
 
   const handleLogoutClick = () => {
     dispatch(logout());
