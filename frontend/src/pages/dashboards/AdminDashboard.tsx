@@ -28,7 +28,8 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  CircularProgress
 } from '@mui/material';
 import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
@@ -488,7 +489,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                 {displayApplicants.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={readOnly ? 6 : 7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                      No applicants found matching the filter.
+                      {applications.length === 0 ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
+                          <CircularProgress size={16} color="primary" /> Data is loading...
+                        </Box>
+                      ) : (
+                        "No applicants found matching the filter."
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -665,7 +672,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
                 {displayJobs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={readOnly ? 8 : 9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
-                      No jobs found matching the filter.
+                      {applications.length === 0 ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
+                          <CircularProgress size={16} color="primary" /> Data is loading...
+                        </Box>
+                      ) : (
+                        "No jobs found matching the filter."
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (

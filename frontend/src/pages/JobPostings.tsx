@@ -1587,7 +1587,13 @@ Remarks: ${candidateForm.remarks}`;
               {groupedApps.length === 0 && (
                 <tr>
                   <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
-                    No applications match the active filters or search terms.
+                    {applications.length === 0 ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
+                        <CircularProgress size={18} color="primary" /> Data is loading...
+                      </Box>
+                    ) : (
+                      "No applications match the active filters or search terms."
+                    )}
                   </td>
                 </tr>
               )}

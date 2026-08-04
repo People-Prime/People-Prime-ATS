@@ -11,7 +11,8 @@ import {
   TableBody,
   TableCell,
   TableHead,
-  TableRow
+  TableRow,
+  CircularProgress
 } from '@mui/material';
 import {
   PlusSquare,
@@ -869,8 +870,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} style={{ padding: '16px', textAlign: 'center' }}>
-                      <Typography variant="body2" color="text.secondary">No staff members found to build hierarchy tree.</Typography>
+                    <TableCell colSpan={7} style={{ padding: '24px', textAlign: 'center' }}>
+                      {users.length === 0 || applications.length === 0 ? (
+                        <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, fontWeight: 700 }}>
+                          <CircularProgress size={16} color="primary" /> Data is loading...
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">No staff members found to build hierarchy tree.</Typography>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
