@@ -114,31 +114,49 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return getUniqueSubmissions(applications);
   }, [applications]);
 
+  // Fast O(1) Parent Job Cache Map
+  const parentJobCacheMap = useMemo(() => {
+    const codeMap = new Map<string, any>();
+    const posClientMap = new Map<string, any[]>();
+
+    deduplicatedApps.forEach(a => {
+      if (a.candidate_name) return; // Only parent jobs
+      const code = getRemarkField(a.remarks, 'Job Code');
+      if (code && code !== 'N/A') {
+        const key = code.toUpperCase().trim();
+        if (!codeMap.has(key)) codeMap.set(key, a);
+      }
+
+      const normPos = a.position?.toLowerCase().trim();
+      const normClient = a.client_name?.toLowerCase().trim();
+      if (normPos && normClient) {
+        const key = `${normPos}|${normClient}`;
+        if (!posClientMap.has(key)) posClientMap.set(key, []);
+        posClientMap.get(key)!.push(a);
+      }
+    });
+
+    return { codeMap, posClientMap };
+  }, [deduplicatedApps]);
+
   const findParentJobForApp = (app: any): any => {
     if (!app) return null;
     if (!app.candidate_name) return app;
 
-    // 1. First try matching by explicit Job Code from remarks
+    // 1. Match by explicit Job Code from remarks
     const directCode = getRemarkField(app.remarks, 'Job Code');
     if (directCode && directCode !== 'N/A') {
-      const parentByCode = deduplicatedApps.find(a =>
-        !a.candidate_name &&
-        getRemarkField(a.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim()
-      );
+      const parentByCode = parentJobCacheMap.codeMap.get(directCode.toUpperCase().trim());
       if (parentByCode) return parentByCode;
     }
 
-    // 2. Second, try matching by position + client_name
+    // 2. Match by position + client_name
     const normPos = app.position?.toLowerCase().trim();
     const normClient = app.client_name?.toLowerCase().trim();
     if (!normPos || !normClient) return null;
 
-    const candidates = deduplicatedApps.filter(a =>
-      !a.candidate_name &&
-      a.position?.toLowerCase().trim() === normPos &&
-      a.client_name?.toLowerCase().trim() === normClient
-    );
-    if (candidates.length === 0) return null;
+    const candidates = parentJobCacheMap.posClientMap.get(`${normPos}|${normClient}`);
+    if (!candidates || candidates.length === 0) return null;
 
     // Prefer parent job within effective date filter range
     if (effectiveStartDate && effectiveEndDate) {
@@ -158,20 +176,24 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return onOrBefore || candidates[0];
   };
 
-  const getDescendantEmails = (email: string): string[] => {
-    const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
-    return [email, ...direct.flatMap(d => getDescendantEmails(d.email))];
-  };
+  // Pre-computed map of descendant emails for fast lookup
+  const descendantEmailsMap = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    const getDescendants = (email: string): string[] => {
+      const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
+      return [email.toLowerCase(), ...direct.flatMap(d => getDescendants(d.email))];
+    };
+    filteredUsers.forEach(u => {
+      map.set(u.email.toLowerCase(), new Set(getDescendants(u.email)));
+    });
+    return map;
+  }, [filteredUsers]);
 
   const handleMetricClick = (userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
     const cleanEmail = userEmail.replace(/_(cwr|fte)$/i, '').toLowerCase();
 
-    const getDescendantsClean = (em: string): string[] => {
-      const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === em.toLowerCase());
-      return [em.toLowerCase(), ...direct.flatMap(d => getDescendantsClean(d.email))];
-    };
-
-    const emails = isSelfRow ? [cleanEmail] : getDescendantsClean(cleanEmail);
+    const emailSet = descendantEmailsMap.get(cleanEmail);
+    const emails = isSelfRow ? [cleanEmail] : (emailSet ? Array.from(emailSet) : [cleanEmail]);
     const targetUserObjs = filteredUsers.filter(u => emails.includes(u.email.toLowerCase()));
     const targetFullNames = targetUserObjs.map(u => u.full_name?.toLowerCase()).filter(Boolean);
 
@@ -408,12 +430,8 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   // Build Hierarchy Tree recursively
   const hierarchyTree = useMemo(() => {
     const getUserEmployeeType = (userEmail: string): 'CWR' | 'FTE' => {
-      const getDescendantEmails = (email: string): string[] => {
-        const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
-        return [email, ...direct.flatMap(d => getDescendantEmails(d.email))];
-      };
-      const emails = getDescendantEmails(userEmail);
-      const subApps = deduplicatedSubmissionsApps.filter(app => app.assigned_employee?.email && emails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase()));
+      const emailsSet = descendantEmailsMap.get(userEmail.toLowerCase());
+      const subApps = deduplicatedSubmissionsApps.filter(app => app.assigned_employee?.email && emailsSet?.has(app.assigned_employee.email.toLowerCase()));
 
       let cwrCount = 0;
       let fteCount = 0;
@@ -505,14 +523,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         };
 
         const computeUniqueJobsCountForTree = (individualEmails: string[], childrenList: TreeElement[]): number => {
-          const allEmails = [...individualEmails];
+          const emailSet = new Set<string>(individualEmails.map(e => e.toLowerCase()));
           childrenList.forEach(child => {
-            allEmails.push(...collectAllEmails(child));
+            collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
 
           const descendantApps = deduplicatedApps.filter(app =>
             app.assigned_employee?.email &&
-            allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
+            emailSet.has(app.assigned_employee.email.toLowerCase())
           );
 
           const dateFiltered = (effectiveStartDate && effectiveEndDate)
@@ -599,14 +617,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         };
 
         const computeUniqueJobsCountForTree = (individualEmails: string[], childrenList: TreeElement[]): number => {
-          const allEmails = [...individualEmails];
+          const emailSet = new Set<string>(individualEmails.map(e => e.toLowerCase()));
           childrenList.forEach(child => {
-            allEmails.push(...collectAllEmails(child));
+            collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
 
           const descendantApps = deduplicatedApps.filter(app =>
             app.assigned_employee?.email &&
-            allEmails.map(e => e.toLowerCase()).includes(app.assigned_employee.email.toLowerCase())
+            emailSet.has(app.assigned_employee.email.toLowerCase())
           );
 
           const seen = new Set<string>();
