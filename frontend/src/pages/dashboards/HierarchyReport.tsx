@@ -92,6 +92,13 @@ export const getStatusTransitionDate = (app: any, targetStatus: string, notesDic
   return '';
 };
 
+export const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
+  if (!remarks) return 'N/A';
+  const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
+  const value = match ? match[1].trim() : 'N/A';
+  return value && value !== '' ? value : 'N/A';
+};
+
 export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, startDate, endDate }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -350,13 +357,6 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   };
   const collapseAll = () => {
     setCollapsedNodes({});
-  };
-
-  const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
-    if (!remarks) return 'N/A';
-    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
-    const value = match ? match[1].trim() : 'N/A';
-    return value && value !== '' ? value : 'N/A';
   };
 
   // Helper to compute individual metrics for a user
