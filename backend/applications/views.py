@@ -181,6 +181,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     Q(updated_at__date__gte=start_date, updated_at__date__lte=end_date)
                 )
 
+        if self.action == 'list':
+            return qs.select_related('assigned_employee').order_by('-created_at')
+
         return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
     def get_serializer_class(self):

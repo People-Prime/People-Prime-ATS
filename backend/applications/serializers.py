@@ -61,6 +61,12 @@ class ApplicationSerializer(serializers.ModelSerializer):
                 self.fields.pop('notes', None)
 
     def get_transition_dates(self, obj):
+        request = self.context.get('request')
+        if request and request.parser_context:
+            view = request.parser_context.get('view')
+            if view and getattr(view, 'action', None) == 'list':
+                return {obj.status: obj.created_at.strftime('%Y-%m-%d')} if obj.status else {}
+
         dates = {}
         try:
             all_notes = obj.notes.all()
