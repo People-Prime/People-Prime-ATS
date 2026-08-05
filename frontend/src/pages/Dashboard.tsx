@@ -25,6 +25,8 @@ export const Dashboard: React.FC = () => {
   const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
   const [loadingApps, setLoadingApps] = useState(true);
 
+  const { applications } = useAppSelector(state => state.applications);
+
   // Sync date changes to localStorage
   useEffect(() => {
     if (currentUser?.email) {
@@ -33,19 +35,28 @@ export const Dashboard: React.FC = () => {
     }
   }, [startDate, endDate, currentUser]);
 
-  // Load applications from API so all sub-dashboards have access
+  // Load applications from API so all sub-dashboards have access (Reuses Redux state on remount)
   useEffect(() => {
-    setLoadingApps(true);
     let url = 'applications/?all_applicants=true';
     if (startDate && endDate) {
       url += `&start_date=${startDate}&end_date=${endDate}`;
     }
 
-    api.get(url).then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(() => {})
-      .finally(() => setLoadingApps(false));
+    const hasData = applications && applications.length > 0;
+    if (hasData) {
+      setLoadingApps(false);
+      api.get(url).then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => {});
+    } else {
+      setLoadingApps(true);
+      api.get(url).then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => {})
+        .finally(() => setLoadingApps(false));
+    }
   }, [dispatch, currentUser?.email, startDate, endDate]);
 
   return (
