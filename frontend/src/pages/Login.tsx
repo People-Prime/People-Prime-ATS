@@ -52,8 +52,6 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
 
   const isDark = themeMode === 'dark';
 
-  const [submitting, setSubmitting] = useState(false);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
@@ -62,14 +60,12 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
     }
 
     setError('');
-    setSubmitting(true);
     dispatch(loginUser({ email, password }))
       .unwrap()
       .then(() => {
         navigate('/', { replace: true });
       })
       .catch((err: any) => {
-        setSubmitting(false);
         setError(err || 'Failed to authenticate.');
       });
   };
@@ -509,7 +505,7 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                     variant="contained"
                     size="large"
                     type="submit"
-                    disabled={loading || submitting}
+                    disabled={loading}
                     sx={{
                       py: 1.5,
                       borderRadius: '10px',
@@ -522,7 +518,7 @@ export const Login: React.FC<LoginProps> = ({ themeMode, toggleTheme }) => {
                       }
                     }}
                   >
-                    {loading || submitting ? (
+                    {loading ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                         <CircularProgress size={20} color="inherit" /> Signing In...
                       </Box>
