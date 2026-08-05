@@ -63,13 +63,18 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def get_transition_dates(self, obj):
         dates = {}
         try:
-            all_notes = obj.notes.all()
-            for note in all_notes:
-                content = note.content or ''
-                if "Status updated to " in content:
-                    parts = content.split("Status updated to ")
-                    if len(parts) > 1:
-                        status_part = parts[1].split(".")[0].split("\n")[0].strip()
+            notes_list = obj.notes.all()
+            if not notes_list:
+                if obj.status:
+                    dates[obj.status] = obj.created_at.strftime('%Y-%m-%d')
+                return dates
+
+            for note in notes_list:
+                content = note.content
+                if content and "Status updated to " in content:
+                    idx = content.find("Status updated to ")
+                    status_part = content[idx + 18:].split(".")[0].split("\n")[0].strip()
+                    if status_part and status_part not in dates:
                         dates[status_part] = note.created_at.strftime('%Y-%m-%d')
         except Exception:
             pass
