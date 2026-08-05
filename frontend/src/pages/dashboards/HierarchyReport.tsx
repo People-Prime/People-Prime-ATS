@@ -65,6 +65,9 @@ export const getStatusTransitionDate = (app: any, targetStatus: string, notesDic
   if (!isStatusAllowedForMetric(app.status, targetStatus)) {
     return '';
   }
+  if (app.transition_dates && app.transition_dates[targetStatus]) {
+    return app.transition_dates[targetStatus];
+  }
   if (notesDict && notesDict[app.id]) {
     const transitionNotes = notesDict[app.id]
       .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
@@ -72,9 +75,6 @@ export const getStatusTransitionDate = (app: any, targetStatus: string, notesDic
     if (transitionNotes.length > 0) {
       return transitionNotes[0].created_at.slice(0, 10);
     }
-  }
-  if (app.transition_dates && app.transition_dates[targetStatus]) {
-    return app.transition_dates[targetStatus];
   }
   if (app.notes && Array.isArray(app.notes)) {
     const transitionNotes = app.notes
