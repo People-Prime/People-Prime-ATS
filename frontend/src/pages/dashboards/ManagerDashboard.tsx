@@ -1,42 +1,44 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { 
   Box, 
-  Typography, 
-  Button
+  Typography
 } from '@mui/material';
 import { useAppSelector } from '../../redux/store';
 import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
+import { PipelineKPIs } from './PipelineKPIs';
 
 interface ManagerDashboardProps {
   startDate: string;
   endDate: string;
-  showAllTimeKPIs: boolean;
   setStartDate: (val: string) => void;
   setEndDate: (val: string) => void;
-  setShowAllTimeKPIs: (val: boolean) => void;
 }
 
-export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
+export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({ 
   startDate,
   endDate,
-  showAllTimeKPIs,
   setStartDate,
-  setEndDate,
-  setShowAllTimeKPIs
+  setEndDate
 }) => {
   const { user: currentUser } = useAppSelector(state => state.auth);
+  const { applications } = useAppSelector(state => state.applications);
 
-
-
-
+  // Filter all applications by selected date range
+  const dateFilteredApps = useMemo(() => {
+    if (!startDate || !endDate) return applications;
+    return applications.filter(app => {
+      const d = (app.created_at || '').slice(0, 10);
+      return d >= startDate && d <= endDate;
+    });
+  }, [applications, startDate, endDate]);
 
   return (
-    <Box>
-      {/* Title block */}
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+    <Box className="animate-fade-in">
+      {/* Header Greeting Banner */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 800, mb: 1, letterSpacing: -0.5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5 }}>
             Welcome Back, {currentUser?.full_name?.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}!
           </Typography>
           <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 500 }}>
@@ -44,14 +46,6 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-          <Button 
-            variant="outlined" 
-            size="small" 
-            onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
-            sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, py: 0.8 }}
-          >
-            {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
-          </Button>
           <DashboardCalendar
             startDate={startDate}
             endDate={endDate}
@@ -63,12 +57,13 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
         </Box>
       </Box>
 
+      {/* Reusable Pipeline KPIs Bar */}
+      <Box sx={{ mb: 4 }}>
+        <PipelineKPIs applications={dateFilteredApps} />
+      </Box>
 
-      {/* Hierarchy Report – starts from this Senior Manager's own node */}
-      {currentUser && <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />}
-
-
-
+      {/* Reporting Hierarchy Breakdown starting from this Manager */}
+      {currentUser && <HierarchyReport rootEmail={currentUser.email} startDate={startDate} endDate={endDate} />}
     </Box>
   );
 };

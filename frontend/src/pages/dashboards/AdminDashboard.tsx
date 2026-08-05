@@ -31,11 +31,11 @@ import {
   DialogActions,
   CircularProgress
 } from '@mui/material';
-import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
+import { X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { deleteApplication } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
-import { getUniqueSubmissions } from './PipelineKPIs';
+import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -56,20 +56,16 @@ interface AdminDashboardProps {
   readOnly?: boolean;
   startDate: string;
   endDate: string;
-  showAllTimeKPIs: boolean;
-  setStartDate: (val: string) => void;
-  setEndDate: (val: string) => void;
-  setShowAllTimeKPIs: (val: boolean) => void;
+  setStartDate: (d: string) => void;
+  setEndDate: (d: string) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   readOnly = false,
   startDate,
   endDate,
-  showAllTimeKPIs,
   setStartDate,
-  setEndDate,
-  setShowAllTimeKPIs
+  setEndDate
 }) => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -298,14 +294,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button
-            variant={showAllTimeKPIs ? "contained" : "outlined"}
-            size="small"
-            onClick={() => setShowAllTimeKPIs(!showAllTimeKPIs)}
-            sx={{ borderRadius: '8px', fontSize: '0.75rem', py: 0.5, fontWeight: 700 }}
-          >
-            {showAllTimeKPIs ? "All-Time KPIs Active" : "Show All-Time KPIs"}
-          </Button>
           <DashboardCalendar
             startDate={startDate}
             endDate={endDate}
@@ -317,44 +305,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </Box>
       </Box>
 
-      {/* Action buttons row below greeting */}
-      {!readOnly && currentUser?.role !== 'CEO' && (
-        <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/teams')}
-            startIcon={<ShieldCheck size={18} />}
-            sx={{ borderRadius: '8px', fontWeight: 700 }}
-          >
-            Manage Teams
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => navigate('/users/create')}
-            startIcon={<Plus size={18} />}
-            sx={{ borderRadius: '8px', fontWeight: 750 }}
-          >
-            Onboard Employee
-          </Button>
-        </Box>
-      )}
+      {/* Main Stats Grid – 6 coloured cards */}
+      <Box sx={{ mb: 4 }}>
+        <PipelineKPIs applications={dateFilteredApps} />
+      </Box>
 
-
-
-      {/* Tabs Menu */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 3, mb: 3 }}>
-        <Tabs
-          value={activeTab}
+      {/* Sub-navigation Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        <Tabs 
+          value={activeTab} 
           onChange={(_, val) => setActiveTab(val)}
-          variant="scrollable"
-          scrollButtons="auto"
+          textColor="primary"
+          indicatorColor="primary"
           sx={{
             '& .MuiTab-root': {
-              fontWeight: 700,
-              fontSize: '0.85rem',
               textTransform: 'none',
-              minWidth: 100,
-              px: 3,
+              fontWeight: 700,
+              fontSize: '0.9rem',
+              mr: 2,
+              minWidth: 'auto',
+              px: 1
             }
           }}
         >
@@ -365,18 +335,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </Tabs>
       </Box>
 
-      {/* Tab Panel 0: Overview & Teams */}
+      {/* TAB 0: OVERVIEW & TEAM ACTIVITY */}
       {activeTab === 0 && (
-        <>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {/* CEO / Admin Hierarchy Report – full org tree */}
           {(currentUser?.role === 'CEO' || currentUser?.role === 'ADMIN' || currentUser?.role === 'REPORTING_TEAM') && (
-            <HierarchyReport startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
+            <HierarchyReport startDate={startDate} endDate={endDate} />
           )}
 
           {/* Senior Manager Hierarchy Report – starts from their own node */}
           {currentUser?.role === 'SENIOR_MANAGER' && (
-            <HierarchyReport rootEmail={currentUser.email} startDate={showAllTimeKPIs ? '' : startDate} endDate={showAllTimeKPIs ? '' : endDate} />
-            )}
+            <HierarchyReport rootEmail={currentUser.email} startDate={startDate} endDate={endDate} />
+          )}
 
           {/* Recent Employee Onboardings */}
           <Grid container spacing={3}>
@@ -430,7 +400,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </Card>
             </Grid>
           </Grid>
-        </>
+        </Box>
       )}
 
       {/* Tab Panel 1: Applicants Registry */}

@@ -23,7 +23,6 @@ export const Dashboard: React.FC = () => {
 
   const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
   const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
-  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
   const [loadingApps, setLoadingApps] = useState(true);
 
   // Sync date changes to localStorage
@@ -38,7 +37,7 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     setLoadingApps(true);
     let url = 'applications/?all_applicants=true';
-    if (!showAllTimeKPIs && startDate && endDate) {
+    if (startDate && endDate) {
       url += `&start_date=${startDate}&end_date=${endDate}`;
     }
 
@@ -47,7 +46,7 @@ export const Dashboard: React.FC = () => {
       dispatch(setApplications(list));
     }).catch(() => {})
       .finally(() => setLoadingApps(false));
-  }, [dispatch, currentUser?.email, startDate, endDate, showAllTimeKPIs]);
+  }, [dispatch, currentUser?.email, startDate, endDate]);
 
   return (
     <Box className="animate-fade-in">
@@ -62,20 +61,16 @@ export const Dashboard: React.FC = () => {
               readOnly={activeRole === 'REPORTING_TEAM'} 
               startDate={startDate}
               endDate={endDate}
-              showAllTimeKPIs={showAllTimeKPIs}
               setStartDate={setStartDate}
               setEndDate={setEndDate}
-              setShowAllTimeKPIs={setShowAllTimeKPIs}
             />
           )}
           {(activeRole === 'SENIOR_MANAGER' || activeRole === 'JUNIOR_MANAGER') && (
             <ManagerDashboard 
               startDate={startDate}
               endDate={endDate}
-              showAllTimeKPIs={showAllTimeKPIs}
               setStartDate={setStartDate}
               setEndDate={setEndDate}
-              setShowAllTimeKPIs={setShowAllTimeKPIs}
             />
           )}
           {(activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && (
