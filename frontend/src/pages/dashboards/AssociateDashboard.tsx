@@ -13,11 +13,9 @@ import {
   Wrench,
   Plus
 } from 'lucide-react';
-import { useAppSelector, useAppDispatch } from '../../redux/store';
-import { setApplications } from '../../redux/applicationsSlice';
-import { api } from '../../services/api';
+import { useAppSelector } from '../../redux/store';
 import { getUniqueSubmissions } from './PipelineKPIs';
-import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
@@ -33,10 +31,21 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   return cleanVal;
 };
 
-export const AssociateDashboard: React.FC = () => {
+interface AssociateDashboardProps {
+  startDate: string;
+  endDate: string;
+  setStartDate: (val: string) => void;
+  setEndDate: (val: string) => void;
+}
+
+export const AssociateDashboard: React.FC<AssociateDashboardProps> = ({
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate
+}) => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
 
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { applications } = useAppSelector(state => state.applications);
@@ -53,26 +62,7 @@ export const AssociateDashboard: React.FC = () => {
       (recruiterStr && (recruiterStr === myEmail || recruiterStr === myName));
   });
 
-
-  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
   const [expandedRow, setExpandedRow] = useState<number | string | null>(null);
-
-  React.useEffect(() => {
-    if (currentUser?.email) {
-      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
-      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
-    }
-  }, [startDate, endDate, currentUser]);
-
-  React.useEffect(() => {
-    if (applications.length === 0) {
-      api.get('applications/?all_applicants=true').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {});
-    }
-  }, [applications.length, dispatch]);
 
   const getJobCandidates = (selectedApp: any) => {
     const jobCode = getRemarkField(selectedApp.remarks, 'Job Code');

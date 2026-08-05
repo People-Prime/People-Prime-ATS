@@ -55,6 +55,7 @@ export const CandidateDetails: React.FC = () => {
   const [fetchingApp, setFetchingApp] = React.useState(true);
 
   const dispatch = useAppDispatch();
+  const applications = useAppSelector(state => state.applications.applications);
 
   React.useEffect(() => {
     // Always fetch the specific application by ID for reliability
@@ -67,14 +68,14 @@ export const CandidateDetails: React.FC = () => {
         .catch(err => console.error('Failed to load application', err))
         .finally(() => setFetchingApp(false));
     }
-    // Also refresh the global list for the job submission dialog
-    api.get('applications/').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(err => console.error('Failed to load applications', err));
-  }, [applicationId, dispatch]);
-
-  const applications = useAppSelector(state => state.applications.applications);
+    // Also refresh the global list for the job submission dialog if cache is empty
+    if (applications.length === 0) {
+      api.get('applications/').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(err => console.error('Failed to load applications', err));
+    }
+  }, [applicationId, dispatch, applications.length]);
   const currentUser = useAppSelector(state => state.auth.user);
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 

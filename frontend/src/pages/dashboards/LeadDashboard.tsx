@@ -18,13 +18,25 @@ import {
 } from '@mui/material';
 import { Plus, Check, RefreshCw } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
-import { changeApplicationStatus, addApplicationNote, setApplications } from '../../redux/applicationsSlice';
+import { changeApplicationStatus, addApplicationNote } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
 import { ApplicationStatus } from '../../types';
-import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
-export const LeadDashboard: React.FC = () => {
+interface LeadDashboardProps {
+  startDate: string;
+  endDate: string;
+  setStartDate: (val: string) => void;
+  setEndDate: (val: string) => void;
+}
+
+export const LeadDashboard: React.FC<LeadDashboardProps> = ({
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate
+}) => {
   const theme = useTheme();
   const navigate = useNavigate();
 
@@ -33,28 +45,7 @@ export const LeadDashboard: React.FC = () => {
   const dbCurrentUser = users.find(u => u.email === currentUser?.email);
   const myTeamName = (dbCurrentUser?.teams || currentUser?.teams || [])[0]?.name || 'My Team';
 
-  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
-
   const dispatch = useAppDispatch();
-
-  React.useEffect(() => {
-    if (currentUser?.email) {
-      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
-      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
-    }
-  }, [startDate, endDate, currentUser]);
-
-  const { applications } = useAppSelector((state: any) => state.applications || { applications: [] });
-
-  React.useEffect(() => {
-    if (applications.length === 0) {
-      api.get('applications/?all_applicants=true').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {});
-    }
-  }, [applications.length, dispatch]);
   const [statusUpdateApp, setStatusUpdateApp] = useState<any | null>(null);
   const [statusUpdateValue, setStatusUpdateValue] = useState<ApplicationStatus>('New');
   const [statusUpdateComment, setStatusUpdateComment] = useState('');

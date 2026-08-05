@@ -502,14 +502,18 @@ export const JobPostings: React.FC = () => {
     const hasData = applications && applications.length > 0;
     if (hasData) {
       setLoading(false);
+      api.get('applications/').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => { });
     } else {
       setLoading(true);
+      api.get('applications/').then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        dispatch(setApplications(list));
+      }).catch(() => { })
+        .finally(() => setLoading(false));
     }
-    api.get('applications/').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(() => { })
-      .finally(() => setLoading(false));
   }, [dispatch]);
 
   // Auto-open drawer if appId is in search params

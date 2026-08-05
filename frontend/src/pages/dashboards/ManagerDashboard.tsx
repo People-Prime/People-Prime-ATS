@@ -1,40 +1,31 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Box, 
   Typography, 
   Button
 } from '@mui/material';
-import { useAppSelector, useAppDispatch } from '../../redux/store';
-import { setApplications } from '../../redux/applicationsSlice';
-import { api } from '../../services/api';
-import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { useAppSelector } from '../../redux/store';
+import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
-export const ManagerDashboard: React.FC = () => {
-  const dispatch = useAppDispatch();
+interface ManagerDashboardProps {
+  startDate: string;
+  endDate: string;
+  showAllTimeKPIs: boolean;
+  setStartDate: (val: string) => void;
+  setEndDate: (val: string) => void;
+  setShowAllTimeKPIs: (val: boolean) => void;
+}
+
+export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
+  startDate,
+  endDate,
+  showAllTimeKPIs,
+  setStartDate,
+  setEndDate,
+  setShowAllTimeKPIs
+}) => {
   const { user: currentUser } = useAppSelector(state => state.auth);
-
-  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
-  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
-
-  React.useEffect(() => {
-    if (currentUser?.email) {
-      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
-      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
-    }
-  }, [startDate, endDate, currentUser]);
-
-  const { applications } = useAppSelector((state: any) => state.applications || { applications: [] });
-
-  React.useEffect(() => {
-    if (applications.length === 0) {
-      api.get('applications/?all_applicants=true').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {});
-    }
-  }, [applications.length, dispatch]);
 
 
 

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Box } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Box, CircularProgress } from '@mui/material';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { setApplications } from '../redux/applicationsSlice';
 import { api } from '../services/api';
@@ -13,39 +13,92 @@ export const Dashboard: React.FC = () => {
   const { user: currentUser } = useAppSelector(state => state.auth);
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
+  const todayStr = () => {
+    const d = new Date();
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  };
+
+  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
+  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
+  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
+  const [loadingApps, setLoadingApps] = useState(true);
+
+  // Sync date changes to localStorage
+  useEffect(() => {
+    if (currentUser?.email) {
+      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
+      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
+    }
+  }, [startDate, endDate, currentUser]);
+
   // Load applications from API so all sub-dashboards have access
   useEffect(() => {
-    const todayStr = () => {
-      const d = new Date();
-      const yy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yy}-${mm}-${dd}`;
-    };
-    const start = localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr();
-    const end = localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr();
-
+    setLoadingApps(true);
     let url = 'applications/?all_applicants=true';
-    if (start && end) {
-      url += `&start_date=${start}&end_date=${end}`;
+    if (!showAllTimeKPIs && startDate && endDate) {
+      url += `&start_date=${startDate}&end_date=${endDate}`;
     }
 
     api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       dispatch(setApplications(list));
-    }).catch(() => {});
-  }, [dispatch, currentUser?.email]);
+    }).catch(() => {})
+      .finally(() => setLoadingApps(false));
+  }, [dispatch, currentUser?.email, startDate, endDate, showAllTimeKPIs]);
 
   return (
     <Box className="animate-fade-in">
-      {(activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && (
-        <AdminDashboard readOnly={activeRole === 'REPORTING_TEAM'} />
+      {loadingApps ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '300px' }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          {(activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && (
+            <AdminDashboard 
+              readOnly={activeRole === 'REPORTING_TEAM'} 
+              startDate={startDate}
+              endDate={endDate}
+              showAllTimeKPIs={showAllTimeKPIs}
+              setStartDate={setStartDate}
+              setEndDate={setEndDate}
+              setShowAllTimeKPIs={setShowAllTimeKPIs}
+            />
+          )}
+          {(activeRole === 'SENIOR_MANAGER' || activeRole === 'JUNIOR_MANAGER') && (
+            <ManagerDashboard 
+              startDate={startDate}
+              endDate={endDate}
+              showAllTimeKPIs={showAllTimeKPIs}
+              setStartDate={setStartDate}
+              setEndDate={setEndDate}
+              setShowAllTimeKPIs={setShowAllTimeKPIs}
+            />
+          )}
+          {(activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && (
+            <LeadDashboard 
+              startDate={startDate}
+              endDate={endDate}
+              setStartDate={setStartDate}
+              setEndDate={setEndDate}
+            />
+          )}
+          {activeRole === 'ASSOCIATE_ANALYST' && (
+            <AssociateDashboard 
+              startDate={startDate}
+              endDate={endDate}
+              setStartDate={setStartDate}
+              setEndDate={setEndDate}
+            />
+          )}
+        </>
       )}
-      {(activeRole === 'SENIOR_MANAGER' || activeRole === 'JUNIOR_MANAGER') && <ManagerDashboard />}
-      {(activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') && <LeadDashboard />}
-      {activeRole === 'ASSOCIATE_ANALYST' && <AssociateDashboard />}
     </Box>
   );
 };
 
 export default Dashboard;
+

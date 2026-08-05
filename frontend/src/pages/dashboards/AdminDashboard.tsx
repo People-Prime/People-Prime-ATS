@@ -33,10 +33,10 @@ import {
 } from '@mui/material';
 import { ShieldCheck, Plus, X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
-import { deleteApplication, setApplications } from '../../redux/applicationsSlice';
+import { deleteApplication } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
 import { getUniqueSubmissions } from './PipelineKPIs';
-import { DashboardCalendar, todayStr } from './DashboardCalendar';
+import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
@@ -54,9 +54,23 @@ const COLORS = ['#4f46e5', '#0d9488', '#f59e0b', '#ef4444', '#10b981', '#06b6d4'
 
 interface AdminDashboardProps {
   readOnly?: boolean;
+  startDate: string;
+  endDate: string;
+  showAllTimeKPIs: boolean;
+  setStartDate: (val: string) => void;
+  setEndDate: (val: string) => void;
+  setShowAllTimeKPIs: (val: boolean) => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false }) => {
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
+  readOnly = false,
+  startDate,
+  endDate,
+  showAllTimeKPIs,
+  setStartDate,
+  setEndDate,
+  setShowAllTimeKPIs
+}) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { user: currentUser } = useAppSelector(state => state.auth);
@@ -92,26 +106,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ readOnly = false
   const recentCreations = [...users]
     .sort((a, b) => new Date(b.date_of_joining).getTime() - new Date(a.date_of_joining).getTime())
     .slice(0, 4);
-
-  const [startDate, setStartDate] = useState(() => localStorage.getItem(`dashboard_start_date_${currentUser?.email}`) || todayStr());
-  const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
-  const [showAllTimeKPIs, setShowAllTimeKPIs] = useState(false);
-
-  React.useEffect(() => {
-    if (currentUser?.email) {
-      localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
-      localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
-    }
-  }, [startDate, endDate, currentUser]);
-
-  React.useEffect(() => {
-    if (applications.length === 0) {
-      api.get('applications/?all_applicants=true').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {});
-    }
-  }, [applications.length, dispatch]);
 
   // Filter all org-wide applications by selected date
   const dateFilteredApps = useMemo(() => {
