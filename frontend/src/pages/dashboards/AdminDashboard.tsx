@@ -35,7 +35,7 @@ import { X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from
 import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { deleteApplication } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
-import { PipelineKPIs, getUniqueSubmissions } from './PipelineKPIs';
+import { getUniqueSubmissions } from './PipelineKPIs';
 import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -303,11 +303,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             }}
           />
         </Box>
-      </Box>
-
-      {/* Main Stats Grid – 6 coloured cards */}
-      <Box sx={{ mb: 4 }}>
-        <PipelineKPIs applications={dateFilteredApps} />
       </Box>
 
       {/* Sub-navigation Tabs */}

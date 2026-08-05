@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { 
   Box, 
   Typography
@@ -6,7 +6,6 @@ import {
 import { useAppSelector } from '../../redux/store';
 import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
-import { PipelineKPIs } from './PipelineKPIs';
 
 interface ManagerDashboardProps {
   startDate: string;
@@ -22,16 +21,6 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
   setEndDate
 }) => {
   const { user: currentUser } = useAppSelector(state => state.auth);
-  const { applications } = useAppSelector(state => state.applications);
-
-  // Filter all applications by selected date range
-  const dateFilteredApps = useMemo(() => {
-    if (!startDate || !endDate) return applications;
-    return applications.filter(app => {
-      const d = (app.created_at || '').slice(0, 10);
-      return d >= startDate && d <= endDate;
-    });
-  }, [applications, startDate, endDate]);
 
   return (
     <Box className="animate-fade-in">
@@ -55,11 +44,6 @@ export const ManagerDashboard: React.FC<ManagerDashboardProps> = ({
             }}
           />
         </Box>
-      </Box>
-
-      {/* Reusable Pipeline KPIs Bar */}
-      <Box sx={{ mb: 4 }}>
-        <PipelineKPIs applications={dateFilteredApps} />
       </Box>
 
       {/* Reporting Hierarchy Breakdown starting from this Manager */}
