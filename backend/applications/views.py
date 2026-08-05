@@ -182,7 +182,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 )
 
         if self.action == 'list':
-            return qs.select_related('assigned_employee').order_by('-created_at')
+            return qs.select_related('assigned_employee').prefetch_related('notes').order_by('-created_at')
 
         return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
