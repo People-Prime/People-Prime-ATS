@@ -43,24 +43,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
 
   useEffect(() => {
     if (user && users.length === 0) {
-      dispatch(fetchUsersStart());
-      api.get('users/').then(res => {
-        const data = res.data?.results ?? res.data ?? [];
-        const mappedUsers = data.map((u: any) => ({
-          id: u.email,
-          email: u.email,
-          full_name: u.full_name,
-          role: u.role,
-          reporting_to: u.reporting_to && u.reporting_to.length > 0 ? u.reporting_to[0] : null,
-          reporting_to_list: u.reporting_to || [],
-          team: u.teams && u.teams.length > 0 ? u.teams[0] : null,
-          teams: u.teams || [],
-          date_of_joining: u.date_of_joining || '',
-          is_active: u.is_active !== undefined ? u.is_active : true,
-          must_change_password: u.must_change_password || false
-        }));
-        dispatch(fetchUsersSuccess(mappedUsers));
-      }).catch(() => { });
+      const timer = setTimeout(() => {
+        dispatch(fetchUsersStart());
+        api.get('users/').then(res => {
+          const data = res.data?.results ?? res.data ?? [];
+          const mappedUsers = data.map((u: any) => ({
+            id: u.email,
+            email: u.email,
+            full_name: u.full_name,
+            role: u.role,
+            reporting_to: u.reporting_to && u.reporting_to.length > 0 ? u.reporting_to[0] : null,
+            reporting_to_list: u.reporting_to || [],
+            team: u.teams && u.teams.length > 0 ? u.teams[0] : null,
+            teams: u.teams || [],
+            date_of_joining: u.date_of_joining || '',
+            is_active: u.is_active !== undefined ? u.is_active : true,
+            must_change_password: u.must_change_password || false
+          }));
+          dispatch(fetchUsersSuccess(mappedUsers));
+        }).catch(() => { });
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [user, users.length, dispatch]);
 
