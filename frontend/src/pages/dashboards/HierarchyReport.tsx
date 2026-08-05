@@ -534,17 +534,20 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             emailSet.has(app.assigned_employee.email.toLowerCase())
           );
 
-          const dateFiltered = (effectiveStartDate && effectiveEndDate)
-            ? descendantApps.filter(app => {
-              const d = (app.created_at || '').slice(0, 10);
-              return d >= effectiveStartDate && d <= effectiveEndDate;
-            })
-            : descendantApps;
-
           const seen = new Set<string>();
-          dateFiltered.forEach(app => {
-            const jobCode = getRemarkField(app.remarks, 'Job Code');
-            if (jobCode === 'N/A' || !jobCode) return;
+          descendantApps.forEach(app => {
+            const parentJob = findParentJobForApp(app);
+            if (!parentJob) return;
+            if (effectiveStartDate && effectiveEndDate) {
+              const d = (parentJob.created_at || '').slice(0, 10);
+              if (d < effectiveStartDate || d > effectiveEndDate) return;
+            }
+
+            let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
+            if (jobCode === 'N/A' || !jobCode) {
+              jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
+            }
+            if (!jobCode) return;
             seen.add(jobCode.toUpperCase().trim());
           });
 
