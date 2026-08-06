@@ -43,6 +43,7 @@ import { changeApplicationStatus, addApplicationNote, addApplication, updateAppl
 import { api } from '../services/api';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 import { Application, ApplicationStatus, CareerPortalApplicant } from '../types';
+import { getVisibleApplicantStatuses } from '../utils/statusVisibility';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
@@ -1965,7 +1966,7 @@ Remarks: ${candidateForm.remarks}`;
                           Transition Pipeline Status
                         </Typography>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {(['New', 'Submitted', 'Placed', 'Under Review', 'Interview Scheduled', 'Interview Completed', 'Offer Sent', 'Offer Accepted', 'Offer Rejected', 'Selected', 'Rejected', 'On Hold', 'Closed'] as ApplicationStatus[]).map((statusOption) => (
+                          {getVisibleApplicantStatuses(selectedApp.status).map((statusOption) => (
                             <Chip
                               key={statusOption}
                               label={statusOption}
@@ -2212,19 +2213,9 @@ Remarks: ${candidateForm.remarks}`;
                   onChange={(e) => setStatusUpdateValue(e.target.value as ApplicationStatus)}
                   sx={{ borderRadius: '8px' }}
                 >
-                  <MenuItem value="New">New</MenuItem>
-                  <MenuItem value="Submitted">Submitted</MenuItem>
-                  <MenuItem value="Placed">Placed</MenuItem>
-                  <MenuItem value="Under Review">Under Review</MenuItem>
-                  <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
-                  <MenuItem value="Interview Completed">Interview Completed</MenuItem>
-                  <MenuItem value="Offer Sent">Offer Sent</MenuItem>
-                  <MenuItem value="Offer Accepted">Offer Accepted</MenuItem>
-                  <MenuItem value="Offer Rejected">Offer Rejected</MenuItem>
-                  <MenuItem value="Selected">Selected</MenuItem>
-                  <MenuItem value="Rejected">Rejected</MenuItem>
-                  <MenuItem value="On Hold">On Hold</MenuItem>
-                  <MenuItem value="Closed">Closed</MenuItem>
+                  {getVisibleApplicantStatuses(statusUpdateApp?.status).map((st) => (
+                    <MenuItem key={st} value={st}>{st}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
 

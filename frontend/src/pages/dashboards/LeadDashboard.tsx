@@ -21,6 +21,7 @@ import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { changeApplicationStatus, addApplicationNote } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
 import { ApplicationStatus } from '../../types';
+import { getVisibleApplicantStatuses } from '../../utils/statusVisibility';
 import { DashboardCalendar } from './DashboardCalendar';
 import { HierarchyReport } from './HierarchyReport';
 
@@ -222,19 +223,9 @@ export const LeadDashboard: React.FC<LeadDashboardProps> = ({
                   onChange={(e) => setStatusUpdateValue(e.target.value as ApplicationStatus)}
                   sx={{ borderRadius: '8px' }}
                 >
-                  <MenuItem value="New">New</MenuItem>
-                  <MenuItem value="Submitted">Submitted</MenuItem>
-                  <MenuItem value="Placed">Placed</MenuItem>
-                  <MenuItem value="Under Review">Under Review</MenuItem>
-                  <MenuItem value="Interview Scheduled">Interview Scheduled</MenuItem>
-                  <MenuItem value="Interview Completed">Interview Completed</MenuItem>
-                  <MenuItem value="Offer Sent">Offer Sent</MenuItem>
-                  <MenuItem value="Offer Accepted">Offer Accepted</MenuItem>
-                  <MenuItem value="Offer Rejected">Offer Rejected</MenuItem>
-                  <MenuItem value="Selected">Selected</MenuItem>
-                  <MenuItem value="Rejected">Rejected</MenuItem>
-                  <MenuItem value="On Hold">On Hold</MenuItem>
-                  <MenuItem value="Closed">Closed</MenuItem>
+                  {getVisibleApplicantStatuses(statusUpdateApp?.status).map((st) => (
+                    <MenuItem key={st} value={st}>{st}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
 
