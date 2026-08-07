@@ -258,7 +258,7 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
             publish_to_career_page=True
         ).exclude(
             status__iexact='Closed'
-        ).select_related('assigned_employee').only(
+        ).only(
             'id', 'position', 'client_name', 'city', 'state',
             'technology', 'experience', 'remarks', 'published_at', 'created_at'
         ).order_by('-published_at', '-created_at')
