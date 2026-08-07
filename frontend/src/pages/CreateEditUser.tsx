@@ -158,7 +158,9 @@ export const CreateEditUser: React.FC = () => {
       setSubmitting(true);
       try {
         await api.put(`users/${editingUser.id}/`, payload);
-        const selectedManagers = dbManagers.filter(m => formData.reportingToIds.includes(m.email));
+        const selectedManagers = formData.reportingToIds
+          .map(id => dbManagers.find(m => m.email === id || (m as any).id === id))
+          .filter(Boolean) as User[];
         const selectedTeams = teams.filter(t => formData.teamIds.includes(String(t.id)));
         const updatedUser: User = {
           ...editingUser,
@@ -228,7 +230,9 @@ export const CreateEditUser: React.FC = () => {
         await api.post('users/', createPayload);
 
         // Mirror into Redux so the user appears in View All Staff immediately
-        const selectedManagers = dbManagers.filter(m => formData.reportingToIds.includes(m.email));
+        const selectedManagers = formData.reportingToIds
+          .map(id => dbManagers.find(m => m.email === id || (m as any).id === id))
+          .filter(Boolean) as User[];
         const selectedTeams = teams.filter(t => formData.teamIds.includes(String(t.id)));
         const newUser: User = {
           id: formData.email,
