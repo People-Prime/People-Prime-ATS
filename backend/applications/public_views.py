@@ -287,7 +287,7 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
             pub_dt = job.published_at or job.created_at
             pub_date_str = rfc2822_date(pub_dt) if pub_dt else ''
 
-            apply_url = f"https://people-prime.com/jobs/{job.id}"
+            apply_url = f"https://people-prime.com/jobs/{job.id}?src=LinkedIn"
 
             xml_lines.append('  <job>')
             xml_lines.append(f'    <id>{job.id}</id>')
