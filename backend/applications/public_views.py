@@ -277,9 +277,13 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
             job_type = extract_field(remarks, 'Job Type')
             work_mode = extract_field(remarks, 'Work Mode')
             salary = extract_field(remarks, 'Pay Rate') or extract_field(remarks, 'Client Bill Rate')
-            city = job.city or extract_field(remarks, 'City') or location or ''
-            state = job.state or extract_field(remarks, 'State') or ''
-            country = job.country or extract_field(remarks, 'Country') or 'India'
+            city = (job.city or extract_field(remarks, 'City') or location or '').strip()
+            state = (job.state or extract_field(remarks, 'State') or '').strip()
+            country = (job.country or extract_field(remarks, 'Country') or 'India').strip()
+
+            # Include job only when city, state, and country are all non-empty
+            if not city or not state or not country:
+                continue
 
             skills_str = extract_skills(remarks) or (job.technology or '')
             description_text = extract_description(remarks)
