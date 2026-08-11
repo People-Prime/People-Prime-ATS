@@ -37,6 +37,11 @@ export const CreateRequirement: React.FC = () => {
 
   // Form states
   const [formData, setFormData] = useState({
+    // Structured Job Location (LinkedIn & ATS)
+    country: 'India',
+    state: '',
+    city: '',
+
     // Job Details
     jobCode: '',
     jobTitle: '',
@@ -136,6 +141,9 @@ export const CreateRequirement: React.FC = () => {
         setAssigneeIds(emails);
 
         setFormData({
+          country: app.country || extractField('Country') || 'India',
+          state: app.state || extractField('State') || '',
+          city: app.city || extractField('City') || '',
           jobCode: jobCode,
           jobTitle: app.position || '',
           clientBillRate: extractField('Client Bill Rate') || '',
@@ -178,6 +186,11 @@ export const CreateRequirement: React.FC = () => {
 
     if (!formData.jobType || !formData.jobType.trim()) {
       setError('Job Type is a mandatory field. Please select an option from the Job Type dropdown menu before creating and assigning the requirement.');
+      return;
+    }
+
+    if (!formData.country || !formData.country.trim() || !formData.state || !formData.state.trim() || !formData.city || !formData.city.trim()) {
+      setError('Country, State and City are required for every job.');
       return;
     }
 
@@ -256,6 +269,9 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           const existing = groupApps.find(a => a.assigned_employee?.email === email);
           const payload = {
             client_name: formData.client,
+            city: formData.city.trim(),
+            state: formData.state.trim(),
+            country: formData.country.trim(),
             position: formData.jobTitle,
             technology: formData.primarySkills,
             experience: parseFloat(formData.experience) || 0.0,
@@ -455,6 +471,40 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   helperText="Automatically matches Start Date"
                 />
               </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="Country *"
+                  required
+                  fullWidth
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  placeholder="e.g. India"
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="State *"
+                  required
+                  fullWidth
+                  value={formData.state}
+                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  placeholder="e.g. Karnataka / Telangana"
+                  size="small"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="City *"
+                  required
+                  fullWidth
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder="e.g. Bangalore / Hyderabad"
+                  size="small"
+                />
+              </Grid>
+
               <Grid item xs={12} sm={6}>
                 <TextField
                   label="Location"

@@ -28,7 +28,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
         model = Application
         fields = [
             'id', 'candidate_name', 'candidate_email', 'candidate_phone',
-            'client_name', 'city', 'state', 'position', 'technology', 'experience', 'recruiter',
+            'client_name', 'city', 'state', 'country', 'position', 'technology', 'experience', 'recruiter',
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
             'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'published_at',

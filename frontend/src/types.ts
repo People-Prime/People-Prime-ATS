@@ -75,6 +75,7 @@ export interface Application {
   client_name: string;
   city?: string;
   state?: string;
+  country?: string;
   position: string;
   technology: string;
   experience: number;

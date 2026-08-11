@@ -23,6 +23,7 @@ class Application(models.Model):
     client_name = models.CharField(max_length=255)
     city = models.CharField(max_length=100, blank=True, default='')
     state = models.CharField(max_length=100, blank=True, default='')
+    country = models.CharField(max_length=100, blank=True, default='India')
     position = models.CharField(max_length=255)
     technology = models.CharField(max_length=255)
     experience = models.DecimalField(max_digits=4, decimal_places=1)

@@ -259,7 +259,7 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
         ).exclude(
             status__iexact='Closed'
         ).only(
-            'id', 'position', 'client_name', 'city', 'state',
+            'id', 'position', 'client_name', 'city', 'state', 'country',
             'technology', 'experience', 'remarks', 'published_at', 'created_at'
         ).order_by('-published_at', '-created_at')
 
@@ -277,9 +277,9 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
             job_type = extract_field(remarks, 'Job Type')
             work_mode = extract_field(remarks, 'Work Mode')
             salary = extract_field(remarks, 'Pay Rate') or extract_field(remarks, 'Client Bill Rate')
-            city = job.city or ''
-            state = job.state or ''
-            country = 'India'
+            city = job.city or extract_field(remarks, 'City') or location or ''
+            state = job.state or extract_field(remarks, 'State') or ''
+            country = job.country or extract_field(remarks, 'Country') or 'India'
 
             skills_str = extract_skills(remarks) or (job.technology or '')
             description_text = extract_description(remarks)
