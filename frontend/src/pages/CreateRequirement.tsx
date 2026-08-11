@@ -340,6 +340,9 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
 
           const payload = {
             client_name: formData.client,
+            city: formData.city.trim(),
+            state: formData.state.trim(),
+            country: formData.country.trim(),
             position: formData.jobTitle,
             technology: formData.primarySkills,
             experience: parseFloat(formData.experience) || 0.0,
