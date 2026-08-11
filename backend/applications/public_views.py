@@ -261,7 +261,7 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
         ).only(
             'id', 'position', 'client_name', 'city', 'state', 'country',
             'technology', 'experience', 'remarks', 'published_at', 'created_at'
-        ).order_by('-published_at', '-created_at')
+        ).order_by('id')
 
         xml_lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
@@ -270,9 +270,16 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
             '  <publisherurl>https://people-prime.com</publisherurl>'
         ]
 
+        seen_job_codes = set()
+
         for job in qs:
             remarks = job.remarks or ''
             job_code = extract_field(remarks, 'Job Code') or f"PPW - {job.id:04d}"
+
+            if job_code in seen_job_codes:
+                continue
+            seen_job_codes.add(job_code)
+
             location = extract_field(remarks, 'Location')
             job_type = extract_field(remarks, 'Job Type')
             work_mode = extract_field(remarks, 'Work Mode')

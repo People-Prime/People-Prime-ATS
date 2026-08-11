@@ -219,6 +219,11 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
+    if (!applicationId && !formData.publishToLinkedin) {
+      setError('⚠️ "Also post on LinkedIn" is mandatory for new job postings. Please check this box before submitting.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       if (assigneeIds.length === 0) {
