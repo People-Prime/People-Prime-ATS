@@ -141,7 +141,7 @@ export const CreateRequirement: React.FC = () => {
         setAssigneeIds(emails);
 
         setFormData({
-          country: app.country || extractField('Country') || 'India',
+          country: 'India',
           state: app.state || extractField('State') || '',
           city: app.city || extractField('City') || '',
           jobCode: jobCode,
@@ -475,11 +475,11 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 <TextField
                   label="Country *"
                   required
+                  disabled
                   fullWidth
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  placeholder="e.g. India"
+                  value="India"
                   size="small"
+                  helperText="Fixed default"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
