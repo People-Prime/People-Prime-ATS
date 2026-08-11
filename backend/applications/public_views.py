@@ -305,7 +305,6 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
             xml_lines.append(f'    <jobcode>{escape(job_code)}</jobcode>')
             xml_lines.append(f'    <title>{escape(job.position or "")}</title>')
             xml_lines.append(f'    <company>People Prime Worldwide</company>')
-            xml_lines.append(f'    <clientname>{escape(job.client_name or "")}</clientname>')
             xml_lines.append(f'    <city>{escape(city)}</city>')
             xml_lines.append(f'    <state>{escape(state)}</state>')
             xml_lines.append(f'    <country>{escape(country)}</country>')
