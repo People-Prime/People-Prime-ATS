@@ -282,6 +282,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             
         user = self.request.user
         modified_by_val = user.full_name or user.email
+        serializer.instance._modifying_user = user
         application = serializer.save(modified_by=modified_by_val)
         check_and_send_assignment_email(application, self.request.user, is_new=False, old_assignee_email=old_assignee_email)
 

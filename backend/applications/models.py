@@ -61,6 +61,13 @@ class Application(models.Model):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        old_status = None
+        if not is_new:
+            try:
+                old_status = Application.objects.values_list('status', flat=True).get(pk=self.pk)
+            except Application.DoesNotExist:
+                old_status = None
+
         remarks = self.remarks or ''
         has_placeholder = 'Job Code: PPW - [Auto Generated]' in remarks or 'Job Code: ' not in remarks
         
@@ -70,6 +77,23 @@ class Application(models.Model):
                 self.status = 'Submitted'
 
         super().save(*args, **kwargs)
+
+        # Log status transition note when status changes (or when created with a status)
+        if (is_new or (old_status and old_status != self.status)) and self.status:
+            note_content = f"Status updated to {self.status}."
+            # Check if a Note with exact content already exists for this app to avoid duplicates
+            if not Note.objects.filter(application=self, content__startswith=f"Status updated to {self.status}").exists():
+                author_user = getattr(self, '_modifying_user', None)
+                if not author_user:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    author_user = User.objects.filter(is_superuser=True).first() or User.objects.first()
+                if author_user:
+                    Note.objects.create(
+                        application=self,
+                        author=author_user,
+                        content=note_content
+                    )
 
         # Propagate status changes to all other applications for this candidate globally
         if not getattr(self, '_saving_related_statuses', False) and self.candidate_name and self.candidate_email and self.candidate_phone:
@@ -81,6 +105,8 @@ class Application(models.Model):
                 if app.status != self.status:
                     app.status = self.status
                     app._saving_related_statuses = True
+                    if hasattr(self, '_modifying_user'):
+                        app._modifying_user = self._modifying_user
                     app.save(update_fields=['status'])
         
         if is_new and has_placeholder:
