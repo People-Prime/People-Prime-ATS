@@ -236,7 +236,14 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
   const filteredUsers = React.useMemo(() => users.filter((u: any) => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
 
   const getDescendantEmails = React.useCallback((email: string): string[] => {
-    const direct = filteredUsers.filter((u: any) => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
+    const direct = filteredUsers.filter((u: any) => {
+      if (u.email?.toLowerCase() === email.toLowerCase()) return false;
+      if (u.email?.toLowerCase() === 'satyasaikumar.g@people-prime.com') {
+        return u.reporting_to_list?.some((r: any) => r.email?.toLowerCase() === email.toLowerCase()) ||
+               u.reporting_to?.email?.toLowerCase() === email.toLowerCase();
+      }
+      return u.reporting_to?.email?.toLowerCase() === email.toLowerCase();
+    });
     return [email, ...direct.flatMap((d: any) => getDescendantEmails(d.email))];
   }, [filteredUsers]);
 

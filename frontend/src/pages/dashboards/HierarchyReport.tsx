@@ -188,7 +188,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const descendantEmailsMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
     const getDescendants = (email: string): string[] => {
-      const direct = filteredUsers.filter(u => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
+      const direct = filteredUsers.filter(u => {
+        if (u.email?.toLowerCase() === email.toLowerCase()) return false;
+        if (u.email?.toLowerCase() === 'satyasaikumar.g@people-prime.com') {
+          return u.reporting_to_list?.some((r: any) => r.email?.toLowerCase() === email.toLowerCase()) ||
+                 u.reporting_to?.email?.toLowerCase() === email.toLowerCase();
+        }
+        return u.reporting_to?.email?.toLowerCase() === email.toLowerCase();
+      });
       return [email.toLowerCase(), ...direct.flatMap(d => getDescendants(d.email))];
     };
     filteredUsers.forEach(u => {
@@ -465,10 +472,14 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     const buildTreeElement = (user: User): TreeElement => {
       const individual = computeIndividualMetrics(user.email);
-      const directReports = filteredUsers.filter(u =>
-        u.reporting_to?.email?.toLowerCase() === user.email?.toLowerCase() &&
-        u.email?.toLowerCase() !== user.email?.toLowerCase()
-      );
+      const directReports = filteredUsers.filter(u => {
+        if (u.email?.toLowerCase() === user.email?.toLowerCase()) return false;
+        if (u.email?.toLowerCase() === 'satyasaikumar.g@people-prime.com') {
+          return u.reporting_to_list?.some((r: any) => r.email?.toLowerCase() === user.email?.toLowerCase()) ||
+                 u.reporting_to?.email?.toLowerCase() === user.email?.toLowerCase();
+        }
+        return u.reporting_to?.email?.toLowerCase() === user.email?.toLowerCase();
+      });
 
       const isHarshitha = user.full_name.toLowerCase() === 'harshitha desai' || user.email.toLowerCase() === 'harshitha.d@people-prime.com';
       const isSwarupa = user.full_name.toLowerCase() === 'swarupa thalashila' || user.email.toLowerCase() === 'swarupa.t@people-prime.com';
