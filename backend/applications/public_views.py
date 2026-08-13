@@ -139,6 +139,13 @@ class PublicJobApplyAPIView(APIView):
 
         # 4. Save Candidate ONLY in CareerPortalApplicant (DO NOT create ATS Application!)
         from applications.models import CareerPortalApplicant
+
+        req_source = request.data.get('source') or request.query_params.get('source') or request.query_params.get('src') or 'Company Career Portal'
+        if req_source and 'linkedin' in str(req_source).lower():
+            resolved_source = 'LinkedIn'
+        else:
+            resolved_source = 'Company Career Portal'
+
         applicant = CareerPortalApplicant.objects.create(
             job=job,
             first_name=data['first_name'],
@@ -156,7 +163,7 @@ class PublicJobApplyAPIView(APIView):
             city=data['city'],
             resume=resume_link,
             accepted_terms=True,
-            source='Company Career Portal',
+            source=resolved_source,
             status='New'
         )
 

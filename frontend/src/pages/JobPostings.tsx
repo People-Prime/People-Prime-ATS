@@ -83,6 +83,8 @@ export const JobPostings: React.FC = () => {
   const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
   const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
   const [expandedPortalSections, setExpandedPortalSections] = useState<Record<number, boolean>>({});
+  const [linkedinSearchTerms, setLinkedinSearchTerms] = useState<Record<number, string>>({});
+  const [expandedLinkedInSections, setExpandedLinkedInSections] = useState<Record<number, boolean>>({});
 
   const fetchPortalApplicants = async () => {
     try {
@@ -1304,135 +1306,144 @@ Remarks: ${candidateForm.remarks}`;
                     {isExpanded && (
                       <tr style={{ backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#0f172a' }}>
                         <td colSpan={shouldHideAction ? 16 : 17} style={{ padding: '12px 16px' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
-                            APPLICANTS ({jobApplicants.length})
-                          </Typography>
-                          {jobApplicants.length === 0 ? (
-                            <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1 }}>
-                              No applicants have been sourced for this job requirement.
-                            </Typography>
-                          ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
-                              <thead>
-                                <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant ID</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Name</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Email</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Code</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>City</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>State</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Status</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>PAN Card</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Aadhaar</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Alt Mobile</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Source</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Modified By</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Created Date</th>
-                                  <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Status Changed Date</th>
-                                  {showActionColumn && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {jobApplicants.map((applicant: any) => (
-                                  <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
-                                    {activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM' ? (
-                                      <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.primary, whiteSpace: 'nowrap' }}>
-                                        {renderCellText(applicant.candidate_name, 120)}
-                                      </td>
-                                    ) : (
-                                      <td
-                                        style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap', cursor: 'pointer' }}
-                                        onClick={() => navigate(`/candidates/${applicant.id}/details`)}
-                                      >
-                                        {renderCellText(applicant.candidate_name, 120, () => navigate(`/candidates/${applicant.id}/details`))}
-                                      </td>
-                                    )}
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.candidate_email, 130)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.city, 90)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.state, 90)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                                      <Typography
-                                        variant="body2"
-                                        sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setStatusUpdateApp(applicant);
-                                          setStatusUpdateValue(applicant.status as ApplicationStatus);
-                                          setPayRateInput(getRemarkField(applicant.remarks, 'Pay Rate') !== 'N/A' ? getRemarkField(applicant.remarks, 'Pay Rate') : '');
-                                          setVariablePayInput(getRemarkField(applicant.remarks, 'Variable Pay') !== 'N/A' ? getRemarkField(applicant.remarks, 'Variable Pay') : '');
-                                          setOfferValueInput(getRemarkField(applicant.remarks, 'Offer Value') !== 'N/A' ? getRemarkField(applicant.remarks, 'Offer Value') : '');
-                                          setProfitAmountInput(getRemarkField(applicant.remarks, 'Profit Amount') !== 'N/A' ? getRemarkField(applicant.remarks, 'Profit Amount') : '');
-                                          setDateOfJoinInput(getRemarkField(applicant.remarks, 'Date of Join') !== 'N/A' ? getRemarkField(applicant.remarks, 'Date of Join') : '');
-                                        }}
-                                      >
-                                        {applicant.status}
-                                      </Typography>
-                                    </td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.position, 140)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.pan_card, 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.aadhaar, 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.alternate_mobile_number, 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.source, 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.interest_to_work_for_client, 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.modified_by || 'N/A', 110)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(applicant.created_at)}</td>
-                                    <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(applicant.transition_dates?.[applicant.status] || applicant.updated_at)}</td>
-                                    {showActionColumn && (
-                                      <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                        <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                          {applicantTypeFilter !== 'PORTAL' && (
+                            <>
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
+                                APPLICANTS ({jobApplicants.length})
+                              </Typography>
+                              {jobApplicants.length === 0 ? (
+                                <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1 }}>
+                                  No applicants have been sourced for this job requirement.
+                                </Typography>
+                              ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f1f5f9' : '#1e293b' }}>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant ID</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Name</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Email</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Code</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>City</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>State</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Applicant Status</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Job Title</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Recruiter</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>PAN Card</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Aadhaar</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Alt Mobile</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Source</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Interest to Work</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Modified By</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Created Date</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, whiteSpace: 'nowrap' }}>Status Changed Date</th>
+                                      {showActionColumn && <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {jobApplicants.map((applicant: any) => (
+                                      <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
+                                        {activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM' ? (
+                                          <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.text.primary, whiteSpace: 'nowrap' }}>
+                                            {renderCellText(applicant.candidate_name, 120)}
+                                          </td>
+                                        ) : (
+                                          <td
+                                            style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, whiteSpace: 'nowrap', cursor: 'pointer' }}
+                                            onClick={() => navigate(`/candidates/${applicant.id}/details`)}
+                                          >
+                                            {renderCellText(applicant.candidate_name, 120, () => navigate(`/candidates/${applicant.id}/details`))}
+                                          </td>
+                                        )}
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.candidate_email, 130)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.city, 90)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.state, 90)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                                           <Typography
                                             variant="body2"
                                             sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              navigate(`/candidates/create/${applicant.id}`);
+                                              setStatusUpdateApp(applicant);
+                                              setStatusUpdateValue(applicant.status as ApplicationStatus);
+                                              setPayRateInput(getRemarkField(applicant.remarks, 'Pay Rate') !== 'N/A' ? getRemarkField(applicant.remarks, 'Pay Rate') : '');
+                                              setVariablePayInput(getRemarkField(applicant.remarks, 'Variable Pay') !== 'N/A' ? getRemarkField(applicant.remarks, 'Variable Pay') : '');
+                                              setOfferValueInput(getRemarkField(applicant.remarks, 'Offer Value') !== 'N/A' ? getRemarkField(applicant.remarks, 'Offer Value') : '');
+                                              setProfitAmountInput(getRemarkField(applicant.remarks, 'Profit Amount') !== 'N/A' ? getRemarkField(applicant.remarks, 'Profit Amount') : '');
+                                              setDateOfJoinInput(getRemarkField(applicant.remarks, 'Date of Join') !== 'N/A' ? getRemarkField(applicant.remarks, 'Date of Join') : '');
                                             }}
                                           >
-                                            Edit
+                                            {applicant.status}
                                           </Typography>
-                                          {!shouldHideAction && (
-                                            <Typography
-                                              variant="body2"
-                                              sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                                              onClick={async (e) => {
-                                                e.stopPropagation();
-                                                if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
-                                                  try {
-                                                    await api.delete(`applications/${applicant.id}/`);
-                                                    dispatch(deleteApplication(String(applicant.id)));
-                                                  } catch (err) {
-                                                    alert("Failed to delete application.");
-                                                  }
-                                                }
-                                              }}
-                                            >
-                                              Delete
-                                            </Typography>
-                                          )}
-                                        </Box>
-                                      </td>
-                                    )}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                        </td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.position, 140)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.recruiter || applicant.assigned_employee?.full_name || 'System', 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.pan_card, 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.aadhaar, 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.alternate_mobile_number, 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.source, 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.interest_to_work_for_client, 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.modified_by || 'N/A', 110)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(applicant.created_at)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{formatDateDDMMYYYY(applicant.transition_dates?.[applicant.status] || applicant.updated_at)}</td>
+                                        {showActionColumn && (
+                                          <td style={{ padding: '4px 8px', fontSize: '0.7rem', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center' }}>
+                                              <Typography
+                                                variant="body2"
+                                                sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  navigate(`/candidates/create/${applicant.id}`);
+                                                }}
+                                              >
+                                                Edit
+                                              </Typography>
+                                              {!shouldHideAction && (
+                                                <Typography
+                                                  variant="body2"
+                                                  sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+                                                  onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    if (window.confirm(`Are you sure you want to delete this applicant submission?`)) {
+                                                      try {
+                                                        await api.delete(`applications/${applicant.id}/`);
+                                                        dispatch(deleteApplication(String(applicant.id)));
+                                                      } catch (err) {
+                                                        alert("Failed to delete application.");
+                                                      }
+                                                    }
+                                                  }}
+                                                >
+                                                  Delete
+                                                </Typography>
+                                              )}
+                                            </Box>
+                                          </td>
+                                        )}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </>
                           )}
 
-                          {/* Career Portal Applicants Expandable Section */}
+                          {/* Career Portal & LinkedIn Applicants Expandable Sections */}
                           {(() => {
                             const reqId = Number(app.id);
                             // Match portal applicants against ALL job IDs in the same group
                             // (handles duplicate job postings sharing the same Job Code)
                             const reqIds = new Set((app.associatedApps || [app]).map((a: any) => Number(a.id)));
                             const portalApps = portalApplicants.filter(pa => reqIds.has(Number(pa.job)));
+
+                            // Split LinkedIn vs Career Portal
+                            const linkedinApps = portalApps.filter(pa => pa.source && pa.source.toLowerCase().includes('linkedin'));
+                            const careerPortalApps = portalApps.filter(pa => !pa.source || !pa.source.toLowerCase().includes('linkedin'));
+
                             const portalSearch = portalSearchTerms[reqId] || '';
-                            const filteredPortalApps = portalApps.filter(pa => {
+                            const filteredPortalApps = careerPortalApps.filter(pa => {
                               if (!portalSearch.trim()) return true;
                               const q = portalSearch.toLowerCase();
                               const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
@@ -1442,173 +1453,354 @@ Remarks: ${candidateForm.remarks}`;
                                 pa.mobile_number.includes(q)
                               );
                             });
+
+                            const linkedinSearch = linkedinSearchTerms[reqId] || '';
+                            const filteredLinkedInApps = linkedinApps.filter(pa => {
+                              if (!linkedinSearch.trim()) return true;
+                              const q = linkedinSearch.toLowerCase();
+                              const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
+                              return (
+                                fullName.includes(q) ||
+                                pa.email.toLowerCase().includes(q) ||
+                                pa.mobile_number.includes(q)
+                              );
+                            });
+
                             const isPortalSectionExpanded = expandedPortalSections[reqId] ?? true;
+                            const isLinkedInSectionExpanded = expandedLinkedInSections[reqId] ?? true;
 
                             if (applicantTypeFilter === 'ATS') return null;
 
                             return (
-                              <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                                  <Box
-                                    sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
-                                    onClick={() => setExpandedPortalSections(prev => ({ ...prev, [reqId]: !isPortalSectionExpanded }))}
-                                  >
-                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                      {isPortalSectionExpanded ? '▼' : '+'} Career Portal Applicants ({portalApps.length})
-                                    </Typography>
+                              <>
+                                {/* Career Portal Section */}
+                                <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                                    <Box
+                                      sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+                                      onClick={() => setExpandedPortalSections(prev => ({ ...prev, [reqId]: !isPortalSectionExpanded }))}
+                                    >
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        {isPortalSectionExpanded ? '▼' : '+'} Career Portal Applicants ({careerPortalApps.length})
+                                      </Typography>
+                                    </Box>
+
+                                    {isPortalSectionExpanded && careerPortalApps.length > 0 && (
+                                      <TextField
+                                        size="small"
+                                        placeholder="Search portal applicants (Name, Email, Mobile)..."
+                                        value={portalSearch}
+                                        onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                        InputProps={{
+                                          startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                          sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                        }}
+                                        sx={{ width: 280 }}
+                                      />
+                                    )}
                                   </Box>
 
-                                  {isPortalSectionExpanded && portalApps.length > 0 && (
-                                    <TextField
-                                      size="small"
-                                      placeholder="Search portal applicants (Name, Email, Mobile)..."
-                                      value={portalSearch}
-                                      onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
-                                      InputProps={{
-                                        startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
-                                        sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
-                                      }}
-                                      sx={{ width: 280 }}
-                                    />
+                                  {isPortalSectionExpanded && (
+                                    <>
+                                      {filteredPortalApps.length === 0 ? (
+                                        <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
+                                          {careerPortalApps.length === 0
+                                            ? "No candidate applications received from Company Career Portal yet."
+                                            : "No portal applicants match your search keyword."}
+                                        </Typography>
+                                      ) : (
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
+                                          <thead>
+                                            <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b' }}>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>App ID</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>First Name</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Last Name</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Mobile</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Exp</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Qualification</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current Company</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current CTC</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Expected Pay</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Primary Skills</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
+                                              {activeRole === 'ADMIN' && (
+                                                <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                                              )}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {filteredPortalApps.map((pa) => (
+                                              <tr key={pa.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.id}</td>
+                                                <td
+                                                  style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, cursor: 'pointer' }}
+                                                  onClick={() => navigate(`/career-portal-candidates/${pa.id}/details`)}
+                                                >
+                                                  <Typography variant="body2" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
+                                                    {pa.first_name}
+                                                  </Typography>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.last_name}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.ai_match_score !== null && pa.ai_match_score !== undefined ? (
+                                                    <Chip
+                                                      label={`${pa.ai_match_score}%`}
+                                                      size="small"
+                                                      color={pa.ai_match_score >= 70 ? 'success' : pa.ai_match_score >= 45 ? 'warning' : 'default'}
+                                                      sx={{ fontWeight: 800, fontSize: '0.68rem', height: 20 }}
+                                                    />
+                                                  ) : (
+                                                    <Typography variant="caption" color="text.secondary">N/A</Typography>
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.resume ? (
+                                                    <Typography
+                                                      variant="caption"
+                                                      color="primary"
+                                                      sx={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                                      onClick={async () => {
+                                                        try {
+                                                          const res: any = await api.post('applications/generate-resume-url/', { url: pa.resume });
+                                                          window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                                                        } catch (err: any) {
+                                                          const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                                                          alert(`Failed to load resume: ${errMsg}`);
+                                                        }
+                                                      }}
+                                                    >
+                                                      View Resume
+                                                    </Typography>
+                                                  ) : (
+                                                    'N/A'
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
+                                                  <FormControl size="small" variant="standard" sx={{ minWidth: 110 }}>
+                                                    <Select
+                                                      value={pa.status || 'New'}
+                                                      onChange={(e) => handleUpdatePortalApplicantStatus(pa.id, e.target.value)}
+                                                      disableUnderline
+                                                      sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer' }}
+                                                    >
+                                                      <MenuItem value="New" sx={{ fontSize: '0.7rem' }}>New</MenuItem>
+                                                      <MenuItem value="Submitted" sx={{ fontSize: '0.7rem' }}>Submitted</MenuItem>
+                                                      <MenuItem value="Under Review" sx={{ fontSize: '0.7rem' }}>Under Review</MenuItem>
+                                                      <MenuItem value="Interview Scheduled" sx={{ fontSize: '0.7rem' }}>Interview Scheduled</MenuItem>
+                                                      <MenuItem value="Interview Completed" sx={{ fontSize: '0.7rem' }}>Interview Completed</MenuItem>
+                                                      <MenuItem value="Selected" sx={{ fontSize: '0.7rem' }}>Selected</MenuItem>
+                                                      <MenuItem value="Rejected" sx={{ fontSize: '0.7rem' }}>Rejected</MenuItem>
+                                                      <MenuItem value="On Hold" sx={{ fontSize: '0.7rem' }}>On Hold</MenuItem>
+                                                      <MenuItem value="Closed" sx={{ fontSize: '0.7rem' }}>Closed</MenuItem>
+                                                    </Select>
+                                                  </FormControl>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.modified_by || 'N/A'}
+                                                </td>
+                                                {activeRole === 'ADMIN' && (
+                                                  <td style={{ padding: '2px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                                    <IconButton
+                                                      size="small"
+                                                      color="error"
+                                                      onClick={() => handleDeletePortalApplicant(pa.id, `${pa.first_name} ${pa.last_name}`)}
+                                                      title="Delete Portal Applicant"
+                                                    >
+                                                      <Trash2 size={14} />
+                                                    </IconButton>
+                                                  </td>
+                                                )}
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      )}
+                                    </>
                                   )}
                                 </Box>
 
-                                {isPortalSectionExpanded && (
-                                  <>
-                                    {filteredPortalApps.length === 0 ? (
-                                      <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
-                                        {portalApps.length === 0
-                                          ? "No candidate applications received from Company Career Portal yet."
-                                          : "No portal applicants match your search keyword."}
+                                {/* LinkedIn Section */}
+                                <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                                    <Box
+                                      sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+                                      onClick={() => setExpandedLinkedInSections(prev => ({ ...prev, [reqId]: !isLinkedInSectionExpanded }))}
+                                    >
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        {isLinkedInSectionExpanded ? '▼' : '+'} LinkedIn Applicants ({linkedinApps.length})
                                       </Typography>
-                                    ) : (
-                                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
-                                        <thead>
-                                          <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b' }}>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>App ID</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>First Name</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Last Name</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Mobile</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Exp</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Qualification</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current Company</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current CTC</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Expected Pay</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Primary Skills</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
-                                            <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
-                                            {activeRole === 'ADMIN' && (
-                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
-                                            )}
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {filteredPortalApps.map((pa) => (
-                                            <tr key={pa.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.id}</td>
-                                              <td
-                                                style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, cursor: 'pointer' }}
-                                                onClick={() => navigate(`/career-portal-candidates/${pa.id}/details`)}
-                                              >
-                                                <Typography variant="body2" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
-                                                  {pa.first_name}
-                                                </Typography>
-                                              </td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.last_name}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
-                                                {pa.ai_match_score !== null && pa.ai_match_score !== undefined ? (
-                                                  <Chip
-                                                    label={`${pa.ai_match_score}%`}
-                                                    size="small"
-                                                    color={pa.ai_match_score >= 70 ? 'success' : pa.ai_match_score >= 45 ? 'warning' : 'default'}
-                                                    sx={{ fontWeight: 800, fontSize: '0.68rem', height: 20 }}
-                                                  />
-                                                ) : (
-                                                  <Typography variant="caption" color="text.secondary">N/A</Typography>
-                                                )}
-                                              </td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
-                                                {pa.resume ? (
-                                                  <Typography
-                                                    variant="caption"
-                                                    color="primary"
-                                                    sx={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
-                                                    onClick={async () => {
-                                                      try {
-                                                        const res: any = await api.post('applications/generate-resume-url/', { url: pa.resume });
-                                                        window.open(res.data.url, '_blank', 'noopener,noreferrer');
-                                                      } catch (err: any) {
-                                                        const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
-                                                        alert(`Failed to load resume: ${errMsg}`);
-                                                      }
-                                                    }}
-                                                  >
-                                                    View Resume
-                                                  </Typography>
-                                                ) : (
-                                                  'N/A'
-                                                )}
-                                              </td>
-                                              <td style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
-                                                <FormControl size="small" variant="standard" sx={{ minWidth: 110 }}>
-                                                  <Select
-                                                    value={pa.status || 'New'}
-                                                    onChange={(e) => handleUpdatePortalApplicantStatus(pa.id, e.target.value)}
-                                                    disableUnderline
-                                                    sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer' }}
-                                                  >
-                                                    <MenuItem value="New" sx={{ fontSize: '0.7rem' }}>New</MenuItem>
-                                                    <MenuItem value="Submitted" sx={{ fontSize: '0.7rem' }}>Submitted</MenuItem>
-                                                    <MenuItem value="Under Review" sx={{ fontSize: '0.7rem' }}>Under Review</MenuItem>
-                                                    <MenuItem value="Interview Scheduled" sx={{ fontSize: '0.7rem' }}>Interview Scheduled</MenuItem>
-                                                    <MenuItem value="Interview Completed" sx={{ fontSize: '0.7rem' }}>Interview Completed</MenuItem>
-                                                    <MenuItem value="Selected" sx={{ fontSize: '0.7rem' }}>Selected</MenuItem>
-                                                    <MenuItem value="Rejected" sx={{ fontSize: '0.7rem' }}>Rejected</MenuItem>
-                                                    <MenuItem value="On Hold" sx={{ fontSize: '0.7rem' }}>On Hold</MenuItem>
-                                                    <MenuItem value="Closed" sx={{ fontSize: '0.7rem' }}>Closed</MenuItem>
-                                                  </Select>
-                                                </FormControl>
-                                              </td>
-                                              <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
-                                                {pa.modified_by || 'N/A'}
-                                              </td>
+                                    </Box>
+
+                                    {isLinkedInSectionExpanded && linkedinApps.length > 0 && (
+                                      <TextField
+                                        size="small"
+                                        placeholder="Search LinkedIn applicants (Name, Email, Mobile)..."
+                                        value={linkedinSearch}
+                                        onChange={(e) => setLinkedinSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                        InputProps={{
+                                          startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                          sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                        }}
+                                        sx={{ width: 280 }}
+                                      />
+                                    )}
+                                  </Box>
+
+                                  {isLinkedInSectionExpanded && (
+                                    <>
+                                      {filteredLinkedInApps.length === 0 ? (
+                                        <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
+                                          {linkedinApps.length === 0
+                                            ? "No candidate applications received from LinkedIn yet."
+                                            : "No LinkedIn applicants match your search keyword."}
+                                        </Typography>
+                                      ) : (
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
+                                          <thead>
+                                            <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b' }}>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>App ID</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>First Name</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Last Name</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Mobile</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Exp</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Qualification</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current Company</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current CTC</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Expected Pay</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Primary Skills</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
                                               {activeRole === 'ADMIN' && (
-                                                <td style={{ padding: '2px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
-                                                  <IconButton
-                                                    size="small"
-                                                    color="error"
-                                                    onClick={() => handleDeletePortalApplicant(pa.id, `${pa.first_name} ${pa.last_name}`)}
-                                                    title="Delete Portal Applicant"
-                                                  >
-                                                    <Trash2 size={14} />
-                                                  </IconButton>
-                                                </td>
+                                                <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
                                               )}
                                             </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
-                                    )}
-                                  </>
-                                )}
-                              </Box>
+                                          </thead>
+                                          <tbody>
+                                            {filteredLinkedInApps.map((pa) => (
+                                              <tr key={pa.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.id}</td>
+                                                <td
+                                                  style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, cursor: 'pointer' }}
+                                                  onClick={() => navigate(`/career-portal-candidates/${pa.id}/details`)}
+                                                >
+                                                  <Typography variant="body2" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
+                                                    {pa.first_name}
+                                                  </Typography>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.last_name}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.ai_match_score !== null && pa.ai_match_score !== undefined ? (
+                                                    <Chip
+                                                      label={`${pa.ai_match_score}%`}
+                                                      size="small"
+                                                      color={pa.ai_match_score >= 70 ? 'success' : pa.ai_match_score >= 45 ? 'warning' : 'default'}
+                                                      sx={{ fontWeight: 800, fontSize: '0.68rem', height: 20 }}
+                                                    />
+                                                  ) : (
+                                                    <Typography variant="caption" color="text.secondary">N/A</Typography>
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.resume ? (
+                                                    <Typography
+                                                      variant="caption"
+                                                      color="primary"
+                                                      sx={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                                      onClick={async () => {
+                                                        try {
+                                                          const res: any = await api.post('applications/generate-resume-url/', { url: pa.resume });
+                                                          window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                                                        } catch (err: any) {
+                                                          const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                                                          alert(`Failed to load resume: ${errMsg}`);
+                                                        }
+                                                      }}
+                                                    >
+                                                      View Resume
+                                                    </Typography>
+                                                  ) : (
+                                                    'N/A'
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
+                                                  <FormControl size="small" variant="standard" sx={{ minWidth: 110 }}>
+                                                    <Select
+                                                      value={pa.status || 'New'}
+                                                      onChange={(e) => handleUpdatePortalApplicantStatus(pa.id, e.target.value)}
+                                                      disableUnderline
+                                                      sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer' }}
+                                                    >
+                                                      <MenuItem value="New" sx={{ fontSize: '0.7rem' }}>New</MenuItem>
+                                                      <MenuItem value="Submitted" sx={{ fontSize: '0.7rem' }}>Submitted</MenuItem>
+                                                      <MenuItem value="Under Review" sx={{ fontSize: '0.7rem' }}>Under Review</MenuItem>
+                                                      <MenuItem value="Interview Scheduled" sx={{ fontSize: '0.7rem' }}>Interview Scheduled</MenuItem>
+                                                      <MenuItem value="Interview Completed" sx={{ fontSize: '0.7rem' }}>Interview Completed</MenuItem>
+                                                      <MenuItem value="Selected" sx={{ fontSize: '0.7rem' }}>Selected</MenuItem>
+                                                      <MenuItem value="Rejected" sx={{ fontSize: '0.7rem' }}>Rejected</MenuItem>
+                                                      <MenuItem value="On Hold" sx={{ fontSize: '0.7rem' }}>On Hold</MenuItem>
+                                                      <MenuItem value="Closed" sx={{ fontSize: '0.7rem' }}>Closed</MenuItem>
+                                                    </Select>
+                                                  </FormControl>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.modified_by || 'N/A'}
+                                                </td>
+                                                {activeRole === 'ADMIN' && (
+                                                  <td style={{ padding: '2px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                                    <IconButton
+                                                      size="small"
+                                                      color="error"
+                                                      onClick={() => handleDeletePortalApplicant(pa.id, `${pa.first_name} ${pa.last_name}`)}
+                                                      title="Delete Portal Applicant"
+                                                    >
+                                                      <Trash2 size={14} />
+                                                    </IconButton>
+                                                  </td>
+                                                )}
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      )}
+                                    </>
+                                  )}
+                                </Box>
+                              </>
                             );
                           })()}
                         </td>
