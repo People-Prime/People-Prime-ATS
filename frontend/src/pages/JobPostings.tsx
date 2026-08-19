@@ -25,7 +25,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  TablePagination
 } from '@mui/material';
 import {
   Search,
@@ -500,24 +501,39 @@ export const JobPostings: React.FC = () => {
     return { min: rate, max: rate, avg: rate };
   };
 
-  // Load applications from API (Reuses Redux cache if available to prevent slow load times)
+  const [localApplications, setLocalApplications] = useState<any[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Reset page when search or date filters change
   useEffect(() => {
-    const hasData = applications && applications.length > 0;
-    if (hasData) {
-      setLoading(false);
-      api.get('applications/').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => { });
+    setPage(0);
+  }, [searchTerm, startDate, endDate]);
+
+  useEffect(() => {
+    setLoading(true);
+    let url = `applications/?paginate=true&is_job_posting=true&page=${page + 1}&page_size=${rowsPerPage}&`;
+    if (searchTerm.trim()) {
+      url += `global_search=${encodeURIComponent(searchTerm.trim())}&`;
     } else {
-      setLoading(true);
-      api.get('applications/').then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => { })
-        .finally(() => setLoading(false));
+      url += `start_date=${startDate}&end_date=${endDate}&`;
     }
-  }, [dispatch]);
+
+    Promise.all([
+      api.get(url),
+      api.get('applications/?is_job_posting=false')
+    ]).then(([jobsRes, candRes]) => {
+      const jobs = jobsRes.data?.results ?? jobsRes.data ?? [];
+      const candidates = candRes.data?.results ?? candRes.data ?? [];
+      setLocalApplications([...jobs, ...candidates]);
+      setTotalCount(jobsRes.data?.count ?? jobs.length);
+    }).catch((err) => {
+      console.error("Error loading job postings", err);
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, [page, rowsPerPage, startDate, endDate, searchTerm]);
 
   // Auto-open drawer if appId is in search params
   useEffect(() => {
@@ -550,7 +566,7 @@ export const JobPostings: React.FC = () => {
     const parentJobByAppId = new Map<number | string, any>();
 
     // Pass 1: Index all parent Job Openings (!candidate_name)
-    applications.forEach((a: any) => {
+    localApplications.forEach((a: any) => {
       if (!a.candidate_name) {
         const directCode = getRemarkField(a.remarks, 'Job Code');
         const finalCode = (directCode && directCode !== 'N/A') ? directCode : `PPW - ${String(a.id).padStart(4, '0')}`;
@@ -566,12 +582,12 @@ export const JobPostings: React.FC = () => {
     });
 
     // Pass 2: Index all candidate submissions
-    applications.forEach((a: any) => {
+    localApplications.forEach((a: any) => {
       if (a.candidate_name) {
         const directCode = getRemarkField(a.remarks, 'Job Code');
         if (directCode && directCode !== 'N/A') {
           resolvedCodeByAppId.set(a.id, directCode);
-          const parent = applications.find((pj: any) => !pj.candidate_name && getRemarkField(pj.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim());
+          const parent = localApplications.find((pj: any) => !pj.candidate_name && getRemarkField(pj.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim());
           if (parent) parentJobByAppId.set(a.id, parent);
         } else {
           const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
@@ -586,11 +602,10 @@ export const JobPostings: React.FC = () => {
     });
 
     return { jobCodeMap: resolvedCodeByAppId, parentJobMap: parentJobByAppId };
-  }, [applications]);
+  }, [localApplications]);
 
-  // 2. High-performance O(N) memoized grouping
   const groupedApps = React.useMemo(() => {
-    const filteredApps = applications.filter((app: any) => {
+    const filteredApps = localApplications.filter((app: any) => {
       if (!searchTerm.trim()) {
         const parentJob = parentJobMap.get(app.id) || app;
         const appDate = (parentJob.created_at || '').slice(0, 10);
@@ -634,7 +649,7 @@ export const JobPostings: React.FC = () => {
 
     // Pre-group applications linearly
     const appsByJobCode = new Map<string, any[]>();
-    applications.forEach((a: any) => {
+    localApplications.forEach((a: any) => {
       if (!searchTerm.trim()) {
         const parentJob = parentJobMap.get(a.id) || a;
         const aDate = (parentJob.created_at || '').slice(0, 10);
@@ -676,7 +691,7 @@ export const JobPostings: React.FC = () => {
     });
 
     return result;
-  }, [applications, startDate, endDate, searchTerm, statusFilter, activeRole, currentUser, selectedTeamId, myTeamUserEmails, users, jobCodeMap]);
+  }, [localApplications, startDate, endDate, searchTerm, statusFilter, activeRole, currentUser, selectedTeamId, myTeamUserEmails, users, jobCodeMap]);
 
   // Handle redirection to edit candidate/requirement details
   const handleAppSelect = (app: Application) => {
@@ -1825,6 +1840,18 @@ Remarks: ${candidateForm.remarks}`;
             </tbody>
           </table>
         </Box>
+        <TablePagination
+          rowsPerPageOptions={[25, 50, 100]}
+          component="div"
+          count={totalCount}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(_, newPage) => setPage(newPage)}
+          onRowsPerPageChange={(e) => {
+            setRowsPerPage(parseInt(e.target.value, 10));
+            setPage(0);
+          }}
+        />
       </Card>
 
       {/* ========================================================

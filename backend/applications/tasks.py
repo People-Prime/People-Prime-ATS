@@ -51,7 +51,8 @@ def auto_close_expired_jobs():
                     flags=re.MULTILINE | re.IGNORECASE
                 )
                 job.remarks = new_remarks
-                job.save(update_fields=['remarks'])
+                job.status = 'Closed'
+                job.save(update_fields=['remarks', 'status'])
                 closed_count += 1
                 logger.info(f"[AUTO-CLOSE] Closed job ID={job.id}, Start Date={start_date}")
 

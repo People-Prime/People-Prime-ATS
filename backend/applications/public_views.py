@@ -262,9 +262,12 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
         qs = Application.objects.filter(
             candidate_name='',
             publish_to_linkedin=True,
-            publish_to_career_page=True
+            publish_to_career_page=True,
+            remarks__icontains='Job Status: Active'
         ).exclude(
             status__iexact='Closed'
+        ).exclude(
+            remarks__icontains='Job Status: Closed'
         ).only(
             'id', 'position', 'client_name', 'city', 'state', 'country',
             'technology', 'experience', 'remarks', 'published_at', 'created_at'

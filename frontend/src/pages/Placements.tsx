@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -19,19 +19,16 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Button
+  Button,
+  TablePagination
 } from '@mui/material';
 import { Search, Download } from 'lucide-react';
-import { useAppSelector, useAppDispatch } from '../redux/store';
-import { setApplications } from '../redux/applicationsSlice';
+import { useAppSelector } from '../redux/store';
 import { api } from '../services/api';
-import { getPlacedAppsWithCodes, isStatusAllowedForMetric } from './dashboards/PipelineKPIs';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
-  const dispatch = useAppDispatch();
-  const { applications, notes } = useAppSelector(state => state.applications || { applications: [], notes: {} });
   const { users } = useAppSelector(state => state.users);
   const { user: currentUser } = useAppSelector(state => state.auth);
 
@@ -40,6 +37,17 @@ export const Placements: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(() => localStorage.getItem(`placements_start_date_${currentUser?.email}`) || todayStr());
   const [endDate, setEndDate] = useState(() => localStorage.getItem(`placements_end_date_${currentUser?.email}`) || todayStr());
+
+  // Pagination states
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [localApplications, setLocalApplications] = useState<any[]>([]);
+
+  // Reset page when search or date filters change
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, startDate, endDate]);
 
   useEffect(() => {
     if (currentUser?.email) {
@@ -60,28 +68,23 @@ export const Placements: React.FC = () => {
     return Array.from(unique.values());
   }, [users]);
 
-  // Load applications from API (Reuses Redux cache if available to prevent slow load times)
   useEffect(() => {
-    const hasData = applications && applications.length > 0;
-    if (hasData) {
-      setLoading(false);
-      api.get('applications/')
-        .then((res: any) => {
-          const list = res.data?.results ?? res.data ?? [];
-          dispatch(setApplications(list));
-        })
-        .catch(() => { });
+    setLoading(true);
+    let url = `applications/?paginate=true&status=Placed&ordering=created_at&page=${page + 1}&page_size=${rowsPerPage}&`;
+    if (searchTerm.trim()) {
+      url += `global_search=${encodeURIComponent(searchTerm.trim())}&`;
     } else {
-      setLoading(true);
-      api.get('applications/')
-        .then((res: any) => {
-          const list = res.data?.results ?? res.data ?? [];
-          dispatch(setApplications(list));
-        })
-        .catch(() => { })
-        .finally(() => setLoading(false));
+      url += `start_date=${startDate}&end_date=${endDate}&`;
     }
-  }, [dispatch]);
+    api.get(url)
+      .then((res: any) => {
+        const list = res.data?.results ?? res.data ?? [];
+        setLocalApplications(list);
+        setTotalCount(res.data?.count ?? list.length);
+      })
+      .catch(() => { })
+      .finally(() => setLoading(false));
+  }, [page, rowsPerPage, startDate, endDate, searchTerm]);
 
   // Helper to extract fields from remarks
   const getRemarkField = (remarks: string, fieldName: string): string => {
@@ -188,98 +191,18 @@ export const Placements: React.FC = () => {
     };
   };
 
-  const filteredUsers = useMemo(() => users.filter((u: any) => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
 
-  const getDescendantEmails = useCallback((email: string): string[] => {
-    const direct = filteredUsers.filter((u: any) => u.reporting_to?.email?.toLowerCase() === email.toLowerCase());
-    return [email, ...direct.flatMap((d: any) => getDescendantEmails(d.email))];
-  }, [filteredUsers]);
-
-  const allowedEmails = useMemo(() => {
-    const isHierarchyRoot = ['CEO', 'ADMIN', 'REPORTING_TEAM'].includes(currentUser?.role || '');
-    if (isHierarchyRoot) {
-      if (selectedTeamId !== 'ALL') {
-        const teamUsers = users.filter((u: any) => u.teams?.some((t: any) => String(t.id) === selectedTeamId));
-        return teamUsers.map((u: any) => u.email.toLowerCase());
-      }
-      return users.map((u: any) => u.email.toLowerCase());
-    }
-    const descendant = getDescendantEmails(currentUser?.email || '');
-    return descendant.map(e => e.toLowerCase());
-  }, [currentUser, users, selectedTeamId, getDescendantEmails]);
-
-  const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
-    if (!isStatusAllowedForMetric(app.status, targetStatus)) {
-      return '';
-    }
-    if (notesDict && notesDict[app.id]) {
-      const transitionNotes = notesDict[app.id]
-        .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      if (transitionNotes.length > 0) {
-        return transitionNotes[0].created_at.slice(0, 10);
-      }
-    }
-    if (app.transition_dates && app.transition_dates[targetStatus]) {
-      return app.transition_dates[targetStatus];
-    }
-    if (app.notes && Array.isArray(app.notes)) {
-      const transitionNotes = app.notes
-        .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      if (transitionNotes.length > 0) {
-        return transitionNotes[0].created_at.slice(0, 10);
-      }
-    }
-    if (app.status === targetStatus) {
-      return (app.created_at || '').slice(0, 10);
-    }
-    return '';
-  };
-
-  // Auto-generate Placement Codes in ascending order (sorted by created_at & ID)
   const placedCandidates = useMemo(() => {
-    const allPlacedWithCodes = getPlacedAppsWithCodes(applications);
-    return allPlacedWithCodes.filter(app => {
-      // 0. Date Filter (bypassed when searching for dynamic all-time search)
-      if (!searchTerm.trim()) {
-        const appDate = getStatusTransitionDate(app, 'Placed', notes);
-        if (appDate < startDate || appDate > endDate) return false;
-      }
-
-      // Hierarchy/Role visibility filter
-      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (!assignedEmail || !allowedEmails.includes(assignedEmail)) return false;
-
-      return true;
+    return localApplications.map((app, idx) => {
+      const globalIndex = page * rowsPerPage + idx + 1;
+      const placementCode = `PLC-${String(globalIndex).padStart(4, '0')}`;
+      return { ...app, placementCode };
     });
-  }, [applications, allowedEmails, currentUser, startDate, endDate, searchTerm]);
+  }, [localApplications, page, rowsPerPage]);
 
-  // Filter based on search term
   const filteredCandidates = useMemo(() => {
-    return placedCandidates.filter(app => {
-      const searchLower = searchTerm.toLowerCase();
-      const name = (app.candidate_name || '').toLowerCase();
-      const email = (app.candidate_email || '').toLowerCase();
-      const pos = (app.position || '').toLowerCase();
-      const client = (app.client_name || '').toLowerCase();
-      const tech = (app.technology || '').toLowerCase();
-      const plcCode = app.placementCode.toLowerCase();
-      const jobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase();
-      const matchAppId = String(app.id).includes(searchLower);
-
-      return (
-        name.includes(searchLower) ||
-        email.includes(searchLower) ||
-        pos.includes(searchLower) ||
-        client.includes(searchLower) ||
-        tech.includes(searchLower) ||
-        plcCode.includes(searchLower) ||
-        jobCode.includes(searchLower) ||
-        matchAppId
-      );
-    });
-  }, [placedCandidates, searchTerm]);
+    return placedCandidates;
+  }, [placedCandidates]);
 
   return (
     <Box sx={{ pb: 5 }}>
@@ -534,6 +457,18 @@ export const Placements: React.FC = () => {
           </Table>
         </Box>
       </TableContainer>
+      <TablePagination
+        rowsPerPageOptions={[25, 50, 100]}
+        component="div"
+        count={totalCount}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={(_, newPage) => setPage(newPage)}
+        onRowsPerPageChange={(e) => {
+          setRowsPerPage(parseInt(e.target.value, 10));
+          setPage(0);
+        }}
+      />
     </Box>
   );
 };

@@ -71,6 +71,7 @@ export const Applications: React.FC = () => {
   // Pagination states
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Debounced search state
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -218,18 +219,22 @@ export const Applications: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     const queryTerm = debouncedSearchTerm.trim();
-    let url = 'applications/?';
+    let url = `applications/?paginate=true&page=${page + 1}&page_size=${rowsPerPage}&is_job_posting=false&`;
     if (queryTerm) {
       url += `global_search=${encodeURIComponent(queryTerm)}&`;
     } else {
       url += `start_date=${startDate}&end_date=${endDate}&`;
     }
+    if (statusFilter !== 'ALL' && statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS') {
+      url += `status=${encodeURIComponent(statusFilter)}&`;
+    }
     api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       setLocalApplications(list);
+      setTotalCount(res.data?.count ?? list.length);
     }).catch(() => { })
       .finally(() => setLoading(false));
-  }, [debouncedSearchTerm, startDate, endDate]);
+  }, [debouncedSearchTerm, startDate, endDate, page, rowsPerPage, statusFilter]);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
@@ -342,9 +347,7 @@ export const Applications: React.FC = () => {
     });
   }, [candidateGroups]);
 
-  const paginatedCandidates = useMemo(() => {
-    return uniqueCandidates.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-  }, [uniqueCandidates, page, rowsPerPage]);
+  const paginatedCandidates = uniqueCandidates;
 
 
   const handleUpdateStatusSubmit = async () => {
@@ -964,7 +967,7 @@ export const Applications: React.FC = () => {
         <TablePagination
           rowsPerPageOptions={[25, 50, 100]}
           component="div"
-          count={uniqueCandidates.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(_, newPage) => setPage(newPage)}

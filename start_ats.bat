@@ -17,6 +17,12 @@ start "ATS Celery Worker" cmd /k "cd /d C:\ATS\backend && celery -A ats_backend 
 echo Celery Worker launched in background window.
 echo ----------------------------------------------------
 
+:: 2b. Start Celery Beat Scheduler in a new window
+echo Starting Celery Beat Scheduler...
+start "ATS Celery Beat" cmd /k "cd /d C:\ATS\backend && celery -A ats_backend beat --loglevel=info"
+echo Celery Beat Scheduler launched in background window.
+echo ----------------------------------------------------
+
 :: 3. Start Django Server in a new window
 echo [3/4] Starting Django API Server...
 start "ATS Django API" cmd /k "cd /d C:\ATS\backend && python manage.py runserver"
