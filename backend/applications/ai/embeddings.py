@@ -1,42 +1,37 @@
-import threading
+import os
 import logging
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Model name: all-MiniLM-L6-v2
-MODEL_NAME = 'all-MiniLM-L6-v2'
+# Model name: text-embedding-3-small
+MODEL_NAME = 'text-embedding-3-small'
 
-_model_instance = None
-_model_lock = threading.Lock()
-
-def get_transformer_model() -> SentenceTransformer:
+def get_openai_client() -> OpenAI:
     """
-    Thread-safe Singleton loader for SentenceTransformer model.
-    Loads the model into memory exactly once per process.
+    Retrieves configured OpenAI client reading from environment.
     """
-    global _model_instance
-    if _model_instance is None:
-        with _model_lock:
-            if _model_instance is None:
-                logger.info(f"[AI Embeddings] Loading SentenceTransformer model '{MODEL_NAME}' into memory...")
-                _model_instance = SentenceTransformer(MODEL_NAME)
-                logger.info(f"[AI Embeddings] Model '{MODEL_NAME}' loaded successfully.")
-    return _model_instance
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set.")
+    return OpenAI(api_key=api_key)
 
 def generate_embedding(text: str):
     """
-    Generates sentence embedding vector for input text.
-    Returns numpy array embedding vector.
+    Generates sentence embedding vector for input text using OpenAI API.
+    Specifies dimensions=384 to maintain exact database schema compatibility.
     """
     if not text or not text.strip():
         raise ValueError("Input text for embedding generation is empty.")
 
     try:
-        model = get_transformer_model()
-        # Encode text into 384-dimensional vector embedding
-        embedding = model.encode(text, convert_to_numpy=True)
-        return embedding
+        client = get_openai_client()
+        response = client.embeddings.create(
+            input=text,
+            model=MODEL_NAME,
+            dimensions=384
+        )
+        return response.data[0].embedding
     except Exception:
-        logger.exception("[AI Embeddings] Exception occurred while generating embedding.")
+        logger.exception("[AI Embeddings] Exception occurred while generating embedding via OpenAI.")
         return None

@@ -57,7 +57,19 @@ def process_applicant_ai_match(applicant_id: int) -> float:
             return None
 
         # 3. Generate Vector Embeddings
-        job_embedding = generate_embedding(job_text)
+        if job.ai_job_embedding:
+            job_embedding = job.ai_job_embedding
+            logger.info(f"[AI Service] Reused cached job embedding for Job ID={job.id}")
+        else:
+            job_embedding_raw = generate_embedding(job_text)
+            if job_embedding_raw is not None:
+                job_embedding = job_embedding_raw.tolist() if hasattr(job_embedding_raw, 'tolist') else list(job_embedding_raw)
+                job.ai_job_embedding = job_embedding
+                job.save(update_fields=['ai_job_embedding', 'updated_at'])
+                logger.info(f"[AI Service] Generated and cached new job embedding for Job ID={job.id}")
+            else:
+                job_embedding = None
+
         resume_embedding = generate_embedding(resume_text)
 
         if job_embedding is None or resume_embedding is None:

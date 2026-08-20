@@ -56,17 +56,30 @@ class Application(models.Model):
     publish_to_linkedin = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
 
+    # AI Match fields
+    ai_job_embedding = models.JSONField(null=True, blank=True)
+
     def __str__(self):
         return f"{self.position} - {self.client_name}"
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         old_status = None
+        old_fields = None
         if not is_new:
             try:
-                old_status = Application.objects.values_list('status', flat=True).get(pk=self.pk)
+                old_data = Application.objects.values('status', 'position', 'technology', 'remarks').get(pk=self.pk)
+                old_status = old_data['status']
+                old_fields = old_data
             except Application.DoesNotExist:
                 old_status = None
+                old_fields = None
+
+        if old_fields:
+            if (self.position != old_fields['position'] or
+                self.technology != old_fields['technology'] or
+                self.remarks != old_fields['remarks']):
+                self.ai_job_embedding = None
 
         remarks = self.remarks or ''
         has_placeholder = 'Job Code: PPW - [Auto Generated]' in remarks or 'Job Code: ' not in remarks
@@ -179,7 +192,7 @@ class CareerPortalApplicant(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # AI Match Shortlisting fields
-    ai_match_score = models.FloatField(null=True, blank=True)
+    ai_match_score = models.FloatField(null=True, blank=True, db_index=True)
     ai_scored_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
