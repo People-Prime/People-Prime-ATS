@@ -208,6 +208,7 @@ export const JobPostings: React.FC = () => {
   const [jobStatusUpdateApp, setJobStatusUpdateApp] = useState<any | null>(null);
   const [jobStatusUpdateValue, setJobStatusUpdateValue] = useState<string>('Active');
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
+  const [expandedCandidates, setExpandedCandidates] = useState<Record<string, any[]>>({});
 
   const handleUpdateStatusSubmit = async () => {
     if (!statusUpdateApp) return;
@@ -520,14 +521,10 @@ export const JobPostings: React.FC = () => {
       url += `start_date=${startDate}&end_date=${endDate}&`;
     }
 
-    Promise.all([
-      api.get(url),
-      api.get('applications/?is_job_posting=false')
-    ]).then(([jobsRes, candRes]) => {
-      const jobs = jobsRes.data?.results ?? jobsRes.data ?? [];
-      const candidates = candRes.data?.results ?? candRes.data ?? [];
-      setLocalApplications([...jobs, ...candidates]);
-      setTotalCount(jobsRes.data?.count ?? jobs.length);
+    api.get(url).then((res: any) => {
+      const jobs = res.data?.results ?? res.data ?? [];
+      setLocalApplications(jobs);
+      setTotalCount(res.data?.count ?? jobs.length);
     }).catch((err) => {
       console.error("Error loading job postings", err);
     }).finally(() => {
@@ -1072,8 +1069,6 @@ Remarks: ${candidateForm.remarks}`;
                   ? jobCodeVal.toUpperCase().trim()
                   : `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
 
-                // Use the exact candidate group matching this Job Code
-                const jobApplicants = (app.associatedApps || []).filter((a: any) => a.candidate_name);
 
                 const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
                 const recruitersText = Array.from(new Set(
@@ -1099,9 +1094,19 @@ Remarks: ${candidateForm.remarks}`;
                     >
                       <td style={{ padding: '4px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <Box
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            setExpandedJobs(prev => ({ ...prev, [jobCodeKey]: !prev[jobCodeKey] }));
+                            const nextExpanded = !isExpanded;
+                            setExpandedJobs(prev => ({ ...prev, [jobCodeKey]: nextExpanded }));
+                            if (nextExpanded && !expandedCandidates[jobCodeKey]) {
+                              try {
+                                const res = await api.get(`applications/?is_job_posting=false&global_search=${encodeURIComponent(jobCodeVal || jobCodeKey)}`);
+                                const list = res.data?.results ?? res.data ?? [];
+                                setExpandedCandidates(prev => ({ ...prev, [jobCodeKey]: list }));
+                              } catch (err) {
+                                console.error("Failed to load candidates", err);
+                              }
+                            }
                           }}
                           sx={{
                             display: 'inline-flex',
@@ -1138,7 +1143,7 @@ Remarks: ${candidateForm.remarks}`;
                               height: 15
                             }}
                           >
-                            {jobApplicants.length}
+                            {app.candidate_count || 0}
                           </Box>
                         </Box>
                       </td>
@@ -1324,9 +1329,16 @@ Remarks: ${candidateForm.remarks}`;
                           {applicantTypeFilter !== 'PORTAL' && (
                             <>
                               <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1, color: 'text.secondary', fontSize: '0.72rem' }}>
-                                APPLICANTS ({jobApplicants.length})
+                                APPLICANTS ({app.candidate_count || 0})
                               </Typography>
-                              {jobApplicants.length === 0 ? (
+                              {!expandedCandidates[jobCodeKey] ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
+                                  <CircularProgress size={16} />
+                                  <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                                    Loading applicants...
+                                  </Typography>
+                                </Box>
+                              ) : expandedCandidates[jobCodeKey].length === 0 ? (
                                 <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1 }}>
                                   No applicants have been sourced for this job requirement.
                                 </Typography>
@@ -1355,7 +1367,7 @@ Remarks: ${candidateForm.remarks}`;
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {jobApplicants.map((applicant: any) => (
+                                    {expandedCandidates[jobCodeKey].map((applicant: any) => (
                                       <tr key={applicant.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{applicant.id}</td>
                                         {activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM' ? (

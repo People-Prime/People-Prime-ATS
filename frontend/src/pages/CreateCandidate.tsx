@@ -40,7 +40,7 @@ export const CreateCandidate: React.FC = () => {
   // Fetch applications if not loaded (e.g. on direct page refresh)
   useEffect(() => {
     if (applications.length === 0) {
-      api.get('applications/').then((res: any) => {
+      api.get('applications/?is_job_posting=true').then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
       }).catch(() => { });

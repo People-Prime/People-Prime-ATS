@@ -23,6 +23,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
     )
     notes = NoteSerializer(many=True, read_only=True)
     transition_dates = serializers.SerializerMethodField()
+    candidate_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -32,9 +33,28 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
             'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'published_at',
-            'created_at', 'updated_at', 'notes', 'transition_dates'
+            'created_at', 'updated_at', 'notes', 'transition_dates', 'candidate_count'
         ]
         read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'modified_by']
+
+    def get_candidate_count(self, obj):
+        if obj.candidate_name:
+            return 0
+        remarks = obj.remarks or ''
+        import re
+        match = re.search(r'Job Code:\s*(.*)', remarks)
+        if match:
+            job_code = match.group(1).strip()
+            if job_code and job_code != 'N/A' and 'Auto Generated' not in job_code:
+                return Application.objects.exclude(candidate_name='').filter(
+                    remarks__icontains=f"Job Code: {job_code}"
+                ).count()
+        if obj.position and obj.client_name:
+            return Application.objects.exclude(candidate_name='').filter(
+                position=obj.position,
+                client_name=obj.client_name
+            ).count()
+        return 0
 
     def create(self, validated_data):
         publish_career = validated_data.get('publish_to_career_page', False)
