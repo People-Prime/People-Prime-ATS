@@ -70,7 +70,7 @@ export const CandidateDetails: React.FC = () => {
     }
     // Also refresh the global list for the job submission dialog if cache is empty
     if (applications.length === 0) {
-      api.get('applications/?is_job_posting=true').then((res: any) => {
+      api.get('applications/').then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
       }).catch(err => console.error('Failed to load applications', err));

@@ -98,28 +98,9 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
                 associate_emails=recipients
             )
 
-from rest_framework.pagination import PageNumberPagination
-
-class ConditionalPagination(PageNumberPagination):
-    page_size = 50
-    page_size_query_param = 'page_size'
-    max_page_size = 100
-
-    def paginate_queryset(self, queryset, request, view=None):
-        if request.query_params.get('paginate') != 'true':
-            return None
-        return super().paginate_queryset(queryset, request, view)
-
-    def get_paginated_response(self, data):
-        return Response({
-            'count': self.page.paginator.count,
-            'results': data
-        })
-
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = ConditionalPagination
 
     def destroy(self, request, *args, **kwargs):
         from rest_framework.exceptions import PermissionDenied
@@ -199,13 +180,6 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     Q(created_at__date__gte=start_date, created_at__date__lte=end_date) |
                     Q(updated_at__date__gte=start_date, updated_at__date__lte=end_date)
                 )
-
-        # Apply is_job_posting filtering if present
-        is_job_posting = self.request.query_params.get('is_job_posting')
-        if is_job_posting == 'true':
-            qs = qs.filter(candidate_name='')
-        elif is_job_posting == 'false':
-            qs = qs.exclude(candidate_name='')
 
         if self.action == 'list':
             return qs.select_related('assigned_employee').prefetch_related('notes').order_by('-created_at')

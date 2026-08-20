@@ -32,27 +32,13 @@ export const ViewCandidates: React.FC = () => {
 
   const { applications } = useAppSelector(state => state.applications);
 
-  const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
-    if (!remarks) return 'N/A';
-    const match = remarks.match(new RegExp(`^${fieldName}:[ \\t]*(.+)`, 'im'));
-    const value = match ? match[1].trim() : 'N/A';
-    return value && value !== '' ? value : 'N/A';
-  };
-
   // Load applications from API on mount
   useEffect(() => {
-    if (applicationId) {
-      api.get(`applications/${applicationId}/`).then((jobRes: any) => {
-        const job = jobRes.data;
-        const jobCode = getRemarkField(job.remarks, 'Job Code');
-        const searchTerm = jobCode !== 'N/A' ? jobCode : (job.position || '');
-        api.get(`applications/?is_job_posting=false&global_search=${encodeURIComponent(searchTerm)}`).then((candRes: any) => {
-          const candidates = candRes.data?.results ?? candRes.data ?? [];
-          dispatch(setApplications([job, ...candidates]));
-        }).catch(() => {});
-      }).catch(() => {});
-    }
-  }, [dispatch, applicationId]);
+    api.get('applications/').then((res: any) => {
+      const list = res.data?.results ?? res.data ?? [];
+      dispatch(setApplications(list));
+    }).catch(() => {});
+  }, [dispatch]);
 
   // Find the selected job requirement application
   const selectedApp = useMemo(() => {
