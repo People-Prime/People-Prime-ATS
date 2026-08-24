@@ -174,11 +174,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
             if start_date and end_date:
-                # Removed unconditional Q(candidate_name='') bypass so jobs respect the date filter
                 qs = qs.filter(
                     Q(created_at__date__gte=start_date, created_at__date__lte=end_date) |
-                    Q(updated_at__date__gte=start_date, updated_at__date__lte=end_date)
-                )
+                    Q(
+                        notes__content__startswith="Status updated to ",
+                        notes__created_at__date__gte=start_date,
+                        notes__created_at__date__lte=end_date
+                    )
+                ).distinct()
 
         if self.action == 'list':
             return qs.select_related('assigned_employee').prefetch_related('notes').order_by('-created_at')
