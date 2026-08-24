@@ -445,7 +445,7 @@ export const CandidateDetails: React.FC = () => {
                         {job.position}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" display="block">
-                        Client: {job.client_name} • Tech Stack: {job.technology} • Exp Required: {job.experience} yrs
+                        Client: {job.client_name} • Tech Stack: {job.technology} • Exp Required: {job.experience} yrs • Created: {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'N/A'}
                       </Typography>
                     </Box>
                   }
