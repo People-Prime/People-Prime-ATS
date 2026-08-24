@@ -75,6 +75,7 @@ def process_applicant_ai_match(applicant_id: int) -> float:
         # 3. Resume Embedding & Hash Reuse Strategy
         resume_embedding = None
         resume_hash = None
+        resume_text = None
         
         file_bytes = get_s3_bytes_from_storage(applicant.resume)
         if len(file_bytes) > MAX_FILE_SIZE_BYTES:
