@@ -146,6 +146,7 @@ def process_applicant_ai_match(applicant_id: int) -> float:
             applicant.score_experience = hybrid_results["score_experience"]
             applicant.score_title = hybrid_results["score_title"]
             applicant.score_education = hybrid_results["score_education"]
+            applicant.ai_match_score = hybrid_results["final_score"]
             applicant.ai_match_score_nemotron = hybrid_results["final_score"]
             applicant.ai_scored_at = timezone.now()
             
@@ -153,7 +154,7 @@ def process_applicant_ai_match(applicant_id: int) -> float:
                 'resume_embedding', 'resume_content_hash', 
                 'embedding_model', 'embedding_dimension', 'embedding_version', 'embedding_generated_at',
                 'score_semantic', 'score_skills', 'score_experience', 'score_title', 'score_education',
-                'ai_match_score_nemotron', 'ai_scored_at', 'updated_at'
+                'ai_match_score', 'ai_match_score_nemotron', 'ai_scored_at', 'updated_at'
             ])
             logger.info(f"[AI Service] Successfully scored Applicant ID={applicant_id} with Hybrid Nemotron: Score = {hybrid_results['final_score']}%")
             return hybrid_results['final_score']
