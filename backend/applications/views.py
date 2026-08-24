@@ -5,7 +5,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Exists, OuterRef
 from django.utils import timezone
 from applications.models import Application, Note, CareerPortalApplicant
 from applications.serializers import (
@@ -174,13 +174,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
             if start_date and end_date:
+                status_transition_subquery = Note.objects.filter(
+                    application=OuterRef('pk'),
+                    content__startswith="Status updated to ",
+                    created_at__date__gte=start_date,
+                    created_at__date__lte=end_date
+                )
                 qs = qs.filter(
                     Q(created_at__date__gte=start_date, created_at__date__lte=end_date) |
-                    Q(
-                        notes__content__startswith="Status updated to ",
-                        notes__created_at__date__gte=start_date,
-                        notes__created_at__date__lte=end_date
-                    )
+                    Exists(status_transition_subquery)
                 ).distinct()
 
         if self.action == 'list':
