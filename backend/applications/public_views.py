@@ -271,7 +271,7 @@ class PublicLinkedInJobXmlFeedAPIView(APIView):
         ).only(
             'id', 'position', 'client_name', 'city', 'state', 'country',
             'technology', 'experience', 'remarks', 'published_at', 'created_at'
-        ).order_by('id')
+        ).order_by('-id')
 
         xml_lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
