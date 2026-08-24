@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from pgvector.django import VectorField
 
 class ApplicationStatus(models.TextChoices):
     NEW = 'New', 'New'
@@ -58,6 +59,15 @@ class Application(models.Model):
 
     # AI Match fields
     ai_job_embedding = models.JSONField(null=True, blank=True)
+    ai_job_embedding_nemotron = models.JSONField(null=True, blank=True)
+    ai_job_embedding_metadata = models.JSONField(null=True, blank=True)
+
+    # AI Match fields (pgvector)
+    job_embedding = VectorField(dimensions=2048, null=True, blank=True)
+    embedding_model = models.CharField(max_length=100, default='nvidia/nemotron-3-embed-1b')
+    embedding_dimension = models.IntegerField(default=2048)
+    embedding_version = models.CharField(max_length=50, default='nemotron-v1')
+    embedding_generated_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.position} - {self.client_name}"
@@ -80,6 +90,10 @@ class Application(models.Model):
                 self.technology != old_fields['technology'] or
                 self.remarks != old_fields['remarks']):
                 self.ai_job_embedding = None
+                self.ai_job_embedding_nemotron = None
+                self.ai_job_embedding_metadata = None
+                self.job_embedding = None
+                self.embedding_generated_at = None
 
         remarks = self.remarks or ''
         has_placeholder = 'Job Code: PPW - [Auto Generated]' in remarks or 'Job Code: ' not in remarks
@@ -193,7 +207,23 @@ class CareerPortalApplicant(models.Model):
 
     # AI Match Shortlisting fields
     ai_match_score = models.FloatField(null=True, blank=True, db_index=True)
+    ai_match_score_nemotron = models.FloatField(null=True, blank=True, db_index=True)
     ai_scored_at = models.DateTimeField(null=True, blank=True)
+
+    # Hybrid Component Scores
+    score_semantic = models.FloatField(null=True, blank=True)
+    score_skills = models.FloatField(null=True, blank=True)
+    score_experience = models.FloatField(null=True, blank=True)
+    score_title = models.FloatField(null=True, blank=True)
+    score_education = models.FloatField(null=True, blank=True)
+
+    # Resume Embeddings (pgvector)
+    resume_embedding = VectorField(dimensions=2048, null=True, blank=True)
+    resume_content_hash = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    embedding_model = models.CharField(max_length=100, default='nvidia/nemotron-3-embed-1b')
+    embedding_dimension = models.IntegerField(default=2048)
+    embedding_version = models.CharField(max_length=50, default='nemotron-v1')
+    embedding_generated_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.email}) - Job ID: {self.job_id}"

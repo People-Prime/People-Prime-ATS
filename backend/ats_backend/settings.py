@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     'cloudinary',
     
     # Third party apps
@@ -165,6 +166,17 @@ CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:63
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+# Celery Routing & Queues
+CELERY_TASK_DEFAULT_QUEUE = 'default'
+CELERY_TASK_ROUTES = {
+    'applications.ai.tasks.score_applicant_resume_task': {'queue': 'ai_queue'},
+}
+
+# Worker Configuration (Memory Safety for AI)
+CELERY_WORKER_CONCURRENCY = int(os.getenv('CELERY_WORKER_CONCURRENCY', 1))
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 50
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
 # Celery Beat — Daily scheduled tasks
 from celery.schedules import crontab
