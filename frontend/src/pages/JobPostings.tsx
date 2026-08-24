@@ -526,7 +526,9 @@ export const JobPostings: React.FC = () => {
     ]).then(([jobsRes, candRes]) => {
       const jobs = jobsRes.data?.results ?? jobsRes.data ?? [];
       const candidates = candRes.data?.results ?? candRes.data ?? [];
-      setLocalApplications([...jobs, ...candidates]);
+      const mergedApps = [...jobs, ...candidates];
+      const uniqueApps = Array.from(new Map(mergedApps.map((a: any) => [a.id, a])).values());
+      setLocalApplications(uniqueApps);
       setTotalCount(jobsRes.data?.count ?? jobs.length);
     }).catch((err) => {
       console.error("Error loading job postings", err);
