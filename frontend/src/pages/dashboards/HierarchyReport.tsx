@@ -323,7 +323,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     } else if (metricType === 'ONBOARD') {
       filtered = userApps.filter(app => {
         const d = getStatusTransitionDate(app, 'Placed', notes);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+        const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+        const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
+        return isWithinDate && !isSystem;
       });
       label = 'Onboard';
       isApplicants = true;
@@ -448,7 +450,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
     const onboard = userApps.filter(app => {
       const d = getStatusTransitionDate(app, 'Placed', notes);
-      return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
+      const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
+      return isWithinDate && !isSystem;
     }).length;
 
     return { jobsCount, submissions, interviews, offers, offerAccepted, onboard };

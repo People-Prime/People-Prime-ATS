@@ -344,7 +344,9 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     const endDate = localStorage.getItem('dashboard_end_date') || todayStr();
     return scopeApps.filter(app => {
       const d = getStatusTransitionDate(app, 'Placed', notes);
-      return d >= startDate && d <= endDate;
+      const isWithinDate = d >= startDate && d <= endDate;
+      const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
+      return isWithinDate && !isSystem;
     }).length;
   }, [scopeApps, notes]);
 
@@ -407,7 +409,9 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications }) => {
     } else if (label === 'Onboard') {
       filtered = scopeApps.filter(app => {
         const d = getStatusTransitionDate(app, 'Placed', notes);
-        return d >= startDate && d <= endDate;
+        const isWithinDate = d >= startDate && d <= endDate;
+        const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
+        return isWithinDate && !isSystem;
       });
     }
 
