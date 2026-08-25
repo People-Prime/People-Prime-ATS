@@ -67,14 +67,12 @@ export const getStatusTransitionDate = (
   notesDict?: Record<string, any[]>
 ): string => {
  
-  const targetText = `status updated to ${targetStatus}`.toLowerCase();
- 
   // 1. Check Redux notes first.
   if (notesDict && notesDict[app.id]) {
     const transitionNotes = notesDict[app.id]
       .filter((n: any) => {
         const content = (n.content || '').trim().toLowerCase();
-        return content === targetText || content.startsWith(`${targetText}.`);
+        return content.startsWith(`status updated to ${targetStatus}`.toLowerCase());
       })
       .sort(
         (a: any, b: any) =>
@@ -100,7 +98,7 @@ export const getStatusTransitionDate = (
     const transitionNotes = app.notes
       .filter((n: any) => {
         const content = (n.content || '').trim().toLowerCase();
-        return content === targetText || content.startsWith(`${targetText}.`);
+        return content.startsWith(`status updated to ${targetStatus}`.toLowerCase());
       })
       .sort(
         (a: any, b: any) =>

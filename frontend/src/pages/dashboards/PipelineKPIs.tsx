@@ -170,8 +170,7 @@ export const getStatusTransitionDate = (
       .filter(
         (n: any) =>
           n.content &&
-          n.content.trim().toLowerCase() ===
-            `status updated to ${targetStatus}`.toLowerCase()
+          n.content.trim().toLowerCase().startsWith(`status updated to ${targetStatus}`.toLowerCase())
       )
       .sort(
         (a: any, b: any) =>
@@ -195,8 +194,7 @@ export const getStatusTransitionDate = (
       .filter(
         (n: any) =>
           n.content &&
-          n.content.trim().toLowerCase() ===
-            `status updated to ${targetStatus}`.toLowerCase()
+          n.content.trim().toLowerCase().startsWith(`status updated to ${targetStatus}`.toLowerCase())
       )
       .sort(
         (a: any, b: any) =>
