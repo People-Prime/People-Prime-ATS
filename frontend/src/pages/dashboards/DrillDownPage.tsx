@@ -279,7 +279,7 @@ export const DrillDownPage: React.FC = () => {
             Back to Dashboard
           </Button>
           <Typography variant="h5" fontWeight={800}>
-            {isJobsType ? `Job Postings (${modalData.length})` : isApplicantsType ? `Applicants (${uniqueCandidates.length})` : `${modalTitle} (${modalData.length})`}
+            {isJobsType ? `Job Postings (${modalData.length})` : `${modalTitle} (${modalData.length})`}
           </Typography>
         </Box>
 
