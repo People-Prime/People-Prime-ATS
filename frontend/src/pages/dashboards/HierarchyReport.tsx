@@ -225,7 +225,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return map;
   }, [filteredUsers]);
 
-  const handleMetricClick = (userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
+  const handleMetricClick = (userEmail: string, _userName: string, _roleName: string, metricType: string, isSelfRow: boolean) => {
     const cleanEmail = userEmail.replace(/_(cwr|fte)$/i, '').toLowerCase();
 
     const emailSet = descendantEmailsMap.get(cleanEmail);
@@ -331,10 +331,9 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       isApplicants = true;
     }
 
-    const title = `${userName} (${roleName.toUpperCase()}) - ${label} (${effectiveStartDate} to ${effectiveEndDate})`;
     navigate('/drill-down', {
       state: {
-        modalTitle: title,
+        modalTitle: label,
         modalData: filtered,
         isJobsType: isJobs,
         isApplicantsType: isApplicants,

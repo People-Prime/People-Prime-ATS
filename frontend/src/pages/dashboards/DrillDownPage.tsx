@@ -232,37 +232,11 @@ export const DrillDownPage: React.FC = () => {
   const uniqueCandidates = React.useMemo(() => {
     if (!isApplicantsType) return [];
 
-    const candidateGroups: Record<string, any[]> = {};
-    modalData.forEach((app: any) => {
-      if (!app.candidate_name) return;
-      const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
-      if (!candidateGroups[key]) {
-        candidateGroups[key] = [];
-      }
-      candidateGroups[key].push(app);
-    });
-
-    const unique: any[] = [];
-    modalData.forEach((app: any) => {
-      if (!app.candidate_name) return;
-      const key = app.candidate_email?.toLowerCase().trim() || app.candidate_name?.toLowerCase().trim();
-      if (!candidateGroups[key]) return;
-      const group = candidateGroups[key];
-      if (app.id === group[0].id) {
-        const sortedGroup = [...group].sort((a, b) => {
-          const aHasResume = (a.remarks || '').toLowerCase().includes('resume link');
-          const bHasResume = (b.remarks || '').toLowerCase().includes('resume link');
-          if (aHasResume !== bHasResume) return aHasResume ? -1 : 1;
-          return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
-        });
-        unique.push({
-          key,
-          primaryApp: sortedGroup[0],
-          allSubmissions: group
-        });
-      }
-    });
-    return unique;
+    return modalData.map((app: any) => ({
+      key: app.id,
+      primaryApp: app,
+      allSubmissions: [app]
+    }));
   }, [modalData, isApplicantsType]);
 
   return (
@@ -813,26 +787,27 @@ export const DrillDownPage: React.FC = () => {
                     );
                   })
                 ) : isApplicantsType ? (
-                  uniqueCandidates.map((cand) => {
+                  uniqueCandidates.map((cand: any) => {
                     const app = cand.primaryApp;
                     const isExpanded = !!expandedCandidates[cand.key];
                     return (
                       <React.Fragment key={cand.key}>
                         <TableRow sx={{ borderBottom: isExpanded ? 'none' : `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
                           <TableCell sx={{ padding: '4px 8px', textAlign: 'center' }}>
-                            <Box
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedCandidates(prev => ({ ...prev, [cand.key]: !prev[cand.key] }));
-                              }}
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                cursor: 'pointer',
-                                gap: 0.5,
-                                userSelect: 'none'
-                              }}
-                            >
+                            {cand.allSubmissions.length > 1 && (
+                              <Box
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedCandidates(prev => ({ ...prev, [cand.key]: !prev[cand.key] }));
+                                }}
+                                sx={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  cursor: 'pointer',
+                                  gap: 0.5,
+                                  userSelect: 'none'
+                                }}
+                              >
                               <Typography
                                 variant="body2"
                                 sx={{
@@ -863,6 +838,7 @@ export const DrillDownPage: React.FC = () => {
                                 {cand.allSubmissions.length}
                               </Box>
                             </Box>
+                            )}
                           </TableCell>
                           <TableCell sx={{ padding: currentUser?.role === 'CEO' ? '2px 4px' : '4px 8px' }}>
                             <Typography variant="body2" sx={{ fontSize: currentUser?.role === 'CEO' ? '0.7rem' : '0.75rem' }}>{app.id}</Typography>
