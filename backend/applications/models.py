@@ -122,20 +122,7 @@ class Application(models.Model):
                         content=note_content
                     )
 
-        # Propagate status changes to all other applications for this candidate globally
-        if not getattr(self, '_saving_related_statuses', False) and self.candidate_name and self.candidate_email and self.candidate_phone:
-            other_apps = Application.objects.exclude(id=self.id).filter(
-                candidate_email__iexact=self.candidate_email.strip(),
-                candidate_phone=self.candidate_phone.strip()
-            )
-            for app in other_apps:
-                if app.status != self.status:
-                    app.status = self.status
-                    app._saving_related_statuses = True
-                    if hasattr(self, '_modifying_user'):
-                        app._modifying_user = self._modifying_user
-                    app.save(update_fields=['status'])
-        
+
         if is_new and has_placeholder:
             job_code = f"PPW - {self.id:04d}"
             if 'Job Code: PPW - [Auto Generated]' in remarks:
