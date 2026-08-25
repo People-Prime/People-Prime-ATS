@@ -37,9 +37,9 @@ export const Dashboard: React.FC = () => {
 
   // Load applications from API so all sub-dashboards have access (Reuses Redux state on remount)
   useEffect(() => {
-    let url = 'applications/?all_applicants=true';
+    let url = 'applications/';
     if (startDate && endDate) {
-      url += `&start_date=${startDate}&end_date=${endDate}`;
+      url += `?start_date=${startDate}&end_date=${endDate}`;
     }
 
     const hasData = applications && applications.length > 0;
