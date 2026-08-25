@@ -173,17 +173,39 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if not global_search:
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
+            all_applicants = self.request.query_params.get('all_applicants')
+ 
             if start_date and end_date:
-                status_transition_subquery = Note.objects.filter(
-                    application=OuterRef('pk'),
-                    content__startswith="Status updated to ",
-                    created_at__date__gte=start_date,
-                    created_at__date__lte=end_date
-                )
-                qs = qs.filter(
-                    Q(created_at__date__gte=start_date, created_at__date__lte=end_date) |
-                    Exists(status_transition_subquery)
-                ).distinct()
+ 
+                # Dashboard / all applicants:
+                # Count applications ONLY by their creation date.
+                # A status change on an older application must NOT
+                # move that application into today's dashboard count.
+                if all_applicants == 'true':
+                    qs = qs.filter(
+                        created_at__date__gte=start_date,
+                        created_at__date__lte=end_date
+                    )
+ 
+                # Normal Applicants page:
+                # Preserve existing behavior where a status transition
+                # during the selected date range can make an application
+                # appear.
+                else:
+                    status_transition_subquery = Note.objects.filter(
+                        application=OuterRef('pk'),
+                        content__startswith="Status updated to ",
+                        created_at__date__gte=start_date,
+                        created_at__date__lte=end_date
+                    )
+ 
+                    qs = qs.filter(
+                        Q(
+                            created_at__date__gte=start_date,
+                            created_at__date__lte=end_date
+                        ) |
+                        Exists(status_transition_subquery)
+                    ).distinct()
 
         if self.action == 'list':
             return qs.select_related('assigned_employee').prefetch_related('notes').order_by('-created_at')

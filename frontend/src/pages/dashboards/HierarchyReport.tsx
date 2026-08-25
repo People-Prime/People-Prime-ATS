@@ -23,7 +23,7 @@ import { useAppSelector } from '../../redux/store';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
-import { getUniqueSubmissions, hasReachedSubmittedMilestone, isStatusAllowedForMetric } from './PipelineKPIs';
+import { getUniqueSubmissions } from './PipelineKPIs';
 
 interface CalculatedMetrics {
   jobsCount: number;
@@ -61,35 +61,58 @@ interface HierarchyReportProps {
   endDate?: string;
 }
 
-export const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
-  if (!isStatusAllowedForMetric(app.status, targetStatus)) {
-    return '';
-  }
-  if (app.transition_dates && app.transition_dates[targetStatus]) {
-    return app.transition_dates[targetStatus];
-  }
+export const getStatusTransitionDate = (
+  app: any,
+  targetStatus: string,
+  notesDict?: Record<string, any[]>
+): string => {
+ 
+  const targetText = `status updated to ${targetStatus}`.toLowerCase();
+ 
+  // 1. Check Redux notes first.
   if (notesDict && notesDict[app.id]) {
     const transitionNotes = notesDict[app.id]
-      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    if (transitionNotes.length > 0) {
+      .filter((n: any) => {
+        const content = (n.content || '').trim().toLowerCase();
+        return content === targetText || content.startsWith(`${targetText}.`);
+      })
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+ 
+    if (transitionNotes.length > 0 && transitionNotes[0].created_at) {
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
+ 
+  // 2. Check transition_dates supplied by backend.
+  if (
+    app.transition_dates &&
+    app.transition_dates[targetStatus]
+  ) {
+    return String(app.transition_dates[targetStatus]).slice(0, 10);
+  }
+ 
+  // 3. Check notes attached directly to the application.
   if (app.notes && Array.isArray(app.notes)) {
     const transitionNotes = app.notes
-      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    if (transitionNotes.length > 0) {
+      .filter((n: any) => {
+        const content = (n.content || '').trim().toLowerCase();
+        return content === targetText || content.startsWith(`${targetText}.`);
+      })
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+ 
+    if (transitionNotes.length > 0 && transitionNotes[0].created_at) {
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
-  if (app.status === targetStatus) {
-    return (app.created_at || '').slice(0, 10);
-  }
-  if (targetStatus === 'Submitted' && hasReachedSubmittedMilestone(app)) {
-    return (app.created_at || '').slice(0, 10);
-  }
+ 
   return '';
 };
 
@@ -268,7 +291,6 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     } else if (metricType === 'SUBMISSIONS') {
       filtered = userApps.filter(app =>
         app.candidate_name &&
-        hasReachedSubmittedMilestone(app) &&
         (() => {
           const d = getStatusTransitionDate(app, 'Submitted', notes);
           return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
@@ -402,12 +424,11 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     const submissions = deduplicatedSubmissionsApps.filter(app =>
       app.assigned_employee?.email?.toLowerCase() === email.toLowerCase() &&
       app.candidate_name &&
-      hasReachedSubmittedMilestone(app) &&
       (() => {
         const d = getStatusTransitionDate(app, 'Submitted', notes);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      })()
-    ).length;
+        return d && (!effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate));
+          })()
+      ).length;
 
     const interviews = userApps.filter(app => {
       const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);

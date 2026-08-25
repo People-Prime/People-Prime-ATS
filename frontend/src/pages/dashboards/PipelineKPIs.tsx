@@ -157,35 +157,59 @@ export const isStatusAllowedForMetric = (currentStatus: string, targetStatus: st
   return currentRank >= targetRank;
 };
 
-export const getStatusTransitionDate = (app: any, targetStatus: string, notesDict?: Record<string, any[]>): string => {
-  if (!isStatusAllowedForMetric(app.status, targetStatus)) {
-    return '';
-  }
+export const getStatusTransitionDate = (
+  app: any,
+  targetStatus: string,
+  notesDict?: Record<string, any[]>
+): string => {
+  
+ 
+  // 1. Prefer the actual status-transition note from Redux notes.
   if (notesDict && notesDict[app.id]) {
     const transitionNotes = notesDict[app.id]
-      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .filter(
+        (n: any) =>
+          n.content &&
+          n.content.trim().toLowerCase() ===
+            `status updated to ${targetStatus}`.toLowerCase()
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+ 
     if (transitionNotes.length > 0) {
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
+ 
+  // 2. Use transition_dates if the backend provides it.
   if (app.transition_dates && app.transition_dates[targetStatus]) {
     return app.transition_dates[targetStatus];
   }
+ 
+  // 3. Fall back to notes attached directly to the application.
   if (app.notes && Array.isArray(app.notes)) {
     const transitionNotes = app.notes
-      .filter((n: any) => n.content && n.content.includes(`Status updated to ${targetStatus}`))
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .filter(
+        (n: any) =>
+          n.content &&
+          n.content.trim().toLowerCase() ===
+            `status updated to ${targetStatus}`.toLowerCase()
+      )
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
+ 
     if (transitionNotes.length > 0) {
       return transitionNotes[0].created_at.slice(0, 10);
     }
   }
-  if (app.status === targetStatus) {
-    return (app.created_at || '').slice(0, 10);
-  }
-  if (targetStatus === 'Submitted' && hasReachedSubmittedMilestone(app)) {
-    return (app.created_at || '').slice(0, 10);
-  }
+ 
+  // Do NOT use app.created_at as a fake status-transition date.
   return '';
 };
 
