@@ -25,4 +25,4 @@ Thumbs.db
 # Media folders (resumes and uploads)
 media/
 downloaded_resumes/
-
+backend/investigate_notes.py

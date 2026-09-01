@@ -653,9 +653,18 @@ export const JobPostings: React.FC = () => {
     const appsByJobCode = new Map<string, any[]>();
     localApplications.forEach((a: any) => {
       if (!searchTerm.trim()) {
-        const parentJob = parentJobMap.get(a.id) || a;
-        const aDate = (parentJob.created_at || '').slice(0, 10);
-        if (aDate < startDate || aDate > endDate) return;
+        if (!a.candidate_name) {
+          // Parent Job Posting record
+          const jobDate = (a.created_at || '').slice(0, 10);
+          if (jobDate < startDate || jobDate > endDate) return;
+        } else {
+          // Candidate submission record: Include only if created in range OR status updated in range
+          const candCreated = (a.created_at || '').slice(0, 10);
+          const candUpdated = (a.updated_at || a.created_at || '').slice(0, 10);
+          const isCreatedInRange = candCreated >= startDate && candCreated <= endDate;
+          const isUpdatedInRange = candUpdated >= startDate && candUpdated <= endDate;
+          if (!isCreatedInRange && !isUpdatedInRange) return;
+        }
       }
       const code = jobCodeMap.get(a.id);
       if (code) {
@@ -1373,7 +1382,14 @@ Remarks: ${candidateForm.remarks}`;
                                           </td>
                                         )}
                                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.candidate_email, 130)}</td>
-                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(getRemarkField(applicant.remarks, 'Job Code'), 90)}</td>
+                                        <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                                           {(() => {
+                                             const rawCode = getRemarkField(applicant.remarks, 'Job Code');
+                                             const fallbackCode = jobCodeMap.get(applicant.id) || getRemarkField(app.remarks, 'Job Code');
+                                             const finalCode = (rawCode && rawCode !== 'N/A') ? rawCode : (fallbackCode && fallbackCode !== 'N/A' ? fallbackCode : '—');
+                                             return renderCellText(finalCode, 90);
+                                           })()}
+                                         </td>
                                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.city, 90)}</td>
                                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>{renderCellText(applicant.state, 90)}</td>
                                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
