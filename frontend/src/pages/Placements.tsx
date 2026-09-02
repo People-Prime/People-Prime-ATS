@@ -26,11 +26,13 @@ import { Search, Download } from 'lucide-react';
 import { useAppSelector } from '../redux/store';
 import { api } from '../services/api';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
+import { getUniqueSubmissions, getStatusTransitionDate } from './dashboards/PipelineKPIs';
 
 export const Placements: React.FC = () => {
   const theme = useTheme();
   const { users } = useAppSelector(state => state.users);
   const { user: currentUser } = useAppSelector(state => state.auth);
+  const { notes } = useAppSelector(state => state.applications);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
@@ -41,7 +43,6 @@ export const Placements: React.FC = () => {
   // Pagination states
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
-  const [totalCount, setTotalCount] = useState(0);
   const [localApplications, setLocalApplications] = useState<any[]>([]);
 
   // Reset page when search or date filters change
@@ -58,8 +59,6 @@ export const Placements: React.FC = () => {
 
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
-
-
   const teamsList = useMemo(() => {
     const unique = new Map();
     users.flatMap(u => u.teams || []).filter(t => t && t.id).forEach(t => {
@@ -70,21 +69,18 @@ export const Placements: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    let url = `applications/?paginate=true&status=Placed&ordering=created_at&page=${page + 1}&page_size=${rowsPerPage}&`;
+    let url = `applications/?status=Placed&`;
     if (searchTerm.trim()) {
       url += `global_search=${encodeURIComponent(searchTerm.trim())}&`;
-    } else {
-      url += `start_date=${startDate}&end_date=${endDate}&`;
     }
     api.get(url)
       .then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];
         setLocalApplications(list);
-        setTotalCount(res.data?.count ?? list.length);
       })
       .catch(() => { })
       .finally(() => setLoading(false));
-  }, [page, rowsPerPage, startDate, endDate, searchTerm]);
+  }, [searchTerm]);
 
   // Helper to extract fields from remarks
   const getRemarkField = (remarks: string, fieldName: string): string => {
@@ -191,18 +187,40 @@ export const Placements: React.FC = () => {
     };
   };
 
+  const uniqueLocalPlaced = useMemo(() => {
+    const candidatesOnly = localApplications.filter((app: any) => app.candidate_name && app.candidate_name.trim() !== '');
+    return getUniqueSubmissions(candidatesOnly);
+  }, [localApplications]);
 
   const placedCandidates = useMemo(() => {
-    return localApplications.map((app, idx) => {
-      const globalIndex = page * rowsPerPage + idx + 1;
-      const placementCode = `PLC-${String(globalIndex).padStart(4, '0')}`;
+    const sorted = [...uniqueLocalPlaced].sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return String(a.id).localeCompare(String(b.id));
+    });
+    return sorted.map((app, idx) => {
+      const plcNumber = String(idx + 1).padStart(4, '0');
+      const placementCode = `PLC-${plcNumber}`;
       return { ...app, placementCode };
     });
-  }, [localApplications, page, rowsPerPage]);
+  }, [uniqueLocalPlaced]);
 
   const filteredCandidates = useMemo(() => {
-    return placedCandidates;
-  }, [placedCandidates]);
+    return placedCandidates.filter(app => {
+      if (!searchTerm.trim()) {
+        const d = getStatusTransitionDate(app, 'Placed', notes);
+        const isWithinDate = !!d && d >= startDate && d <= endDate;
+        const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
+        if (!isWithinDate || isSystem) return false;
+      }
+      return true;
+    });
+  }, [placedCandidates, startDate, endDate, searchTerm, notes]);
+
+  const paginatedCandidates = useMemo(() => {
+    return filteredCandidates.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  }, [filteredCandidates, page, rowsPerPage]);
 
   return (
     <Box sx={{ pb: 5 }}>
@@ -230,76 +248,76 @@ export const Placements: React.FC = () => {
             startIcon={<Download size={18} />}
             onClick={() => {
               const headers = [
-              'Placement Code',
-              'Applicant Name',
-              'Client',
-              'Recruiter',
-              'Count',
-              'Modified By',
-              'Team Lead',
-              'Created By',
-              'Manager',
-              'Placement Type',
-              'Pay Rate',
-              'Variable Pay',
-              'Offer Value',
-              'Profit Amount',
-              'Date of Join',
-              'Created Date',
-              'Status Changed Date'
-            ];
-
-            const rows = filteredCandidates.map(app => {
-              const hierarchyInfo = getHierarchyInfo([app.assigned_employee?.email].filter(Boolean));
-              const placementType = getRemarkField(app.remarks, 'Employee Type');
-              return [
-                app.placementCode || 'N/A',
-                app.candidate_name || 'N/A',
-                app.client_name || 'N/A',
-                app.recruiter || 'N/A',
-                '1',
-                app.modified_by || 'System',
-                hierarchyInfo.tl,
-                app.assigned_employee?.full_name || 'System',
-                hierarchyInfo.manager,
-                placementType,
-                getRemarkField(app.remarks, 'Pay Rate'),
-                getRemarkField(app.remarks, 'Variable Pay'),
-                getRemarkField(app.remarks, 'Offer Value'),
-                getProfitAmount(app.remarks) || 'N/A',
-                formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')),
-                formatDateDDMMYYYY(app.created_at),
-                formatDateDDMMYYYY(app.transition_dates?.Placed || app.updated_at)
+                'Placement Code',
+                'Applicant Name',
+                'Client',
+                'Recruiter',
+                'Count',
+                'Modified By',
+                'Team Lead',
+                'Created By',
+                'Manager',
+                'Placement Type',
+                'Pay Rate',
+                'Variable Pay',
+                'Offer Value',
+                'Profit Amount',
+                'Date of Join',
+                'Created Date',
+                'Status Changed Date'
               ];
-            });
 
-            const escapeCell = (val: any): string => {
-              if (val === null || val === undefined) return '""';
-              const str = String(val).replace(/"/g, '""');
-              return `"${str}"`;
-            };
+              const rows = filteredCandidates.map(app => {
+                const hierarchyInfo = getHierarchyInfo([app.assigned_employee?.email].filter(Boolean));
+                const placementType = getRemarkField(app.remarks, 'Employee Type');
+                return [
+                  app.placementCode || 'N/A',
+                  app.candidate_name || 'N/A',
+                  app.client_name || 'N/A',
+                  app.recruiter || 'N/A',
+                  '1',
+                  app.modified_by || 'System',
+                  hierarchyInfo.tl,
+                  app.assigned_employee?.full_name || 'System',
+                  hierarchyInfo.manager,
+                  placementType,
+                  getRemarkField(app.remarks, 'Pay Rate'),
+                  getRemarkField(app.remarks, 'Variable Pay'),
+                  getRemarkField(app.remarks, 'Offer Value'),
+                  getProfitAmount(app.remarks) || 'N/A',
+                  formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')),
+                  formatDateDDMMYYYY(app.created_at),
+                  formatDateDDMMYYYY(app.transition_dates?.Placed || app.updated_at)
+                ];
+              });
 
-            const csvContent = [
-              headers.map(escapeCell).join(','),
-              ...rows.map(row => row.map(escapeCell).join(','))
-            ].join('\r\n');
+              const escapeCell = (val: any): string => {
+                if (val === null || val === undefined) return '""';
+                const str = String(val).replace(/"/g, '""');
+                return `"${str}"`;
+              };
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `placements_export_${Date.now()}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-          }}
-          sx={{ borderRadius: '8px', borderWeight: 2 }}
-        >
-          Export CSV Registry
-        </Button>
+              const csvContent = [
+                headers.map(escapeCell).join(','),
+                ...rows.map(row => row.map(escapeCell).join(','))
+              ].join('\r\n');
+
+              const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.setAttribute('href', url);
+              link.setAttribute('download', `placements_export_${Date.now()}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }}
+            sx={{ borderRadius: '8px', borderWeight: 2 }}
+          >
+            Export CSV Registry
+          </Button>
+        </Box>
       </Box>
-    </Box>
 
 
 
@@ -418,7 +436,7 @@ export const Placements: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCandidates.map((app) => {
+                paginatedCandidates.map((app) => {
                   const hierarchyInfo = getHierarchyInfo([app.assigned_employee?.email].filter(Boolean));
                   const placementType = getRemarkField(app.remarks, 'Employee Type');
                   return (
@@ -460,7 +478,7 @@ export const Placements: React.FC = () => {
       <TablePagination
         rowsPerPageOptions={[25, 50, 100]}
         component="div"
-        count={totalCount}
+        count={filteredCandidates.length}
         rowsPerPage={rowsPerPage}
         page={page}
         onPageChange={(_, newPage) => setPage(newPage)}
