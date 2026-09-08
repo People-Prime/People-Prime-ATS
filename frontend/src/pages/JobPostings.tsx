@@ -1539,7 +1539,7 @@ Remarks: ${candidateForm.remarks}`;
 
                                   {isPortalSectionExpanded && (
                                     <>
-                                      {isPortalLoading && careerPortalApps.length > 0 ? (
+                                      {isPortalLoading ? (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                                           <CircularProgress size={14} color="primary" />
                                           <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
@@ -1710,7 +1710,7 @@ Remarks: ${candidateForm.remarks}`;
 
                                   {isLinkedInSectionExpanded && (
                                     <>
-                                      {isPortalLoading && linkedinApps.length > 0 ? (
+                                      {isPortalLoading ? (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                                           <CircularProgress size={14} color="primary" />
                                           <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
