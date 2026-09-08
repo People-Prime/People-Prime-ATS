@@ -81,6 +81,7 @@ export const JobPostings: React.FC = () => {
 
   // Career Portal Applicants states
   const [portalApplicants, setPortalApplicants] = useState<CareerPortalApplicant[]>([]);
+  const [isPortalLoading, setIsPortalLoading] = useState<boolean>(true);
   const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
   const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
   const [expandedPortalSections, setExpandedPortalSections] = useState<Record<number, boolean>>({});
@@ -88,12 +89,15 @@ export const JobPostings: React.FC = () => {
   const [expandedLinkedInSections, setExpandedLinkedInSections] = useState<Record<number, boolean>>({});
 
   const fetchPortalApplicants = async () => {
+    setIsPortalLoading(true);
     try {
       const res = await api.get('applications/career-portal-applicants/');
       const list = res.data?.results ?? res.data ?? [];
       setPortalApplicants(list);
     } catch (err) {
       console.error("Failed to fetch career portal applicants", err);
+    } finally {
+      setIsPortalLoading(false);
     }
   };
 
@@ -1535,7 +1539,14 @@ Remarks: ${candidateForm.remarks}`;
 
                                   {isPortalSectionExpanded && (
                                     <>
-                                      {filteredPortalApps.length === 0 ? (
+                                      {isPortalLoading && careerPortalApps.length > 0 ? (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                                          <CircularProgress size={14} color="primary" />
+                                          <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
+                                            Loading applicant details...
+                                          </Typography>
+                                        </Box>
+                                      ) : filteredPortalApps.length === 0 ? (
                                         <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
                                           {careerPortalApps.length === 0
                                             ? "No candidate applications received from Company Career Portal yet."
@@ -1699,7 +1710,14 @@ Remarks: ${candidateForm.remarks}`;
 
                                   {isLinkedInSectionExpanded && (
                                     <>
-                                      {filteredLinkedInApps.length === 0 ? (
+                                      {isPortalLoading && linkedinApps.length > 0 ? (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                                          <CircularProgress size={14} color="primary" />
+                                          <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
+                                            Loading applicant details...
+                                          </Typography>
+                                        </Box>
+                                      ) : filteredLinkedInApps.length === 0 ? (
                                         <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
                                           {linkedinApps.length === 0
                                             ? "No candidate applications received from LinkedIn yet."
