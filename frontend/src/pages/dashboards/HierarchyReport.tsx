@@ -350,13 +350,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           fontWeight: isSelfRow ? 500 : 700,
           fontSize: '0.75rem',
           color: value === 0 ? 'text.secondary' : 'primary.main',
-          cursor: 'pointer',
+          cursor: value === 0 ? 'default' : 'pointer',
           '&:hover': {
-            color: value === 0 ? 'text.primary' : 'primary.dark',
-            textDecoration: 'underline'
+            color: value === 0 ? 'text.secondary' : 'primary.dark',
+            textDecoration: value === 0 ? 'none' : 'underline'
           }
         }}
-        onClick={() => handleMetricClick(userEmail, userName, roleName, metricType, isSelfRow)}
+        onClick={() => {
+          if (value === 0) return;
+          handleMetricClick(userEmail, userName, roleName, metricType, isSelfRow);
+        }}
       >
         {value}
       </Typography>
