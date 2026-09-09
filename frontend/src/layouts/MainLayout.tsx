@@ -205,8 +205,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, themeMode, tog
               flexGrow: 1,
               justifyContent: { xs: 'flex-start', md: 'center' },
               '::-webkit-scrollbar': { display: 'none' },
-              '-ms-overflow-style': 'none',
-              'scrollbar-width': 'none'
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none'
             }}
           >
             {menuItems.map((item) => {

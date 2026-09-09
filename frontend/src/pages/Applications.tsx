@@ -71,7 +71,6 @@ export const Applications: React.FC = () => {
   // Pagination states
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
-  const [totalCount, setTotalCount] = useState(0);
 
   // Debounced search state
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -133,6 +132,7 @@ export const Applications: React.FC = () => {
       const truncated = val.substring(0, 10) + '...';
       return (
         <Box
+          component="span"
           onClick={(e) => {
             e.stopPropagation();
             if (customOnClick) {
@@ -219,7 +219,7 @@ export const Applications: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     const queryTerm = debouncedSearchTerm.trim();
-    let url = `applications/?paginate=true&page=${page + 1}&page_size=${rowsPerPage}&is_job_posting=false&`;
+    let url = 'applications/?is_job_posting=false&';
     if (queryTerm) {
       url += `global_search=${encodeURIComponent(queryTerm)}&`;
     } else {
@@ -231,10 +231,9 @@ export const Applications: React.FC = () => {
     api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
       setLocalApplications(list);
-      setTotalCount(res.data?.count ?? list.length);
     }).catch(() => { })
       .finally(() => setLoading(false));
-  }, [debouncedSearchTerm, startDate, endDate, page, rowsPerPage, statusFilter]);
+  }, [debouncedSearchTerm, startDate, endDate, statusFilter]);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
@@ -265,45 +264,43 @@ export const Applications: React.FC = () => {
   }, [users]);
 
   // Filter applications based on search and selected filter and roles
-  const filteredApps = localApplications.filter((app) => {
-    // Date Filter is ignored for Applicants page as requested
+  const filteredApps = useMemo(() => {
+    return localApplications.filter((app) => {
+      // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
+      if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
+        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+        if (!assignedEmail) return false;
+        const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
+        const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
+        if (!isMemberOfTeam) return false;
+      }
 
-    // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
-    if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
-      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (!assignedEmail) return false;
-      const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
-      const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
-      if (!isMemberOfTeam) return false;
-    }
+      // 2. Status Filter
+      if (statusFilter !== 'ALL') {
+        if (statusFilter === 'HAS_CANDIDATE' && !app.candidate_name) return false;
+        else if (statusFilter === 'INTERVIEWS' && !['Interview Scheduled', 'Interview Completed'].includes(app.status)) return false;
+        else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
+      }
 
-    // Role-based restrictions are bypassed for Applicants page to show all records
+      // 3. Text Search (Debounced)
+      const term = debouncedSearchTerm.trim().toLowerCase();
+      if (term) {
+        const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
+        const matchEmail = app.candidate_email?.toLowerCase().includes(term);
+        const matchPhone = app.candidate_phone?.toLowerCase().includes(term);
+        const matchClient = app.client_name?.toLowerCase().includes(term);
+        const matchPosition = app.position?.toLowerCase().includes(term);
+        const matchTech = app.technology?.toLowerCase().includes(term);
+        const matchAppId = String(app.id).toLowerCase().includes(term);
+        const matchJobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term);
+        return matchCandidate || matchEmail || matchPhone || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
+      }
 
-    // 2. Status Filter
-    if (statusFilter !== 'ALL') {
-      if (statusFilter === 'HAS_CANDIDATE' && !app.candidate_name) return false;
-      else if (statusFilter === 'INTERVIEWS' && !['Interview Scheduled', 'Interview Completed'].includes(app.status)) return false;
-      else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
-    }
+      return true;
+    });
+  }, [localApplications, selectedTeamId, statusFilter, debouncedSearchTerm, activeRole, users]);
 
-    // 3. Text Search
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
-      const matchEmail = app.candidate_email?.toLowerCase().includes(term);
-      const matchPhone = app.candidate_phone?.toLowerCase().includes(term);
-      const matchClient = app.client_name.toLowerCase().includes(term);
-      const matchPosition = app.position.toLowerCase().includes(term);
-      const matchTech = app.technology.toLowerCase().includes(term);
-      const matchAppId = String(app.id).toLowerCase().includes(term);
-      const matchJobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term);
-      return matchCandidate || matchEmail || matchPhone || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
-    }
-
-    return true;
-  });
-
-  const displayApps = filteredApps.filter(app => app.candidate_name);
+  const displayApps = useMemo(() => filteredApps.filter(app => app.candidate_name), [filteredApps]);
 
   const candidateGroups = useMemo(() => {
     const groups: Record<string, typeof displayApps> = {};
@@ -319,7 +316,6 @@ export const Applications: React.FC = () => {
 
   const uniqueCandidates = useMemo(() => {
     return Object.entries(candidateGroups).map(([key, apps]) => {
-
       // Deduplicate submissions by Job Code or Position + Client so the same job is not listed twice
       const seenJobKeys = new Set<string>();
       const uniqueSubmissions = apps.filter(a => {
@@ -347,7 +343,9 @@ export const Applications: React.FC = () => {
     });
   }, [candidateGroups]);
 
-  const paginatedCandidates = uniqueCandidates;
+  const paginatedCandidates = useMemo(() => {
+    return uniqueCandidates.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  }, [uniqueCandidates, page, rowsPerPage]);
 
 
   const handleUpdateStatusSubmit = async () => {
@@ -967,7 +965,7 @@ export const Applications: React.FC = () => {
         <TablePagination
           rowsPerPageOptions={[25, 50, 100]}
           component="div"
-          count={totalCount}
+          count={uniqueCandidates.length}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(_, newPage) => setPage(newPage)}

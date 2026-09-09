@@ -74,6 +74,15 @@ export const JobPostings: React.FC = () => {
 
   // Filter & Search states
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedTeamId, setSelectedTeamId] = useState('ALL');
   const [startDate, setStartDate] = useState(() => localStorage.getItem(`job_postings_start_date_${currentUser?.email}`) || todayStr());
@@ -391,6 +400,7 @@ export const JobPostings: React.FC = () => {
       const truncated = val.substring(0, 10) + '...';
       return (
         <Box
+          component="span"
           onClick={(e) => {
             e.stopPropagation();
             if (customOnClick) {
@@ -508,7 +518,6 @@ export const JobPostings: React.FC = () => {
   const [localApplications, setLocalApplications] = useState<any[]>([]);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
-  const [totalCount, setTotalCount] = useState(0);
 
   // Reset page when search or date filters change
   useEffect(() => {
@@ -517,29 +526,22 @@ export const JobPostings: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    let url = `applications/?paginate=true&is_job_posting=true&page=${page + 1}&page_size=${rowsPerPage}&`;
-    if (searchTerm.trim()) {
-      url += `global_search=${encodeURIComponent(searchTerm.trim())}&`;
+    let url = 'applications/?';
+    if (debouncedSearchTerm.trim()) {
+      url += `global_search=${encodeURIComponent(debouncedSearchTerm.trim())}&`;
     } else {
       url += `start_date=${startDate}&end_date=${endDate}&`;
     }
 
-    Promise.all([
-      api.get(url),
-      api.get('applications/?is_job_posting=false')
-    ]).then(([jobsRes, candRes]) => {
-      const jobs = jobsRes.data?.results ?? jobsRes.data ?? [];
-      const candidates = candRes.data?.results ?? candRes.data ?? [];
-      const mergedApps = [...jobs, ...candidates];
-      const uniqueApps = Array.from(new Map(mergedApps.map((a: any) => [a.id, a])).values());
-      setLocalApplications(uniqueApps);
-      setTotalCount(jobsRes.data?.count ?? jobs.length);
+    api.get(url).then((res) => {
+      const list = res.data?.results ?? res.data ?? [];
+      setLocalApplications(list);
     }).catch((err) => {
       console.error("Error loading job postings", err);
     }).finally(() => {
       setLoading(false);
     });
-  }, [page, rowsPerPage, startDate, endDate, searchTerm]);
+  }, [startDate, endDate, debouncedSearchTerm]);
 
   // Auto-open drawer if appId is in search params
   useEffect(() => {
@@ -639,8 +641,8 @@ export const JobPostings: React.FC = () => {
         else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
       }
 
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
+      const term = debouncedSearchTerm.trim().toLowerCase();
+      if (term) {
         const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
         const matchClient = app.client_name?.toLowerCase().includes(term);
         const matchPosition = app.position?.toLowerCase().includes(term);
@@ -656,7 +658,7 @@ export const JobPostings: React.FC = () => {
     // Pre-group applications linearly
     const appsByJobCode = new Map<string, any[]>();
     localApplications.forEach((a: any) => {
-      if (!searchTerm.trim()) {
+      if (!debouncedSearchTerm.trim()) {
         if (!a.candidate_name) {
           // Parent Job Posting record
           const jobDate = (a.created_at || '').slice(0, 10);
@@ -706,7 +708,11 @@ export const JobPostings: React.FC = () => {
     });
 
     return result;
-  }, [localApplications, startDate, endDate, searchTerm, statusFilter, activeRole, currentUser, selectedTeamId, myTeamUserEmails, users, jobCodeMap]);
+  }, [localApplications, startDate, endDate, debouncedSearchTerm, statusFilter, activeRole, currentUser, selectedTeamId, myTeamUserEmails, users, jobCodeMap]);
+
+  const paginatedApps = React.useMemo(() => {
+    return groupedApps.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  }, [groupedApps, page, rowsPerPage]);
 
   // Handle redirection to edit candidate/requirement details
   const handleAppSelect = (app: Application) => {
@@ -1081,7 +1087,7 @@ Remarks: ${candidateForm.remarks}`;
               </tr>
             </thead>
             <tbody>
-              {groupedApps.map((app) => {
+              {paginatedApps.map((app) => {
                 const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
                 const jobCodeKey = jobCodeVal && jobCodeVal !== 'N/A'
                   ? jobCodeVal.toUpperCase().trim()
@@ -1863,7 +1869,7 @@ Remarks: ${candidateForm.remarks}`;
               {groupedApps.length === 0 && (
                 <tr>
                   <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
-                    {applications.length === 0 ? (
+                    {loading ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
                         <CircularProgress size={18} color="primary" /> Data is loading...
                       </Box>
@@ -1879,7 +1885,7 @@ Remarks: ${candidateForm.remarks}`;
         <TablePagination
           rowsPerPageOptions={[25, 50, 100]}
           component="div"
-          count={totalCount}
+          count={groupedApps.length}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(_, newPage) => setPage(newPage)}
