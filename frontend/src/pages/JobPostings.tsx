@@ -1871,7 +1871,7 @@ Remarks: ${candidateForm.remarks}`;
                   <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
                     {loading ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
-                        <CircularProgress size={18} color="primary" /> Data is loading...
+                        <CircularProgress size={18} color="primary" /> Loading...
                       </Box>
                     ) : (
                       "No applications match the active filters or search terms."

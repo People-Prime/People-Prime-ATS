@@ -307,7 +307,7 @@ export const AssociateDashboard: React.FC<AssociateDashboardProps> = ({
                   {myApplications.length === 0 && (
                     <tr>
                       <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>
-                        {applications.length === 0 ? "Data is loading..." : "No active job requirements assigned to you."}
+                        {applications.length === 0 ? "Loading..." : "No active job requirements assigned to you."}
                       </td>
                     </tr>
                   )}
