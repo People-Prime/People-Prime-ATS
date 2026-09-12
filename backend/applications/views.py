@@ -734,7 +734,7 @@ class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from django.db.models import Q
-        qs = CareerPortalApplicant.objects.all().order_by('-created_at')
+        qs = CareerPortalApplicant.objects.select_related('job').all().order_by('-created_at')
         job_id = self.request.query_params.get('job_id')
         if job_id:
             qs = qs.filter(job_id=job_id)
