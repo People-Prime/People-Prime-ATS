@@ -88,15 +88,23 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
                     'name': application.assigned_employee.full_name or application.assigned_employee.email,
                 }]
 
-            from users.tasks import send_job_assignment_email_task
-            send_job_assignment_email_task.delay(
-                associate_email=recipients[0]['email'],
-                associate_name=recipients[0]['name'],
-                lead_email=request_user.email,
-                lead_name=request_user.full_name or request_user.email,
-                job_details=job_details,
-                associate_emails=recipients
-            )
+            def _dispatch_email():
+                try:
+                    from users.tasks import send_job_assignment_email_task
+                    send_job_assignment_email_task.delay(
+                        associate_email=recipients[0]['email'],
+                        associate_name=recipients[0]['name'],
+                        lead_email=request_user.email,
+                        lead_name=request_user.full_name or request_user.email,
+                        job_details=job_details,
+                        associate_emails=recipients
+                    )
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Failed to queue assignment email: {e}")
+
+            import threading
+            threading.Thread(target=_dispatch_email, daemon=True).start()
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer

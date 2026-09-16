@@ -270,7 +270,7 @@ Notice Period: ${formData.noticePeriod}
 Source Option: ${formData.docSource}
 FileName: ${formData.fileName || 'No document uploaded'}`;
 
-        for (const email of assigneeIds) {
+        const updatePromises = assigneeIds.map(async (email) => {
           const existing = groupApps.find(a => a.assigned_employee?.email === email);
           const payload = {
             client_name: formData.client,
@@ -293,26 +293,23 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             const res = await api.post('applications/', payload);
             dispatch(addApplication(res.data));
           }
-        }
+        });
+
+        await Promise.all(updatePromises);
 
         const deselected = groupApps.filter(a => !assigneeIds.includes(a.assigned_employee?.email || ''));
-        for (const desApp of deselected) {
+        await Promise.all(deselected.map(async (desApp) => {
           await api.delete(`applications/${desApp.id}/`);
           dispatch(deleteApplication(String(desApp.id)));
-        }
+        }));
 
         setSuccess(`✅ Job requirement for "${formData.jobTitle}" updated successfully!`);
-        setTimeout(() => navigate('/job-postings'), 1800);
+        setTimeout(() => navigate('/job-postings'), 400);
 
       } else {
         // Create mode!
-        let generatedJobCode = '';
-        for (const id of assigneeIds) {
-          const assignedUser = users.find(u => u.id === id || u.email === id);
-          const finalJobCode = generatedJobCode || formData.jobCode;
-
-          const formattedRemarks = `[Job Details]
-Job Code: ${finalJobCode}
+        const buildRemarks = (jobCodeVal: string) => `[Job Details]
+Job Code: ${jobCodeVal}
 Client Bill Rate: ${formData.clientBillRate}
 Pay Rate: ${formData.payRate}
 Start Date: ${formData.startDate}
@@ -338,31 +335,56 @@ Notice Period: ${formData.noticePeriod}
 Source Option: ${formData.docSource}
 FileName: ${formData.fileName || 'No document uploaded'}`;
 
-          const payload = {
-            client_name: formData.client,
-            city: formData.city.trim(),
-            state: formData.state.trim(),
-            country: formData.country.trim(),
-            position: formData.jobTitle,
-            technology: formData.primarySkills,
-            experience: parseFloat(formData.experience) || 0.0,
-            assigned_employee_id: assignedUser ? assignedUser.email : null,
-            remarks: formattedRemarks,
-            publish_to_career_page: formData.publishToCareerPage,
-            publish_to_linkedin: formData.publishToLinkedin
-          };
+        // 1. Create first assignee application to generate the unique Job Code
+        const firstId = assigneeIds[0];
+        const firstUser = users.find(u => u.id === firstId || u.email === firstId);
 
-          const response = await api.post('applications/', payload);
-          const returnedRemarks = response.data.remarks || '';
-          const match = returnedRemarks.match(/Job Code:\s*(.+)/);
-          if (match && !generatedJobCode) {
-            generatedJobCode = match[1].trim();
-          }
-          dispatch(addApplication(response.data));
+        const firstPayload = {
+          client_name: formData.client,
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          country: formData.country.trim(),
+          position: formData.jobTitle,
+          technology: formData.primarySkills,
+          experience: parseFloat(formData.experience) || 0.0,
+          assigned_employee_id: firstUser ? firstUser.email : null,
+          remarks: buildRemarks(formData.jobCode),
+          publish_to_career_page: formData.publishToCareerPage,
+          publish_to_linkedin: formData.publishToLinkedin
+        };
+
+        const firstResponse = await api.post('applications/', firstPayload);
+        const returnedRemarks = firstResponse.data.remarks || '';
+        const match = returnedRemarks.match(/Job Code:\s*(.+)/);
+        const generatedJobCode = match ? match[1].trim() : formData.jobCode;
+        dispatch(addApplication(firstResponse.data));
+
+        // 2. Create any remaining assignee applications concurrently using the generated Job Code
+        if (assigneeIds.length > 1) {
+          const remainingIds = assigneeIds.slice(1);
+          const remainingPromises = remainingIds.map(async (id) => {
+            const assignedUser = users.find(u => u.id === id || u.email === id);
+            const payload = {
+              client_name: formData.client,
+              city: formData.city.trim(),
+              state: formData.state.trim(),
+              country: formData.country.trim(),
+              position: formData.jobTitle,
+              technology: formData.primarySkills,
+              experience: parseFloat(formData.experience) || 0.0,
+              assigned_employee_id: assignedUser ? assignedUser.email : null,
+              remarks: buildRemarks(generatedJobCode),
+              publish_to_career_page: formData.publishToCareerPage,
+              publish_to_linkedin: formData.publishToLinkedin
+            };
+            const res = await api.post('applications/', payload);
+            dispatch(addApplication(res.data));
+          });
+          await Promise.all(remainingPromises);
         }
 
         setSuccess(`✅ Job requirement for "${formData.jobTitle}" created and assigned successfully!`);
-        setTimeout(() => navigate('/'), 1800);
+        setTimeout(() => navigate('/'), 400);
       }
     } catch (err: any) {
       const data = err.response?.data;

@@ -139,9 +139,9 @@ export const CandidateDetails: React.FC = () => {
     if (!selectedApp || selectedJobIds.length === 0) return;
     setSubmittingJobs(true);
     try {
-      for (const jobId of selectedJobIds) {
+      const submitPromises = selectedJobIds.map(async (jobId) => {
         const job = applications.find(a => String(a.id) === jobId);
-        if (!job) continue;
+        if (!job) return;
 
         let realJobCode = getRemarkField(job.remarks, 'Job Code');
         if (realJobCode === 'N/A' || !realJobCode || realJobCode.includes('Auto Generated')) {
@@ -184,10 +184,12 @@ export const CandidateDetails: React.FC = () => {
         const res = await api.post('applications/', payload);
         dispatch(addApplication(res.data));
 
-        await api.post(`applications/${res.data.id}/add-note/`, {
+        api.post(`applications/${res.data.id}/add-note/`, {
           content: `Submitted candidate "${selectedApp.candidate_name}" to this job opening.`
-        });
-      }
+        }).catch(err => console.warn('Failed to add submission note:', err));
+      });
+
+      await Promise.all(submitPromises);
 
       alert("Successfully submitted candidate to selected jobs!");
       setSelectedJobIds([]);

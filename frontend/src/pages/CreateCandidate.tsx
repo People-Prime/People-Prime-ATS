@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -36,6 +36,32 @@ export const CreateCandidate: React.FC = () => {
   const activeRole = currentUser?.role || 'ASSOCIATE_ANALYST';
 
   const [parsedBanner, setParsedBanner] = useState('');
+
+  const resumeUploadPromiseRef = useRef<Promise<string> | null>(null);
+
+  const handleResumeFileSelect = (file: File) => {
+    if (file.size > 1048576) {
+      setError('Resume size must be within 1 MB.');
+      return;
+    }
+    setError('');
+    setSelectedFile(file);
+    setFormData(prev => ({ ...prev, fileName: file.name }));
+
+    // Immediately trigger S3 upload in the background
+    const uploadForm = new FormData();
+    uploadForm.append('file', file);
+    const promise = api.post('applications/upload-resume/', uploadForm, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }).then(res => res.data?.url || '').catch(err => {
+      console.warn('Pre-upload resume failed, will retry on submit if needed:', err);
+      return '';
+    });
+
+    resumeUploadPromiseRef.current = promise;
+  };
 
   // Fetch applications if not loaded (e.g. on direct page refresh)
   useEffect(() => {
@@ -331,7 +357,10 @@ export const CreateCandidate: React.FC = () => {
     setSubmitting(true);
     try {
       let finalResumeLink = formData.resumeLink || 'N/A';
-      if (selectedFile) {
+      if (resumeUploadPromiseRef.current) {
+        finalResumeLink = (await resumeUploadPromiseRef.current) || formData.resumeLink || 'N/A';
+      }
+      if ((!finalResumeLink || finalResumeLink === 'N/A') && selectedFile) {
         const uploadForm = new FormData();
         uploadForm.append('file', selectedFile);
         const uploadRes = await api.post('applications/upload-resume/', uploadForm, {
@@ -427,16 +456,16 @@ Recruiter Remarks: ${formData.remarks}`;
           isNewRecord = true;
         } else if (isAlreadyAssigned) {
           setSuccess(`✅ Candidate "${fullName}" submitted successfully!`);
-          setTimeout(() => navigate('/applications'), 1200);
+          setTimeout(() => navigate('/applications'), 400);
           return;
         } else {
           throw err;
         }
       }
 
-      await api.post(`applications/${res.data.id}/add-note/`, {
+      api.post(`applications/${res.data.id}/add-note/`, {
         content: `Candidate Sourced: Sourced ${fullName} and submitted application for review.`
-      });
+      }).catch(err => console.warn('Failed to add candidate sourcing note:', err));
 
       if (isNewRecord) {
         dispatch(addApplication(res.data));
@@ -457,7 +486,7 @@ Recruiter Remarks: ${formData.remarks}`;
       }));
 
       setSuccess(`✅ Candidate "${fullName}" submitted successfully!`);
-      setTimeout(() => navigate('/applications'), 1200);
+      setTimeout(() => navigate('/applications'), 400);
     } catch (err: any) {
       console.error("Submission error details:", err);
       if (err.response?.status === 413) {
@@ -751,8 +780,7 @@ Recruiter Remarks: ${formData.remarks}`;
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            setSelectedFile(file);
-                            setFormData(prev => ({ ...prev, fileName: file.name }));
+                            handleResumeFileSelect(file);
                           }
                         }}
                       />

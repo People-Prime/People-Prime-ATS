@@ -763,9 +763,9 @@ Remarks: ${candidateForm.remarks}`;
         res = await api.put(`applications/${selectedApp.id}/`, payload);
         dispatch(updateApplication(res.data));
       }
-      await api.post(`applications/${res.data.id}/add-note/`, {
+      api.post(`applications/${res.data.id}/add-note/`, {
         content: `Candidate Sourced: Sourced ${fullName} and submitted application for review.`
-      });
+      }).catch(err => console.warn('Failed to add candidate sourcing note:', err));
 
       setSelectedApp(res.data);
 
