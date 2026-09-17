@@ -450,7 +450,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <TableCell colSpan={readOnly ? 6 : 7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       {applications.length === 0 ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
-                          <CircularProgress size={16} color="primary" /> Data is loading...
+                          <CircularProgress size={16} color="primary" /> Loading...
                         </Box>
                       ) : (
                         "No applicants found matching the filter."
@@ -633,7 +633,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <TableCell colSpan={readOnly ? 8 : 9} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                       {applications.length === 0 ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
-                          <CircularProgress size={16} color="primary" /> Data is loading...
+                          <CircularProgress size={16} color="primary" /> Loading...
                         </Box>
                       ) : (
                         "No jobs found matching the filter."

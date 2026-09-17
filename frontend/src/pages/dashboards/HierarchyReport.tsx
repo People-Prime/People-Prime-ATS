@@ -912,7 +912,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                     <TableCell colSpan={7} style={{ padding: '24px', textAlign: 'center' }}>
                       {users.length === 0 || applications.length === 0 ? (
                         <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, fontWeight: 700 }}>
-                          <CircularProgress size={16} color="primary" /> Data is loading...
+                          <CircularProgress size={16} color="primary" /> Loading...
                         </Typography>
                       ) : (
                         <Typography variant="body2" color="text.secondary">No staff members found to build hierarchy tree.</Typography>

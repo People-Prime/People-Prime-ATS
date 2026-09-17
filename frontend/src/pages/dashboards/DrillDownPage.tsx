@@ -95,6 +95,7 @@ export const DrillDownPage: React.FC = () => {
     if (isCEOOroughReportingTeam) {
       return (
         <Box
+          component="span"
           onClick={(e) => {
             e.stopPropagation();
             setClickedTextValue(val);
@@ -107,6 +108,7 @@ export const DrillDownPage: React.FC = () => {
             cursor: 'pointer',
             fontSize: '0.7rem',
             userSelect: 'none',
+            display: 'inline-block',
             '&:hover': {
               color: 'primary.main',
               textDecoration: 'underline'

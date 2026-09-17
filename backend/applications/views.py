@@ -106,9 +106,28 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
             import threading
             threading.Thread(target=_dispatch_email, daemon=True).start()
 
+from rest_framework.pagination import PageNumberPagination
+
+class ConditionalPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def paginate_queryset(self, queryset, request, view=None):
+        if request.query_params.get('paginate') != 'true':
+            return None
+        return super().paginate_queryset(queryset, request, view)
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'results': data
+        })
+
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = ConditionalPagination
 
     def destroy(self, request, *args, **kwargs):
         from rest_framework.exceptions import PermissionDenied
@@ -168,14 +187,30 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         else:
             qs = Application.objects.none()
 
+        # Apply is_job_posting filtering if present
+        is_job_posting = self.request.query_params.get('is_job_posting')
+        if is_job_posting == 'true':
+            qs = qs.filter(candidate_name='')
+        elif is_job_posting == 'false':
+            qs = qs.exclude(candidate_name='')
+
         # Apply global search if present
         if global_search:
             search_query = Q(candidate_name__icontains=global_search) | \
                            Q(candidate_email__icontains=global_search) | \
-                           Q(candidate_phone__icontains=global_search)
+                           Q(candidate_phone__icontains=global_search) | \
+                           Q(client_name__icontains=global_search) | \
+                           Q(position__icontains=global_search) | \
+                           Q(technology__icontains=global_search) | \
+                           Q(remarks__icontains=global_search)
             if global_search.isdigit():
                 search_query |= Q(id=int(global_search))
-            qs = qs.exclude(candidate_name='').filter(search_query)
+            qs = qs.filter(search_query)
+
+        # Apply status filter if present
+        status_param = self.request.query_params.get('status')
+        if status_param and status_param not in ['ALL', 'HAS_CANDIDATE', 'INTERVIEWS']:
+            qs = qs.filter(status=status_param)
 
         # Apply date range filtering if not in global search
         if not global_search:
@@ -216,7 +251,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     ).distinct()
 
         if self.action == 'list':
-            return qs.select_related('assigned_employee').prefetch_related('notes').order_by('-created_at')
+            return qs.select_related('assigned_employee') \
+                     .prefetch_related('notes') \
+                     .defer('ai_job_embedding', 'ai_job_embedding_nemotron',
+                            'ai_job_embedding_metadata', 'job_embedding') \
+                     .order_by('-created_at')
 
         return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
 
@@ -742,7 +781,11 @@ class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from django.db.models import Q
-        qs = CareerPortalApplicant.objects.select_related('job').all().order_by('-created_at')
+        qs = CareerPortalApplicant.objects.select_related('job') \
+        .defer('job__ai_job_embedding', 'job__ai_job_embedding_nemotron',
+               'job__ai_job_embedding_metadata', 'job__job_embedding') \
+        .all().order_by('-created_at')
+
         job_id = self.request.query_params.get('job_id')
         if job_id:
             qs = qs.filter(job_id=job_id)
