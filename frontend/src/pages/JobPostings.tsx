@@ -100,9 +100,23 @@ export const JobPostings: React.FC = () => {
   const fetchPortalApplicants = async () => {
     setIsPortalLoading(true);
     try {
-      const res = await api.get('applications/career-portal-applicants/');
-      const list = res.data?.results ?? res.data ?? [];
-      setPortalApplicants(list);
+      // Backend now paginates career-portal-applicants (page_size=100, max=200).
+      // Fetch all pages so the UI continues to show every applicant.
+      let allApplicants: any[] = [];
+      let nextPage = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const res = await api.get(`applications/career-portal-applicants/?page=${nextPage}&page_size=100`);
+        const pageData = res.data?.results ?? res.data ?? [];
+        allApplicants = allApplicants.concat(pageData);
+        const totalCount = res.data?.count;
+        if (!totalCount || allApplicants.length >= totalCount || pageData.length === 0) {
+          hasMore = false;
+        } else {
+          nextPage++;
+        }
+      }
+      setPortalApplicants(allApplicants);
     } catch (err) {
       console.error("Failed to fetch career portal applicants", err);
     } finally {
@@ -118,9 +132,9 @@ export const JobPostings: React.FC = () => {
   const _handleImportPortalApplicant = async (portalApplicantId: number) => {
     try {
       await api.post(`applications/career-portal-applicants/${portalApplicantId}/import/`);
-      // Refresh applications list (so newly created ATS applicant appears immediately!)
-      const appsRes = await api.get('applications/');
+      const appsRes = await api.get(`applications/?all_records=true&start_date=${startDate}&end_date=${endDate}`);
       const list = appsRes.data?.results ?? appsRes.data ?? [];
+      setLocalApplications(list);
       dispatch(setApplications(list));
       // Refresh career portal applicants
       await fetchPortalApplicants();
@@ -532,6 +546,11 @@ export const JobPostings: React.FC = () => {
     } else {
       url += `start_date=${startDate}&end_date=${endDate}&`;
     }
+    // all_records=true bypasses pagination for this page.
+    // JobPostings groups both job-posting records and candidate records together
+    // and REQUIRES the full result set for a given date range to build correct
+    // groups. The date filter above ensures this is always a bounded request.
+    url += 'all_records=true&';
 
     api.get(url).then((res) => {
       const list = res.data?.results ?? res.data ?? [];

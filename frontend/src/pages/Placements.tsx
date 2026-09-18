@@ -69,7 +69,7 @@ export const Placements: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    let url = `applications/?status=Placed&`;
+    let url = `applications/?status=Placed&all_records=true&`;
     if (searchTerm.trim()) {
       url += `global_search=${encodeURIComponent(searchTerm.trim())}&`;
     }

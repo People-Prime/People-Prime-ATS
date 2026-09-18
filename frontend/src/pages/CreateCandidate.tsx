@@ -63,10 +63,12 @@ export const CreateCandidate: React.FC = () => {
     resumeUploadPromiseRef.current = promise;
   };
 
-  // Fetch applications if not loaded (e.g. on direct page refresh)
+  // Fetch job posting records if not loaded (e.g. on direct page refresh)
+  // Use is_job_posting=true with pagination so we don't load all 52k application records.
+  // The requirements dropdown only needs job posting rows (no candidate_name).
   useEffect(() => {
     if (applications.length === 0) {
-      api.get('applications/').then((res: any) => {
+      api.get('applications/?is_job_posting=true&page=1&page_size=50').then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
       }).catch(() => { });

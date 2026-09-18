@@ -63,7 +63,14 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def get_transition_dates(self, obj):
         dates = {}
         try:
-            notes_list = obj.notes.all()
+            # For list responses, use the prefetched status_notes (to_attr from Prefetch).
+            # This avoids triggering obj.notes.all() which would cause N+1 queries.
+            # For detail responses, fall back to obj.notes.all() (all notes prefetched there).
+            if hasattr(obj, 'status_notes'):
+                notes_list = obj.status_notes
+            else:
+                notes_list = obj.notes.filter(content__startswith='Status updated to ').order_by('created_at')
+
             if not notes_list:
                 if obj.status:
                     dates[obj.status] = obj.created_at.strftime('%Y-%m-%d')

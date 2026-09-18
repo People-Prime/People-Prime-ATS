@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
@@ -32,38 +32,41 @@ export const ViewCandidates: React.FC = () => {
 
   const { applications } = useAppSelector(state => state.applications);
 
-  // Load applications from API on mount
+  const [jobData, setJobData] = React.useState<any>(null);
+  const [candidates, setCandidates] = React.useState<any[]>([]);
+  const [loadingCandidates, setLoadingCandidates] = React.useState(true);
+
+  // Load job and its candidates from the dedicated endpoint.
+  // This replaces the previous api.get('applications/') which loaded all 52k records.
   useEffect(() => {
-    api.get('applications/').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(() => {});
-  }, [dispatch]);
+    if (!applicationId) return;
+    setLoadingCandidates(true);
+    api.get(`applications/job-candidates/?job_id=${applicationId}`)
+      .then((res: any) => {
+        setJobData(res.data?.job ?? null);
+        setCandidates(res.data?.candidates ?? []);
+        // Merge job record into Redux store so other pages that rely on it still work.
+        if (res.data?.job) {
+          dispatch(setApplications([res.data.job, ...res.data.candidates]));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCandidates(false));
+  }, [applicationId, dispatch]);
 
-  // Find the selected job requirement application
-  const selectedApp = useMemo(() => {
-    return applications.find(app => String(app.id) === String(applicationId));
-  }, [applications, applicationId]);
+  // selectedApp is the parent job posting
+  const selectedApp = jobData ?? applications.find(app => String(app.id) === String(applicationId));
 
-  // Find all unique candidates matching selected job requirement parameters (position, client, tech stack)
-  const jobCandidates = useMemo(() => {
-    if (!selectedApp) return [];
-    
-    const matches = applications.filter(app => 
-      app.candidate_name && 
-      app.position?.toLowerCase() === selectedApp.position?.toLowerCase() &&
-      app.client_name?.toLowerCase() === selectedApp.client_name?.toLowerCase() &&
-      app.technology?.toLowerCase() === selectedApp.technology?.toLowerCase()
-    );
-
+  // jobCandidates come from the dedicated endpoint response, deduplicated by email
+  const jobCandidates = React.useMemo(() => {
     const seen = new Set<string>();
-    return matches.filter(app => {
+    return candidates.filter(app => {
       const email = app.candidate_email?.toLowerCase() || '';
       if (!email || seen.has(email)) return false;
       seen.add(email);
       return true;
     });
-  }, [selectedApp, applications]);
+  }, [candidates]);
 
   // Status Chip helper
   const getStatusChip = (status: string) => {
@@ -116,6 +119,14 @@ export const ViewCandidates: React.FC = () => {
     return text;
   };
 
+  if (loadingCandidates) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography variant="body1" color="text.secondary">Loading candidates...</Typography>
+      </Box>
+    );
+  }
+
   if (!selectedApp) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -133,6 +144,7 @@ export const ViewCandidates: React.FC = () => {
       </Box>
     );
   }
+
 
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 2, md: 4 } }}>

@@ -215,6 +215,8 @@ export const Applications: React.FC = () => {
 
   // Load applications from API
   const [localApplications, setLocalApplications] = useState<Application[]>([]);
+  // Total count of matching records from the server (for pagination controls).
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -228,12 +230,16 @@ export const Applications: React.FC = () => {
     if (statusFilter !== 'ALL' && statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS') {
       url += `status=${encodeURIComponent(statusFilter)}&`;
     }
+    // Server-side pagination: request only one page of records.
+    url += `page=${page + 1}&page_size=${rowsPerPage}&`;
     api.get(url).then((res: any) => {
       const list = res.data?.results ?? res.data ?? [];
+      const count = res.data?.count ?? list.length;
       setLocalApplications(list);
+      setTotalCount(count);
     }).catch(() => { })
       .finally(() => setLoading(false));
-  }, [debouncedSearchTerm, startDate, endDate, statusFilter]);
+  }, [debouncedSearchTerm, startDate, endDate, statusFilter, page, rowsPerPage]);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
@@ -343,9 +349,10 @@ export const Applications: React.FC = () => {
     });
   }, [candidateGroups]);
 
-  const paginatedCandidates = useMemo(() => {
-    return uniqueCandidates.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-  }, [uniqueCandidates, page, rowsPerPage]);
+  // With server-side pagination the server already returns the page's slice.
+  // We still apply client-side grouping/dedup on the fetched records, then
+  // display ALL of the grouped unique candidates (no second client-side slice).
+  const paginatedCandidates = uniqueCandidates;
 
 
   const handleUpdateStatusSubmit = async () => {
@@ -965,7 +972,7 @@ export const Applications: React.FC = () => {
         <TablePagination
           rowsPerPageOptions={[25, 50, 100]}
           component="div"
-          count={uniqueCandidates.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(_, newPage) => setPage(newPage)}

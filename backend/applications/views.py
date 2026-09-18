@@ -5,7 +5,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Count, Q, Exists, OuterRef
+from django.db.models import Count, Q, Exists, OuterRef, Prefetch
 from django.utils import timezone
 from applications.models import Application, Note, CareerPortalApplicant
 from applications.serializers import (
@@ -108,13 +108,33 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
 
 from rest_framework.pagination import PageNumberPagination
 
-class ConditionalPagination(PageNumberPagination):
+class StandardResultsSetPagination(PageNumberPagination):
+    """
+    Always-on pagination for ApplicationViewSet.
+    Prevents full-table loads that caused OOM kills.
+    Default page_size=50, max=100.
+    all_records=true is only honored when bounded by date filters, status=Placed,
+    or global search, and capped at MAX_UNPAGINATED_RECORDS (2000).
+    """
     page_size = 50
     page_size_query_param = 'page_size'
     max_page_size = 100
+    MAX_UNPAGINATED_RECORDS = 2000
 
     def paginate_queryset(self, queryset, request, view=None):
-        if request.query_params.get('paginate') != 'true':
+        if request.query_params.get('all_records') == 'true':
+            has_date_filter = bool(request.query_params.get('start_date') and request.query_params.get('end_date'))
+            has_status_placed = request.query_params.get('status') == 'Placed'
+            has_search = bool(request.query_params.get('global_search'))
+
+            # Unbounded all_records requests are strictly prohibited to prevent OOM
+            if not (has_date_filter or has_status_placed or has_search):
+                return super().paginate_queryset(queryset, request, view)
+
+            # Enforce safety ceiling: if bounded query still returns too many rows, enforce pagination
+            if queryset.count() > self.MAX_UNPAGINATED_RECORDS:
+                return super().paginate_queryset(queryset, request, view)
+
             return None
         return super().paginate_queryset(queryset, request, view)
 
@@ -127,7 +147,7 @@ class ConditionalPagination(PageNumberPagination):
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = ConditionalPagination
+    pagination_class = StandardResultsSetPagination
 
     def destroy(self, request, *args, **kwargs):
         from rest_framework.exceptions import PermissionDenied
@@ -251,8 +271,18 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     ).distinct()
 
         if self.action == 'list':
+            # Prefetch ONLY status-transition notes (not all 81k notes).
+            # These are stored in the to_attr 'status_notes' so the serializer
+            # can build transition_dates without hitting obj.notes.all().
+            status_notes_prefetch = Prefetch(
+                'notes',
+                queryset=Note.objects.filter(
+                    content__startswith='Status updated to '
+                ).order_by('created_at'),
+                to_attr='status_notes'
+            )
             return qs.select_related('assigned_employee') \
-                     .prefetch_related('notes') \
+                     .prefetch_related(status_notes_prefetch) \
                      .defer('ai_job_embedding', 'ai_job_embedding_nemotron',
                             'ai_job_embedding_metadata', 'job_embedding') \
                      .order_by('-created_at')
@@ -263,6 +293,66 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return ApplicationCreateSerializer
         return ApplicationSerializer
+
+    @action(detail=False, methods=['get'], url_path='job-candidates')
+    def job_candidates(self, request):
+        """
+        Return all candidate Application records associated with a specific job.
+        Used by ViewCandidates page to avoid loading the entire application table.
+
+        Required query param: job_id (the Application ID of the parent job posting)
+        """
+        job_id = request.query_params.get('job_id')
+        if not job_id:
+            return Response(
+                {'error': 'job_id query parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Fetch the parent job posting first (validates it exists and is accessible)
+        try:
+            parent_job = self.get_queryset().filter(candidate_name='', pk=job_id).first()
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid job_id'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not parent_job:
+            return Response({'error': 'Job not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Extract job code from remarks to find sibling candidate applications
+        job_code_match = re.search(r'Job Code:\s*(.*)', parent_job.remarks or '')
+        job_code = job_code_match.group(1).strip() if job_code_match else None
+
+        # Find candidates for this job by job code in remarks, or by position+client match
+        base_qs = self.get_queryset().exclude(candidate_name='') \
+            .select_related('assigned_employee') \
+            .prefetch_related(
+                Prefetch(
+                    'notes',
+                    queryset=Note.objects.filter(
+                        content__startswith='Status updated to '
+                    ).order_by('created_at'),
+                    to_attr='status_notes'
+                )
+            ) \
+            .defer('ai_job_embedding', 'ai_job_embedding_nemotron',
+                   'ai_job_embedding_metadata', 'job_embedding') \
+            .order_by('-created_at')
+
+        if job_code and 'Auto Generated' not in job_code:
+            candidates = base_qs.filter(remarks__icontains=f'Job Code: {job_code}')
+        else:
+            # Fall back to position + client match
+            candidates = base_qs.filter(
+                position__iexact=parent_job.position,
+                client_name__iexact=parent_job.client_name
+            )
+
+        serializer = ApplicationSerializer(candidates, many=True, context={'request': request})
+        return Response({
+            'job': ApplicationSerializer(parent_job, context={'request': request}).data,
+            'candidates': serializer.data,
+            'count': candidates.count()
+        })
 
     @action(detail=False, methods=['get'], url_path='check-candidate')
     def check_candidate(self, request):
@@ -775,15 +865,33 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response({"error": "Stats not resolved for role."}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class CareerPortalApplicantPagination(PageNumberPagination):
+    """Pagination for career portal applicants — prevents unbounded list responses."""
+    page_size = 100
+    page_size_query_param = 'page_size'
+    max_page_size = 200
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'results': data
+        })
+
 class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
     serializer_class = CareerPortalApplicantSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = CareerPortalApplicantPagination
 
     def get_queryset(self):
         from django.db.models import Q
+        # Defer resume_embedding (VectorField 2048 floats = ~16 KB per row) — not needed in list responses.
+        # Also defer job-level embedding fields to avoid loading large vectors unnecessarily.
         qs = CareerPortalApplicant.objects.select_related('job') \
-        .defer('job__ai_job_embedding', 'job__ai_job_embedding_nemotron',
-               'job__ai_job_embedding_metadata', 'job__job_embedding') \
+        .defer(
+            'resume_embedding',
+            'job__ai_job_embedding', 'job__ai_job_embedding_nemotron',
+            'job__ai_job_embedding_metadata', 'job__job_embedding'
+        ) \
         .all().order_by('-created_at')
 
         job_id = self.request.query_params.get('job_id')

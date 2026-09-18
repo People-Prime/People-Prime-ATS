@@ -33,11 +33,17 @@ export const JobDetails: React.FC = () => {
   const dispatch = useAppDispatch();
 
   React.useEffect(() => {
-    api.get('applications/').then((res: any) => {
-      const list = res.data?.results ?? res.data ?? [];
-      dispatch(setApplications(list));
-    }).catch(err => console.error("Failed to load applications", err));
-  }, [dispatch]);
+    if (!applicationId) return;
+    // Fetch only the single record needed — avoids loading all 52k applications.
+    api.get(`applications/${applicationId}/`)
+      .then((res: any) => {
+        const record = res.data;
+        if (record) {
+          dispatch(setApplications([record]));
+        }
+      })
+      .catch(err => console.error("Failed to load application", err));
+  }, [applicationId, dispatch]);
 
   const applications = useAppSelector(state => state.applications.applications);
   const selectedApp = applications.find(a => String(a.id) === applicationId);

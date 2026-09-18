@@ -68,9 +68,11 @@ export const CandidateDetails: React.FC = () => {
         .catch(err => console.error('Failed to load application', err))
         .finally(() => setFetchingApp(false));
     }
-    // Also refresh the global list for the job submission dialog if cache is empty
+    // Fetch job posting records for the "Submit to Job" dialog dropdown.
+    // Use a bounded paginated request (is_job_posting=true) instead of loading
+    // all 52k application records. The dropdown only needs job posting rows.
     if (applications.length === 0) {
-      api.get('applications/').then((res: any) => {
+      api.get('applications/?is_job_posting=true&page=1&page_size=50').then((res: any) => {
         const list = res.data?.results ?? res.data ?? [];
         dispatch(setApplications(list));
       }).catch(err => console.error('Failed to load applications', err));
