@@ -487,42 +487,6 @@ export const Applications: React.FC = () => {
 
       const exportDisplayApps = exportFilteredApps.filter(app => app.candidate_name);
 
-      const exportCandidateGroups: Record<string, Application[]> = {};
-      exportDisplayApps.forEach(app => {
-        const key = app.candidate_email?.toLowerCase() || app.candidate_name?.toLowerCase() || `unknown_${app.id}`;
-        if (!exportCandidateGroups[key]) {
-          exportCandidateGroups[key] = [];
-        }
-        exportCandidateGroups[key].push(app);
-      });
-
-      const exportUniqueCandidates = Object.entries(exportCandidateGroups).map(([key, apps]) => {
-        // Deduplicate submissions by Job Code or Position + Client so the same job is not listed twice
-        const seenJobKeys = new Set<string>();
-        const uniqueSubmissions = apps.filter(a => {
-          let code = getRemarkField(a.remarks, 'Job Code');
-          if (code === 'N/A' || !code) {
-            code = `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
-          }
-          if (!code || code.includes('n/a|n/a') || seenJobKeys.has(code.toUpperCase().trim())) return false;
-          seenJobKeys.add(code.toUpperCase().trim());
-          return true;
-        });
-
-        return {
-          key,
-          primaryApp: (() => {
-            const sortedByResume = [...apps].sort((a, b) => {
-              const dateA = new Date(a.updated_at || a.created_at).getTime();
-              const dateB = new Date(b.updated_at || b.created_at).getTime();
-              return dateB - dateA;
-            });
-            return sortedByResume[0];
-          })(),
-          allSubmissions: uniqueSubmissions
-        };
-      });
-
       const headers = [
         'Applicant ID',
         'Applicant Name',
@@ -553,15 +517,25 @@ export const Applications: React.FC = () => {
         'Status Changed Date'
       ];
 
-      const rows = exportUniqueCandidates.map((cand) => {
-        const app = cand.primaryApp;
-        const directJobCode = getRemarkField(app.remarks, 'Job Code');
-        const realSubmission = cand.allSubmissions.find(s => getRemarkField(s.remarks, 'Job Code') !== 'N/A');
-        const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkField(realSubmission.remarks, 'Job Code') : 'N/A');
-        const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
+      const rows = exportDisplayApps.map((app) => {
+        let displayJobCode = getRemarkField(app.remarks, 'Job Code');
+        if (displayJobCode === 'N/A' || !displayJobCode) {
+          const jobPostingByTitle = applications.find(a =>
+            !a.candidate_name &&
+            a.position?.toLowerCase().trim() === app.position?.toLowerCase().trim() &&
+            a.client_name?.toLowerCase().trim() === app.client_name?.toLowerCase().trim()
+          );
+          if (jobPostingByTitle) {
+            const parentCode = getRemarkField(jobPostingByTitle.remarks, 'Job Code');
+            displayJobCode = (parentCode && parentCode !== 'N/A') ? parentCode : `PPW - ${String(jobPostingByTitle.id).padStart(4, '0')}`;
+          }
+        }
+        if (!displayJobCode) displayJobCode = 'N/A';
+
+        const displayPosition = (app.position && app.position !== 'N/A') ? app.position : 'N/A';
         const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
         const displayJobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
-        const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : (realSubmission ? realSubmission.client_name : 'N/A'));
+        const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : 'N/A');
         const displayStartDate = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
 
         const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
