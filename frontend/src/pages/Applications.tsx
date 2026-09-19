@@ -424,107 +424,209 @@ export const Applications: React.FC = () => {
     }
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+
   // CSV Export matching exact page display & filters
-  const handleExportCSV = () => {
-    const headers = [
-      'Applicant ID',
-      'Applicant Name',
-      'Email',
-      'Job Code',
-      'City',
-      'State',
-      'Applicant Status',
-      'Job Title',
-      'Job Type',
-      'Client Name',
-      'Tentative Start Date',
-      'Manager',
-      'Team Lead',
-      'Recruiter',
-      'PAN Card',
-      'Aadhaar',
-      'Alt Mobile',
-      'Source',
-      'Interest to Work',
-      'Modified By',
-      'Pay Rate',
-      'Variable Pay',
-      'Offer Value',
-      'Profit Amount',
-      'Date of Join',
-      'Created Date',
-      'Status Changed Date'
-    ];
-
-    const rows = uniqueCandidates.map((cand) => {
-      const app = cand.primaryApp;
-      const directJobCode = getRemarkField(app.remarks, 'Job Code');
-      const realSubmission = cand.allSubmissions.find(s => getRemarkField(s.remarks, 'Job Code') !== 'N/A');
-      const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkField(realSubmission.remarks, 'Job Code') : 'N/A');
-      const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
-      const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
-      const displayJobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
-      const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : (realSubmission ? realSubmission.client_name : 'N/A'));
-      const displayStartDate = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
-
-      const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
-      const recruiterEmails = siblingApps.map(a => a.assigned_employee?.email).filter(Boolean) as string[];
-      if (recruiterEmails.length === 0 && app.assigned_employee?.email) {
-        recruiterEmails.push(app.assigned_employee.email);
+  const handleExportCSV = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const queryTerm = debouncedSearchTerm.trim();
+      let exportUrl = 'applications/?is_job_posting=false&all_records=true&';
+      if (queryTerm) {
+        exportUrl += `global_search=${encodeURIComponent(queryTerm)}&`;
+      } else {
+        exportUrl += `start_date=${startDate}&end_date=${endDate}&`;
       }
-      const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+      if (statusFilter !== 'ALL' && statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS') {
+        exportUrl += `status=${encodeURIComponent(statusFilter)}&`;
+      }
 
-      return [
-        app.id,
-        app.candidate_name || 'N/A',
-        app.candidate_email || 'N/A',
-        displayJobCode,
-        app.city || 'N/A',
-        app.state || 'N/A',
-        app.status || 'N/A',
-        displayPosition,
-        displayJobType,
-        displayClientName,
-        formatDateDDMMYYYY(displayStartDate),
-        hierarchyInfo.manager,
-        hierarchyInfo.tl,
-        app.recruiter || app.assigned_employee?.full_name || 'System',
-        app.pan_card || 'N/A',
-        app.aadhaar || 'N/A',
-        app.alternate_mobile_number || 'N/A',
-        app.source || 'N/A',
-        app.interest_to_work_for_client || 'N/A',
-        app.modified_by || 'System',
-        getRemarkField(app.remarks, 'Pay Rate'),
-        getRemarkField(app.remarks, 'Variable Pay'),
-        getRemarkField(app.remarks, 'Offer Value'),
-        getRemarkField(app.remarks, 'Profit Amount'),
-        formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')),
-        formatDateDDMMYYYY(app.created_at),
-        formatDateDDMMYYYY(app.transition_dates?.[app.status] || app.updated_at)
+      const res = await api.get(exportUrl);
+      const isPaginatedFallback = !Array.isArray(res.data) && res.data?.results;
+      if (isPaginatedFallback && res.data?.count > res.data.results.length) {
+        alert("The export exceeds the maximum limit of 50,000 records. Please narrow your date range or filters.");
+        return;
+      }
+      const fetchedApps: Application[] = Array.isArray(res.data) ? res.data : (res.data?.results ?? []);
+
+      // Filter applications based on search and selected filter and roles
+      const exportFilteredApps = fetchedApps.filter((app) => {
+        // Team Filter (only for ADMIN/CEO/REPORTING_TEAM)
+        if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
+          const assignedEmail = app.assigned_employee?.email?.toLowerCase();
+          if (!assignedEmail) return false;
+          const recruiterUser = users.find(u => u.email.toLowerCase() === assignedEmail);
+          const isMemberOfTeam = recruiterUser?.teams?.some(t => String(t.id) === selectedTeamId);
+          if (!isMemberOfTeam) return false;
+        }
+
+        // 2. Status Filter
+        if (statusFilter !== 'ALL') {
+          if (statusFilter === 'HAS_CANDIDATE' && !app.candidate_name) return false;
+          else if (statusFilter === 'INTERVIEWS' && !['Interview Scheduled', 'Interview Completed'].includes(app.status)) return false;
+          else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
+        }
+
+        // 3. Text Search (Debounced)
+        const term = debouncedSearchTerm.trim().toLowerCase();
+        if (term) {
+          const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
+          const matchEmail = app.candidate_email?.toLowerCase().includes(term);
+          const matchPhone = app.candidate_phone?.toLowerCase().includes(term);
+          const matchClient = app.client_name?.toLowerCase().includes(term);
+          const matchPosition = app.position?.toLowerCase().includes(term);
+          const matchTech = app.technology?.toLowerCase().includes(term);
+          const matchAppId = String(app.id).toLowerCase().includes(term);
+          const matchJobCode = getRemarkField(app.remarks, 'Job Code').toLowerCase().includes(term);
+          return matchCandidate || matchEmail || matchPhone || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
+        }
+
+        return true;
+      });
+
+      const exportDisplayApps = exportFilteredApps.filter(app => app.candidate_name);
+
+      const exportCandidateGroups: Record<string, Application[]> = {};
+      exportDisplayApps.forEach(app => {
+        const key = app.candidate_email?.toLowerCase() || app.candidate_name?.toLowerCase() || `unknown_${app.id}`;
+        if (!exportCandidateGroups[key]) {
+          exportCandidateGroups[key] = [];
+        }
+        exportCandidateGroups[key].push(app);
+      });
+
+      const exportUniqueCandidates = Object.entries(exportCandidateGroups).map(([key, apps]) => {
+        // Deduplicate submissions by Job Code or Position + Client so the same job is not listed twice
+        const seenJobKeys = new Set<string>();
+        const uniqueSubmissions = apps.filter(a => {
+          let code = getRemarkField(a.remarks, 'Job Code');
+          if (code === 'N/A' || !code) {
+            code = `${a.client_name?.toLowerCase().trim()}|${a.position?.toLowerCase().trim()}`;
+          }
+          if (!code || code.includes('n/a|n/a') || seenJobKeys.has(code.toUpperCase().trim())) return false;
+          seenJobKeys.add(code.toUpperCase().trim());
+          return true;
+        });
+
+        return {
+          key,
+          primaryApp: (() => {
+            const sortedByResume = [...apps].sort((a, b) => {
+              const dateA = new Date(a.updated_at || a.created_at).getTime();
+              const dateB = new Date(b.updated_at || b.created_at).getTime();
+              return dateB - dateA;
+            });
+            return sortedByResume[0];
+          })(),
+          allSubmissions: uniqueSubmissions
+        };
+      });
+
+      const headers = [
+        'Applicant ID',
+        'Applicant Name',
+        'Email',
+        'Job Code',
+        'City',
+        'State',
+        'Applicant Status',
+        'Job Title',
+        'Job Type',
+        'Client Name',
+        'Tentative Start Date',
+        'Manager',
+        'Team Lead',
+        'Recruiter',
+        'PAN Card',
+        'Aadhaar',
+        'Alt Mobile',
+        'Source',
+        'Interest to Work',
+        'Modified By',
+        'Pay Rate',
+        'Variable Pay',
+        'Offer Value',
+        'Profit Amount',
+        'Date of Join',
+        'Created Date',
+        'Status Changed Date'
       ];
-    });
 
-    const escapeCell = (val: any): string => {
-      if (val === null || val === undefined) return '""';
-      const str = String(val).replace(/"/g, '""');
-      return `"${str}"`;
-    };
+      const rows = exportUniqueCandidates.map((cand) => {
+        const app = cand.primaryApp;
+        const directJobCode = getRemarkField(app.remarks, 'Job Code');
+        const realSubmission = cand.allSubmissions.find(s => getRemarkField(s.remarks, 'Job Code') !== 'N/A');
+        const displayJobCode = directJobCode !== 'N/A' ? directJobCode : (realSubmission ? getRemarkField(realSubmission.remarks, 'Job Code') : 'N/A');
+        const displayPosition = (app.position && app.position !== 'N/A') ? app.position : (realSubmission ? realSubmission.position : 'N/A');
+        const jobPosting = applications.find(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
+        const displayJobType = jobPosting ? getRemarkField(jobPosting.remarks, 'Job Type') : 'N/A';
+        const displayClientName = (app.client_name && app.client_name !== 'N/A') ? app.client_name : (jobPosting ? jobPosting.client_name : (realSubmission ? realSubmission.client_name : 'N/A'));
+        const displayStartDate = jobPosting ? getRemarkField(jobPosting.remarks, 'Start Date') : 'N/A';
 
-    const csvContent = [
-      headers.map(escapeCell).join(','),
-      ...rows.map(row => row.map(escapeCell).join(','))
-    ].join('\r\n');
+        const siblingApps = applications.filter(a => !a.candidate_name && getRemarkField(a.remarks, 'Job Code') === displayJobCode);
+        const recruiterEmails = siblingApps.map(a => a.assigned_employee?.email).filter(Boolean) as string[];
+        if (recruiterEmails.length === 0 && app.assigned_employee?.email) {
+          recruiterEmails.push(app.assigned_employee.email);
+        }
+        const hierarchyInfo = getHierarchyInfo(recruiterEmails);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `applicants_export_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+        return [
+          app.id,
+          app.candidate_name || 'N/A',
+          app.candidate_email || 'N/A',
+          displayJobCode,
+          app.city || 'N/A',
+          app.state || 'N/A',
+          app.status || 'N/A',
+          displayPosition,
+          displayJobType,
+          displayClientName,
+          formatDateDDMMYYYY(displayStartDate),
+          hierarchyInfo.manager,
+          hierarchyInfo.tl,
+          app.recruiter || app.assigned_employee?.full_name || 'System',
+          app.pan_card || 'N/A',
+          app.aadhaar || 'N/A',
+          app.alternate_mobile_number || 'N/A',
+          app.source || 'N/A',
+          app.interest_to_work_for_client || 'N/A',
+          app.modified_by || 'System',
+          getRemarkField(app.remarks, 'Pay Rate'),
+          getRemarkField(app.remarks, 'Variable Pay'),
+          getRemarkField(app.remarks, 'Offer Value'),
+          getRemarkField(app.remarks, 'Profit Amount'),
+          formatDateDDMMYYYY(getRemarkField(app.remarks, 'Date of Join')),
+          formatDateDDMMYYYY(app.created_at),
+          formatDateDDMMYYYY(app.transition_dates?.[app.status] || app.updated_at)
+        ];
+      });
+
+      const escapeCell = (val: any): string => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const csvContent = [
+        headers.map(escapeCell).join(','),
+        ...rows.map(row => row.map(escapeCell).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `applicants_export_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export CSV. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (loading && applications.length === 0) {
@@ -558,8 +660,9 @@ export const Applications: React.FC = () => {
           />
           <Button
             variant="outlined"
-            startIcon={<Download size={18} />}
+            startIcon={isExporting ? <CircularProgress size={18} color="inherit" /> : <Download size={18} />}
             onClick={handleExportCSV}
+            disabled={isExporting}
             sx={{ borderRadius: '8px', borderWeight: 2 }}
           >
             Export CSV Pipeline
