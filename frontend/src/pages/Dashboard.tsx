@@ -25,13 +25,13 @@ export const Dashboard: React.FC = () => {
   const [endDate, setEndDate] = useState(() => localStorage.getItem(`dashboard_end_date_${currentUser?.email}`) || todayStr());
   const [loadingApps, setLoadingApps] = useState(true);
 
-  const { applications } = useAppSelector(state => state.applications);
-
   // Sync date changes to localStorage
   useEffect(() => {
     if (currentUser?.email) {
       localStorage.setItem(`dashboard_start_date_${currentUser.email}`, startDate);
       localStorage.setItem(`dashboard_end_date_${currentUser.email}`, endDate);
+      localStorage.setItem('dashboard_start_date', startDate);
+      localStorage.setItem('dashboard_end_date', endDate);
     }
   }, [startDate, endDate, currentUser]);
 
@@ -42,21 +42,24 @@ export const Dashboard: React.FC = () => {
       url += `&start_date=${startDate}&end_date=${endDate}`;
     }
 
-    const hasData = applications && applications.length > 0;
-    if (hasData) {
-      setLoadingApps(false);
-      api.get(url).then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {});
-    } else {
-      setLoadingApps(true);
-      api.get(url).then((res: any) => {
-        const list = res.data?.results ?? res.data ?? [];
-        dispatch(setApplications(list));
-      }).catch(() => {})
-        .finally(() => setLoadingApps(false));
-    }
+    setLoadingApps(true);
+    let isCancelled = false;
+
+    api.get(url).then((res: any) => {
+      if (isCancelled) return;
+      const list = res.data?.results ?? res.data ?? [];
+      dispatch(setApplications(list));
+    }).catch((err) => {
+      console.error("Failed to load dashboard applications", err);
+    }).finally(() => {
+      if (!isCancelled) {
+        setLoadingApps(false);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [dispatch, currentUser?.email, startDate, endDate]);
 
   return (

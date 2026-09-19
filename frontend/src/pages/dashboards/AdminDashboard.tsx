@@ -107,8 +107,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const dateFilteredApps = useMemo(() => {
     if (!startDate || !endDate) return deduplicatedApps;
     return deduplicatedApps.filter(app => {
-      const d = (app.created_at || '').slice(0, 10);
-      return d >= startDate && d <= endDate;
+      const cDate = (app.created_at || '').slice(0, 10);
+      if (cDate >= startDate && cDate <= endDate) return true;
+      const uDate = (app.updated_at || '').slice(0, 10);
+      if (uDate >= startDate && uDate <= endDate) return true;
+      if (app.transition_dates) {
+        return Object.values(app.transition_dates).some(
+          (td: any) => String(td).slice(0, 10) >= startDate && String(td).slice(0, 10) <= endDate
+        );
+      }
+      return false;
     });
   }, [deduplicatedApps, startDate, endDate]);
   // Local dialog states removed because we navigate to dedicated DrillDownPage

@@ -254,27 +254,30 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       const seen = new Set<string>();
       const dateFiltered = userApps.filter(app => {
         const parentJob = findParentJobForApp(app);
-        if (!parentJob) return false;
-        const d = (parentJob.created_at || '').slice(0, 10);
+        const appToUse = parentJob || app;
+        const d = (appToUse.created_at || '').slice(0, 10);
         return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       });
       dateFiltered.forEach(app => {
         const parentJob = findParentJobForApp(app);
-        if (!parentJob) return;
-        let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
+        const appToUse = parentJob || app;
+        let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
         if (jobCode === 'N/A' || !jobCode) {
-          jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
+          if (!appToUse.candidate_name) {
+            jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
+          }
         }
-        if (!jobCode) return;
+        if (!jobCode || jobCode === 'N/A') return;
         const key = jobCode.toUpperCase().trim();
         if (!seen.has(key)) {
           seen.add(key);
           const group = dateFiltered.filter(a => {
-            const pJob = findParentJobForApp(a);
-            if (!pJob) return false;
+            const pJob = findParentJobForApp(a) || a;
             let code = getRemarkField(pJob.remarks, 'Job Code');
             if (code === 'N/A' || !code) {
-              code = `PPW-${String(pJob.id).padStart(4, '0')}`;
+              if (!pJob.candidate_name) {
+                code = `PPW-${String(pJob.id).padStart(4, '0')}`;
+              }
             }
             return code && code.toUpperCase().trim() === key;
           });
@@ -409,16 +412,18 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     const seenJobs = new Set<string>();
     userApps.forEach(app => {
       const parentJob = findParentJobForApp(app);
-      if (!parentJob) return;
-      const d = (parentJob.created_at || '').slice(0, 10);
+      const appToUse = parentJob || app;
+      const d = (appToUse.created_at || '').slice(0, 10);
       const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
       if (!isWithinDate) return;
 
-      let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
+      let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
       if (jobCode === 'N/A' || !jobCode) {
-        jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
+        if (!appToUse.candidate_name) {
+          jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
+        }
       }
-      if (!jobCode) return;
+      if (!jobCode || jobCode === 'N/A') return;
       seenJobs.add(jobCode.toUpperCase().trim());
     });
     const jobsCount = seenJobs.size;
@@ -573,17 +578,19 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           const seen = new Set<string>();
           descendantApps.forEach(app => {
             const parentJob = findParentJobForApp(app);
-            if (!parentJob) return;
+            const appToUse = parentJob || app;
             if (effectiveStartDate && effectiveEndDate) {
-              const d = (parentJob.created_at || '').slice(0, 10);
+              const d = (appToUse.created_at || '').slice(0, 10);
               if (d < effectiveStartDate || d > effectiveEndDate) return;
             }
 
-            let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
+            let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
             if (jobCode === 'N/A' || !jobCode) {
-              jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
+              if (!appToUse.candidate_name) {
+                jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
+              }
             }
-            if (!jobCode) return;
+            if (!jobCode || jobCode === 'N/A') return;
             seen.add(jobCode.toUpperCase().trim());
           });
 
@@ -670,17 +677,19 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           const seen = new Set<string>();
           descendantApps.forEach(app => {
             const parentJob = findParentJobForApp(app);
-            if (!parentJob) return;
+            const appToUse = parentJob || app;
             if (effectiveStartDate && effectiveEndDate) {
-              const d = (parentJob.created_at || '').slice(0, 10);
+              const d = (appToUse.created_at || '').slice(0, 10);
               if (d < effectiveStartDate || d > effectiveEndDate) return;
             }
 
-            let jobCode = getRemarkField(parentJob.remarks, 'Job Code');
+            let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
             if (jobCode === 'N/A' || !jobCode) {
-              jobCode = `PPW-${String(parentJob.id).padStart(4, '0')}`;
+              if (!appToUse.candidate_name) {
+                jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
+              }
             }
-            if (!jobCode) return;
+            if (!jobCode || jobCode === 'N/A') return;
             seen.add(jobCode.toUpperCase().trim());
           });
 
