@@ -119,7 +119,7 @@ class StandardResultsSetPagination(PageNumberPagination):
     page_size = 50
     page_size_query_param = 'page_size'
     max_page_size = 100
-    MAX_UNPAGINATED_RECORDS = 50000
+    MAX_UNPAGINATED_RECORDS = 2000
 
     def paginate_queryset(self, queryset, request, view=None):
         if request.query_params.get('all_records') == 'true':
@@ -278,7 +278,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 'notes',
                 queryset=Note.objects.filter(
                     content__startswith='Status updated to '
-                ).order_by('created_at'),
+                ).select_related('author').order_by('created_at'),
                 to_attr='status_notes'
             )
             return qs.select_related('assigned_employee') \
@@ -330,7 +330,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     'notes',
                     queryset=Note.objects.filter(
                         content__startswith='Status updated to '
-                    ).order_by('created_at'),
+                    ).select_related('author').order_by('created_at'),
                     to_attr='status_notes'
                 )
             ) \
