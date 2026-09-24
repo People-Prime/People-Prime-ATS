@@ -103,6 +103,7 @@ class PublicJobApplyAPIView(APIView):
         try:
             import os
             import boto3
+            from botocore.config import Config
 
             bucket_name = os.getenv('AWS_STORAGE_BUCKET_NAME', 'ats-resumestorage')
             region = os.getenv('AWS_S3_REGION_NAME', 'ap-south-1')
@@ -110,11 +111,17 @@ class PublicJobApplyAPIView(APIView):
             secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 
             if access_key and secret_key:
+                s3_config = Config(
+                    connect_timeout=5,
+                    read_timeout=15,
+                    retries={'max_attempts': 2}
+                )
                 s3_client = boto3.client(
                     's3',
                     region_name=region,
                     aws_access_key_id=access_key,
-                    aws_secret_access_key=secret_key
+                    aws_secret_access_key=secret_key,
+                    config=s3_config
                 )
                 content_type = 'application/octet-stream'
                 if filename.lower().endswith('.pdf'):
