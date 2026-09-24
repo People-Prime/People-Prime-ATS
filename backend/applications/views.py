@@ -1,6 +1,7 @@
 import csv
 import re
-from django.http import HttpResponse
+from datetime import datetime, date
+from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -105,6 +106,58 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
 
             import threading
             threading.Thread(target=_dispatch_email, daemon=True).start()
+
+
+class Echo:
+    """An object that implements just the write method of the file-like interface."""
+    def write(self, value):
+        """Write the value by returning it, instead of storing in a buffer."""
+        return value
+
+
+def _extract_remark_field_for_export(remarks, field_name):
+    if not remarks:
+        return 'N/A'
+    if field_name == 'Variable Pay':
+        m = re.search(r'^(Variable Pay|Gross Revenue):[ \t]*(.+)', remarks, re.IGNORECASE | re.MULTILINE)
+        if m:
+            val = m.group(2).strip()
+            return val if val else 'N/A'
+        return 'N/A'
+    if field_name == 'Offer Value':
+        m = re.search(r'^(Offer Value|Invoice Amount):[ \t]*(.+)', remarks, re.IGNORECASE | re.MULTILINE)
+        if m:
+            val = m.group(2).strip()
+            return val if val else 'N/A'
+        return 'N/A'
+    m = re.search(rf'^{re.escape(field_name)}:[ \t]*(.+)', remarks, re.IGNORECASE | re.MULTILINE)
+    if m:
+        val = m.group(1).strip()
+        clean_val = val if val else 'N/A'
+        if field_name == 'Job Code' and clean_val != 'N/A':
+            if not clean_val.upper().startswith('PPW'):
+                return 'N/A'
+        return clean_val
+    return 'N/A'
+
+
+def _format_date_ddmmyyyy(val):
+    if not val or val in ('N/A', '—', 'None', 'undefined', 'null'):
+        return 'N/A'
+    if isinstance(val, (datetime, date)):
+        return val.strftime('%d-%m-%Y')
+    s = str(val).strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}', s):
+        parts = s.split('T')[0].split('-')
+        if len(parts) == 3:
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+    try:
+        dt = datetime.fromisoformat(s)
+        return dt.strftime('%d-%m-%Y')
+    except Exception:
+        pass
+    return s
+
 
 from rest_framework.pagination import PageNumberPagination
 
@@ -214,6 +267,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         elif is_job_posting == 'false':
             qs = qs.exclude(candidate_name='')
 
+        # Apply team filter if present
+        team_id = self.request.query_params.get('team_id')
+        if team_id and team_id != 'ALL':
+            qs = qs.filter(assigned_employee__teams__id=team_id)
+
         # Apply global search if present
         if global_search:
             search_query = Q(candidate_name__icontains=global_search) | \
@@ -231,6 +289,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         status_param = self.request.query_params.get('status')
         if status_param and status_param not in ['ALL', 'HAS_CANDIDATE', 'INTERVIEWS']:
             qs = qs.filter(status=status_param)
+        elif status_param == 'INTERVIEWS':
+            qs = qs.filter(status__in=['Interview Scheduled', 'Interview Completed'])
+        elif status_param == 'HAS_CANDIDATE':
+            qs = qs.exclude(candidate_name='')
 
         # Apply date range filtering if not in global search
         if not global_search:
@@ -466,37 +528,186 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         
         return Response(NoteSerializer(note).data, status=status.HTTP_201_CREATED)
 
-    # Export filtered candidate listings to CSV
+    # Export filtered candidate listings to CSV (Full 27 columns, unlimited streaming)
     @action(detail=False, methods=['get'], url_path='export-csv')
     def export_csv(self, request):
         queryset = self.get_queryset()
-        
-        response = HttpResponse(content_type='text/csv')
+
+        status_notes_prefetch = Prefetch(
+            'notes',
+            queryset=Note.objects.filter(
+                content__startswith='Status updated to '
+            ).order_by('created_at'),
+            to_attr='status_notes'
+        )
+        queryset = queryset.select_related('assigned_employee') \
+                           .prefetch_related(status_notes_prefetch) \
+                           .defer('ai_job_embedding', 'ai_job_embedding_nemotron',
+                                  'ai_job_embedding_metadata', 'job_embedding') \
+                           .order_by('-created_at')
+
+        # 1. Pre-fetch all parent job postings into memory once for parent job fallbacks
+        parent_jobs = list(Application.objects.filter(candidate_name='').select_related('assigned_employee'))
+        parent_by_code = {}
+        parent_by_title_client = {}
+        sibling_recruiters_by_code = {}
+
+        for pj in parent_jobs:
+            code = _extract_remark_field_for_export(pj.remarks, 'Job Code')
+            if code and code != 'N/A':
+                parent_by_code[code] = pj
+                if code not in sibling_recruiters_by_code:
+                    sibling_recruiters_by_code[code] = []
+                if pj.assigned_employee and pj.assigned_employee.email:
+                    sibling_recruiters_by_code[code].append(pj.assigned_employee.email)
+
+            pos = (pj.position or '').lower().strip()
+            client = (pj.client_name or '').lower().strip()
+            if pos and client and (pos, client) not in parent_by_title_client:
+                parent_by_title_client[(pos, client)] = pj
+
+        # 2. Pre-fetch users for hierarchy resolution
+        all_users = {u.email.lower(): u for u in User.objects.all().prefetch_related('reporting_to')}
+        reporting_map = {
+            u.email.lower(): [p.email.lower() for p in u.reporting_to.all()]
+            for u in all_users.values()
+        }
+
+        def get_hierarchy_info(recruiter_emails):
+            tls = set()
+            managers = set()
+            for email in recruiter_emails:
+                curr_email = email.lower() if email else ''
+                visited = set()
+                while curr_email and curr_email not in visited:
+                    visited.add(curr_email)
+                    curr_user = all_users.get(curr_email)
+                    if not curr_user:
+                        break
+                    if curr_user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+                        tls.add(curr_user.full_name or curr_user.email)
+                    if curr_user.role in [Role.JUNIOR_MANAGER, Role.SENIOR_MANAGER]:
+                        managers.add(curr_user.full_name or curr_user.email)
+
+                    parents = reporting_map.get(curr_email, [])
+                    curr_email = parents[0] if parents else None
+
+            return {
+                'tl': ', '.join(sorted(tls)) if tls else 'N/A',
+                'manager': ', '.join(sorted(managers)) if managers else 'N/A'
+            }
+
+        hierarchy_cache = {}
+        def get_cached_hierarchy(recruiter_emails):
+            key = tuple(sorted(recruiter_emails))
+            if key not in hierarchy_cache:
+                hierarchy_cache[key] = get_hierarchy_info(recruiter_emails)
+            return hierarchy_cache[key]
+
+        headers = [
+            'Applicant ID',
+            'Applicant Name',
+            'Email',
+            'Job Code',
+            'City',
+            'State',
+            'Applicant Status',
+            'Job Title',
+            'Job Type',
+            'Client Name',
+            'Tentative Start Date',
+            'Manager',
+            'Team Lead',
+            'Recruiter',
+            'PAN Card',
+            'Aadhaar',
+            'Alt Mobile',
+            'Source',
+            'Interest to Work',
+            'Modified By',
+            'Pay Rate',
+            'Variable Pay',
+            'Offer Value',
+            'Profit Amount',
+            'Date of Join',
+            'Created Date',
+            'Status Changed Date'
+        ]
+
+        pseudo_buffer = Echo()
+        writer = csv.writer(pseudo_buffer)
+
+        def row_generator():
+            yield writer.writerow(headers)
+            for app in queryset.iterator(chunk_size=2000):
+                # Job code resolution
+                display_job_code = _extract_remark_field_for_export(app.remarks, 'Job Code')
+                if display_job_code == 'N/A' or not display_job_code:
+                    pos_key = ((app.position or '').lower().strip(), (app.client_name or '').lower().strip())
+                    pj_by_title = parent_by_title_client.get(pos_key)
+                    if pj_by_title:
+                        p_code = _extract_remark_field_for_export(pj_by_title.remarks, 'Job Code')
+                        display_job_code = p_code if (p_code and p_code != 'N/A') else f"PPW - {pj_by_title.id:04d}"
+                if not display_job_code:
+                    display_job_code = 'N/A'
+
+                display_position = app.position if (app.position and app.position != 'N/A') else 'N/A'
+                pj = parent_by_code.get(display_job_code)
+                display_job_type = _extract_remark_field_for_export(pj.remarks, 'Job Type') if pj else 'N/A'
+                display_client_name = app.client_name if (app.client_name and app.client_name != 'N/A') else (pj.client_name if pj and pj.client_name else 'N/A')
+                display_start_date = _extract_remark_field_for_export(pj.remarks, 'Start Date') if pj else 'N/A'
+
+                recruiter_emails = list(sibling_recruiters_by_code.get(display_job_code, []))
+                if not recruiter_emails and app.assigned_employee and app.assigned_employee.email:
+                    recruiter_emails.append(app.assigned_employee.email)
+
+                hierarchy = get_cached_hierarchy(recruiter_emails)
+
+                # Status changed date
+                status_changed_date = None
+                if hasattr(app, 'status_notes') and app.status_notes:
+                    for note in app.status_notes:
+                        if note.content and note.content.startswith("Status updated to "):
+                            status_part = note.content[18:].split(".")[0].split("\n")[0].strip()
+                            if status_part == app.status:
+                                status_changed_date = note.created_at
+                                break
+                if not status_changed_date:
+                    status_changed_date = app.updated_at
+
+                row = [
+                    app.id,
+                    app.candidate_name or 'N/A',
+                    app.candidate_email or 'N/A',
+                    display_job_code,
+                    app.city or 'N/A',
+                    app.state or 'N/A',
+                    app.status or 'N/A',
+                    display_position,
+                    display_job_type,
+                    display_client_name,
+                    _format_date_ddmmyyyy(display_start_date),
+                    hierarchy['manager'],
+                    hierarchy['tl'],
+                    app.recruiter or (app.assigned_employee.full_name if app.assigned_employee else 'System'),
+                    app.pan_card or 'N/A',
+                    app.aadhaar or 'N/A',
+                    app.alternate_mobile_number or 'N/A',
+                    app.source or 'N/A',
+                    app.interest_to_work_for_client or 'N/A',
+                    app.modified_by or 'System',
+                    _extract_remark_field_for_export(app.remarks, 'Pay Rate'),
+                    _extract_remark_field_for_export(app.remarks, 'Variable Pay'),
+                    _extract_remark_field_for_export(app.remarks, 'Offer Value'),
+                    _extract_remark_field_for_export(app.remarks, 'Profit Amount'),
+                    _format_date_ddmmyyyy(_extract_remark_field_for_export(app.remarks, 'Date of Join')),
+                    _format_date_ddmmyyyy(app.created_at),
+                    _format_date_ddmmyyyy(status_changed_date)
+                ]
+                yield writer.writerow(row)
+
+        response = StreamingHttpResponse(row_generator(), content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="ats_applications.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow([
-            'ID', 'Candidate Name', 'Candidate Email', 'Candidate Phone',
-            'Client Name', 'Position', 'Technology', 'Experience Required',
-            'Recruiter', 'Assigned Associate', 'Status', 'Updated At'
-        ])
-        
-        for app in queryset:
-            writer.writerow([
-                app.id,
-                app.candidate_name or 'N/A',
-                app.candidate_email or 'N/A',
-                app.candidate_phone or 'N/A',
-                app.client_name,
-                app.position,
-                app.technology,
-                app.experience,
-                app.recruiter or 'N/A',
-                app.assigned_employee.full_name if app.assigned_employee else 'Unassigned',
-                app.status,
-                app.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-            ])
-            
         return response
 
     # Generate a pre-signed S3 URL for secure resume access (valid 1 hour)
