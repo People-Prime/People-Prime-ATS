@@ -799,6 +799,193 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             'fileName': file_obj.name
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='hierarchy-stats')
+    def hierarchy_stats(self, request):
+        import re
+        from collections import defaultdict
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        apps = list(Application.objects.select_related('assigned_employee').only(
+            'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
+            'remarks', 'recruiter', 'assigned_employee_id', 'assigned_employee__email',
+            'status', 'modified_by', 'created_at'
+        ).all())
+
+        notes_qs = Note.objects.filter(content__istartswith='Status updated to ').values('application_id', 'content', 'created_at')
+        notes_dict = defaultdict(list)
+        for n in notes_qs:
+            notes_dict[n['application_id']].append(n)
+
+        def get_remark_field(remarks, field_name):
+            if not remarks:
+                return 'N/A'
+            m = re.search(r'^' + field_name + r':[ \t]*(.+)', remarks, re.M | re.I)
+            val = m.group(1).strip() if m else 'N/A'
+            if field_name == 'Job Code' and val != 'N/A':
+                if not val.upper().startswith('PPW'):
+                    return 'N/A'
+            return val if val else 'N/A'
+
+        candidate_groups = defaultdict(list)
+        for a in apps:
+            if not a.candidate_name:
+                continue
+            k = (a.candidate_email or '').lower().strip() or (a.candidate_name or '').lower().strip()
+            candidate_groups[k].append(a)
+
+        deduplicated_apps = []
+        for a in apps:
+            if not a.candidate_name:
+                deduplicated_apps.append(a)
+                continue
+            k = (a.candidate_email or '').lower().strip() or (a.candidate_name or '').lower().strip()
+            group = candidate_groups[k]
+            has_real_job = any(get_remark_field(x.remarks, 'Job Code') != 'N/A' for x in group)
+            if has_real_job:
+                if get_remark_field(a.remarks, 'Job Code') != 'N/A':
+                    deduplicated_apps.append(a)
+            else:
+                if a.id == group[0].id:
+                    deduplicated_apps.append(a)
+
+        code_map = {}
+        pos_client_map = defaultdict(list)
+        for a in deduplicated_apps:
+            if a.candidate_name:
+                continue
+            code = get_remark_field(a.remarks, 'Job Code')
+            if code and code != 'N/A':
+                key = code.upper().strip()
+                if key not in code_map:
+                    code_map[key] = a
+            norm_pos = (a.position or '').lower().strip()
+            norm_client = (a.client_name or '').lower().strip()
+            if norm_pos and norm_client:
+                pos_client_map[f'{norm_pos}|{norm_client}'].append(a)
+
+        def find_parent_job(app):
+            if not app:
+                return None
+            if not app.candidate_name:
+                return app
+            direct_code = get_remark_field(app.remarks, 'Job Code')
+            if direct_code and direct_code != 'N/A':
+                p = code_map.get(direct_code.upper().strip())
+                if p:
+                    return p
+            norm_pos = (app.position or '').lower().strip()
+            norm_client = (app.client_name or '').lower().strip()
+            if not norm_pos or not norm_client:
+                return None
+            candidates = pos_client_map.get(f'{norm_pos}|{norm_client}')
+            if not candidates:
+                return None
+            if start_date and end_date:
+                for c in candidates:
+                    d = (c.created_at.strftime('%Y-%m-%d') if c.created_at else '')
+                    if d >= start_date and d <= end_date:
+                        return c
+            sub_date = (app.created_at.strftime('%Y-%m-%d') if app.created_at else '')
+            on_or_before = [c for c in candidates if (c.created_at.strftime('%Y-%m-%d') if c.created_at else '') <= sub_date]
+            if on_or_before:
+                on_or_before.sort(key=lambda x: x.created_at, reverse=True)
+                return on_or_before[0]
+            return candidates[0]
+
+        def get_status_transition_date(app, target_status):
+            app_notes = notes_dict.get(app.id, [])
+            target_prefix = f'status updated to {target_status}'.lower()
+            matching_notes = [n for n in app_notes if (n['content'] or '').strip().lower().startswith(target_prefix)]
+            if matching_notes:
+                matching_notes.sort(key=lambda n: n['created_at'], reverse=True)
+                return matching_notes[0]['created_at'].strftime('%Y-%m-%d')
+            if app.status == target_status:
+                return app.created_at.strftime('%Y-%m-%d')
+            return ''
+
+        users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']))
+        user_by_email = {u.email.lower(): u.email.lower() for u in users}
+        name_to_emails = defaultdict(list)
+        for u in users:
+            if u.full_name:
+                name_to_emails[u.full_name.lower()].append(u.email.lower())
+
+        user_apps_map = defaultdict(list)
+        user_subs_map = defaultdict(list)
+
+        for a in deduplicated_apps:
+            matched_emails = set()
+            if a.assigned_employee:
+                emp_email = a.assigned_employee.email.lower()
+                if emp_email in user_by_email:
+                    matched_emails.add(emp_email)
+                if a.candidate_name:
+                    user_subs_map[emp_email].append(a)
+            
+            if a.recruiter:
+                rec_lower = a.recruiter.lower()
+                if rec_lower in user_by_email:
+                    matched_emails.add(rec_lower)
+                if rec_lower in name_to_emails:
+                    for target in name_to_emails[rec_lower]:
+                        matched_emails.add(target)
+
+            for e in matched_emails:
+                user_apps_map[e].append(a)
+
+        user_metrics = {}
+
+        for u in users:
+            email = u.email.lower()
+            user_apps = user_apps_map.get(email, [])
+            
+            seen_jobs = set()
+            for a in user_apps:
+                p_job = find_parent_job(a) or a
+                d = (p_job.created_at.strftime('%Y-%m-%d') if p_job.created_at else '')
+                if not start_date or not end_date or (d >= start_date and d <= end_date):
+                    code = get_remark_field(p_job.remarks, 'Job Code')
+                    if not code or code == 'N/A':
+                        if not p_job.candidate_name:
+                            code = f'PPW-{str(p_job.id).zfill(4)}'
+                    if code and code != 'N/A':
+                        seen_jobs.add(code.upper().strip())
+
+            sub_count = 0
+            for a in user_subs_map.get(email, []):
+                d = get_status_transition_date(a, 'Submitted')
+                if d and (not start_date or not end_date or (d >= start_date and d <= end_date)):
+                    sub_count += 1
+
+            int_count = 0
+            for a in user_apps:
+                d_s = get_status_transition_date(a, 'Interview Scheduled')
+                d_c = get_status_transition_date(a, 'Interview Completed')
+                match_s = bool(d_s and (not start_date or not end_date or (d_s >= start_date and d_s <= end_date)))
+                match_c = bool(d_c and (not start_date or not end_date or (d_c >= start_date and d_c <= end_date)))
+                if match_s or match_c:
+                    int_count += 1
+
+            off_count = sum(1 for a in user_apps if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Offer Sent')))
+            off_acc = sum(1 for a in user_apps if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Offer Accepted')))
+            onboard = sum(1 for a in user_apps if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date)) and (a.modified_by and a.modified_by.lower() != 'system')))(get_status_transition_date(a, 'Placed')))
+
+            user_metrics[email] = {
+                'jobsCount': len(seen_jobs),
+                'submissions': sub_count,
+                'interviews': int_count,
+                'offers': off_count,
+                'offerAccepted': off_acc,
+                'onboard': onboard,
+                'jobCodes': list(seen_jobs)
+            }
+
+        return Response({
+            'user_metrics': user_metrics,
+            'start_date': start_date,
+            'end_date': end_date
+        }, status=status.HTTP_200_OK)
 
     # Dynamic metrics loader for role dashboards
     @action(detail=False, methods=['get'], url_path='dashboard-stats')

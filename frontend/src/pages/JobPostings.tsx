@@ -90,6 +90,9 @@ export const JobPostings: React.FC = () => {
 
   // Career Portal Applicants states
   const [portalApplicants, setPortalApplicants] = useState<CareerPortalApplicant[]>([]);
+  const [portalApplicantsPage, setPortalApplicantsPage] = useState<number>(1);
+  const [portalApplicantsPageSize, setPortalApplicantsPageSize] = useState<number>(100);
+  const [portalApplicantsTotalCount, setPortalApplicantsTotalCount] = useState<number>(0);
   const [isPortalLoading, setIsPortalLoading] = useState<boolean>(true);
   const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
   const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
@@ -97,26 +100,16 @@ export const JobPostings: React.FC = () => {
   const [linkedinSearchTerms, setLinkedinSearchTerms] = useState<Record<number, string>>({});
   const [expandedLinkedInSections, setExpandedLinkedInSections] = useState<Record<number, boolean>>({});
 
-  const fetchPortalApplicants = async () => {
+  const portalApplicantsTotalPages = Math.max(1, Math.ceil(portalApplicantsTotalCount / portalApplicantsPageSize));
+
+  const fetchPortalApplicants = async (pageToFetch = portalApplicantsPage, pageSize = portalApplicantsPageSize) => {
     setIsPortalLoading(true);
     try {
-      // Backend now paginates career-portal-applicants (page_size=100, max=200).
-      // Fetch all pages so the UI continues to show every applicant.
-      let allApplicants: any[] = [];
-      let nextPage = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const res = await api.get(`applications/career-portal-applicants/?page=${nextPage}&page_size=100`);
-        const pageData = res.data?.results ?? res.data ?? [];
-        allApplicants = allApplicants.concat(pageData);
-        const totalCount = res.data?.count;
-        if (!totalCount || allApplicants.length >= totalCount || pageData.length === 0) {
-          hasMore = false;
-        } else {
-          nextPage++;
-        }
-      }
-      setPortalApplicants(allApplicants);
+      const res = await api.get(`applications/career-portal-applicants/?page=${pageToFetch}&page_size=${pageSize}`);
+      const pageData = res.data?.results ?? res.data ?? [];
+      const count = res.data?.count ?? (Array.isArray(pageData) ? pageData.length : 0);
+      setPortalApplicants(Array.isArray(pageData) ? pageData : []);
+      setPortalApplicantsTotalCount(count);
     } catch (err) {
       console.error("Failed to fetch career portal applicants", err);
     } finally {
@@ -125,8 +118,8 @@ export const JobPostings: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPortalApplicants();
-  }, []);
+    fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
+  }, [portalApplicantsPage, portalApplicantsPageSize]);
 
   // @ts-ignore
   const _handleImportPortalApplicant = async (portalApplicantId: number) => {
@@ -136,8 +129,8 @@ export const JobPostings: React.FC = () => {
       const list = appsRes.data?.results ?? appsRes.data ?? [];
       setLocalApplications(list);
       dispatch(setApplications(list));
-      // Refresh career portal applicants
-      await fetchPortalApplicants();
+      // Refresh career portal applicants (current page only)
+      await fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
       alert("Candidate imported into ATS successfully!");
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to import candidate into ATS.");
@@ -158,7 +151,11 @@ export const JobPostings: React.FC = () => {
     if (window.confirm(`Are you sure you want to delete the career portal submission for "${name}"?`)) {
       try {
         await api.delete(`applications/career-portal-applicants/${portalApplicantId}/`);
-        setPortalApplicants(prev => prev.filter(p => p.id !== portalApplicantId));
+        if (portalApplicants.length === 1 && portalApplicantsPage > 1) {
+          setPortalApplicantsPage(prev => prev - 1);
+        } else {
+          fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
+        }
         alert("Career portal applicant deleted successfully.");
       } catch (err: any) {
         alert(err?.response?.data?.error || "Failed to delete career portal applicant.");
@@ -1537,7 +1534,7 @@ Remarks: ${candidateForm.remarks}`;
                               <>
                                 {/* Career Portal Section */}
                                 <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                                     <Box
                                       sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
                                       onClick={() => setExpandedPortalSections(prev => ({ ...prev, [reqId]: !isPortalSectionExpanded }))}
@@ -1547,18 +1544,62 @@ Remarks: ${candidateForm.remarks}`;
                                       </Typography>
                                     </Box>
 
-                                    {isPortalSectionExpanded && careerPortalApps.length > 0 && (
-                                      <TextField
-                                        size="small"
-                                        placeholder="Search portal applicants (Name, Email, Mobile)..."
-                                        value={portalSearch}
-                                        onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
-                                        InputProps={{
-                                          startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
-                                          sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
-                                        }}
-                                        sx={{ width: 280 }}
-                                      />
+                                    {isPortalSectionExpanded && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                        {/* Pagination Controls */}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage <= 1 || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.max(1, prev - 1))}
+                                            sx={{ minWidth: 65, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Previous
+                                          </Button>
+                                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                            Page {portalApplicantsPage} of {portalApplicantsTotalPages} ({portalApplicantsTotalCount} total)
+                                          </Typography>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage >= portalApplicantsTotalPages || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.min(portalApplicantsTotalPages, prev + 1))}
+                                            sx={{ minWidth: 50, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Next
+                                          </Button>
+                                          <FormControl size="small" variant="standard" sx={{ minWidth: 70 }}>
+                                            <Select
+                                              value={portalApplicantsPageSize}
+                                              onChange={(e) => {
+                                                setPortalApplicantsPageSize(Number(e.target.value));
+                                                setPortalApplicantsPage(1);
+                                              }}
+                                              disableUnderline
+                                              sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}
+                                            >
+                                              <MenuItem value={50} sx={{ fontSize: '0.7rem' }}>50 / page</MenuItem>
+                                              <MenuItem value={100} sx={{ fontSize: '0.7rem' }}>100 / page</MenuItem>
+                                              <MenuItem value={200} sx={{ fontSize: '0.7rem' }}>200 / page</MenuItem>
+                                            </Select>
+                                          </FormControl>
+                                        </Box>
+
+                                        {careerPortalApps.length > 0 && (
+                                          <TextField
+                                            size="small"
+                                            placeholder="Search portal applicants (Name, Email, Mobile)..."
+                                            value={portalSearch}
+                                            onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                            InputProps={{
+                                              startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                              sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                            }}
+                                            sx={{ width: 280 }}
+                                          />
+                                        )}
+                                      </Box>
                                     )}
                                   </Box>
 
@@ -1708,7 +1749,7 @@ Remarks: ${candidateForm.remarks}`;
 
                                 {/* LinkedIn Section */}
                                 <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                                     <Box
                                       sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
                                       onClick={() => setExpandedLinkedInSections(prev => ({ ...prev, [reqId]: !isLinkedInSectionExpanded }))}
@@ -1718,18 +1759,62 @@ Remarks: ${candidateForm.remarks}`;
                                       </Typography>
                                     </Box>
 
-                                    {isLinkedInSectionExpanded && linkedinApps.length > 0 && (
-                                      <TextField
-                                        size="small"
-                                        placeholder="Search LinkedIn applicants (Name, Email, Mobile)..."
-                                        value={linkedinSearch}
-                                        onChange={(e) => setLinkedinSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
-                                        InputProps={{
-                                          startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
-                                          sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
-                                        }}
-                                        sx={{ width: 280 }}
-                                      />
+                                    {isLinkedInSectionExpanded && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                        {/* Pagination Controls */}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage <= 1 || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.max(1, prev - 1))}
+                                            sx={{ minWidth: 65, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Previous
+                                          </Button>
+                                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                            Page {portalApplicantsPage} of {portalApplicantsTotalPages} ({portalApplicantsTotalCount} total)
+                                          </Typography>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage >= portalApplicantsTotalPages || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.min(portalApplicantsTotalPages, prev + 1))}
+                                            sx={{ minWidth: 50, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Next
+                                          </Button>
+                                          <FormControl size="small" variant="standard" sx={{ minWidth: 70 }}>
+                                            <Select
+                                              value={portalApplicantsPageSize}
+                                              onChange={(e) => {
+                                                setPortalApplicantsPageSize(Number(e.target.value));
+                                                setPortalApplicantsPage(1);
+                                              }}
+                                              disableUnderline
+                                              sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}
+                                            >
+                                              <MenuItem value={50} sx={{ fontSize: '0.7rem' }}>50 / page</MenuItem>
+                                              <MenuItem value={100} sx={{ fontSize: '0.7rem' }}>100 / page</MenuItem>
+                                              <MenuItem value={200} sx={{ fontSize: '0.7rem' }}>200 / page</MenuItem>
+                                            </Select>
+                                          </FormControl>
+                                        </Box>
+
+                                        {linkedinApps.length > 0 && (
+                                          <TextField
+                                            size="small"
+                                            placeholder="Search LinkedIn applicants (Name, Email, Mobile)..."
+                                            value={linkedinSearch}
+                                            onChange={(e) => setLinkedinSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                            InputProps={{
+                                              startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                              sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                            }}
+                                            sx={{ width: 280 }}
+                                          />
+                                        )}
+                                      </Box>
                                     )}
                                   </Box>
 

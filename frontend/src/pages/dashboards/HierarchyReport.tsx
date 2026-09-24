@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -25,6 +25,8 @@ import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { getUniqueSubmissions } from './PipelineKPIs';
 
+import { api } from '../../services/api';
+
 interface CalculatedMetrics {
   jobsCount: number;
   submissions: number;
@@ -32,6 +34,10 @@ interface CalculatedMetrics {
   offers: number;
   offerAccepted: number;
   onboard: number;
+}
+
+interface BackendUserMetric extends CalculatedMetrics {
+  jobCodes?: string[];
 }
 
 interface TreeElement {
@@ -131,9 +137,38 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const [localStartDate, setLocalStartDate] = useState(todayStr());
   const [localEndDate, setLocalEndDate] = useState(todayStr());
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
+  const [backendUserMetrics, setBackendUserMetrics] = useState<Record<string, BackendUserMetric>>({});
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
   const effectiveEndDate = endDate !== undefined ? endDate : localEndDate;
+
+  useEffect(() => {
+    let url = 'applications/hierarchy-stats/';
+    if (effectiveStartDate && effectiveEndDate) {
+      url += `?start_date=${effectiveStartDate}&end_date=${effectiveEndDate}`;
+    }
+    setIsStatsLoading(true);
+    let isCancelled = false;
+    api.get(url)
+      .then((res: any) => {
+        if (isCancelled) return;
+        if (res.data?.user_metrics) {
+          setBackendUserMetrics(res.data.user_metrics);
+        }
+      })
+      .catch((err: any) => {
+        console.error("Failed to load hierarchy stats:", err);
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsStatsLoading(false);
+        }
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [effectiveStartDate, effectiveEndDate]);
 
   const deduplicatedApps = useMemo(() => {
     return getUniqueSubmissions(applications);
@@ -396,15 +431,28 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
-    const targetUserObj = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.toLowerCase();
+    const stats = backendUserMetrics[cleanEmail];
+    if (stats) {
+      return {
+        jobsCount: stats.jobsCount || 0,
+        submissions: stats.submissions || 0,
+        interviews: stats.interviews || 0,
+        offers: stats.offers || 0,
+        offerAccepted: stats.offerAccepted || 0,
+        onboard: stats.onboard || 0
+      };
+    }
+
+    const targetUserObj = users.find(u => u.email.toLowerCase() === cleanEmail);
     const userFullName = targetUserObj?.full_name?.toLowerCase() || '';
 
     const userApps = deduplicatedApps.filter(app => {
       const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (assignedEmail === email.toLowerCase()) return true;
+      if (assignedEmail === cleanEmail) return true;
       if (app.recruiter) {
         const rec = app.recruiter.toLowerCase();
-        if (rec === email.toLowerCase() || (userFullName && rec === userFullName)) return true;
+        if (rec === cleanEmail || (userFullName && rec === userFullName)) return true;
       }
       return false;
     });
@@ -429,13 +477,13 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     const jobsCount = seenJobs.size;
 
     const submissions = deduplicatedSubmissionsApps.filter(app =>
-      app.assigned_employee?.email?.toLowerCase() === email.toLowerCase() &&
+      app.assigned_employee?.email?.toLowerCase() === cleanEmail &&
       app.candidate_name &&
       (() => {
         const d = getStatusTransitionDate(app, 'Submitted', notes);
         return d && (!effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate));
-          })()
-      ).length;
+      })()
+    ).length;
 
     const interviews = userApps.filter(app => {
       const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
@@ -570,6 +618,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
 
+          const hasBackendStats = Array.from(emailSet).some(e => backendUserMetrics[e]?.jobCodes !== undefined);
+          if (hasBackendStats) {
+            const seen = new Set<string>();
+            emailSet.forEach(e => {
+              const codes = backendUserMetrics[e]?.jobCodes || [];
+              codes.forEach(c => seen.add(c));
+            });
+            return seen.size;
+          }
+
           const descendantApps = deduplicatedApps.filter(app =>
             app.assigned_employee?.email &&
             emailSet.has(app.assigned_employee.email.toLowerCase())
@@ -669,6 +727,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
 
+          const hasBackendStats = Array.from(emailSet).some(e => backendUserMetrics[e]?.jobCodes !== undefined);
+          if (hasBackendStats) {
+            const seen = new Set<string>();
+            emailSet.forEach(e => {
+              const codes = backendUserMetrics[e]?.jobCodes || [];
+              codes.forEach(c => seen.add(c));
+            });
+            return seen.size;
+          }
+
           const descendantApps = deduplicatedApps.filter(app =>
             app.assigned_employee?.email &&
             emailSet.has(app.assigned_employee.email.toLowerCase())
@@ -741,7 +809,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     );
 
     return trueRoots.map(buildTreeElement);
-  }, [filteredUsers, applications, effectiveStartDate, effectiveEndDate, rootEmail]);
+  }, [filteredUsers, applications, effectiveStartDate, effectiveEndDate, rootEmail, backendUserMetrics]);
 
   // Flatten Tree for Grid Rendering
   const rows = useMemo(() => {
@@ -919,7 +987,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                 {rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} style={{ padding: '24px', textAlign: 'center' }}>
-                      {users.length === 0 || applications.length === 0 ? (
+                      {users.length === 0 || isStatsLoading ? (
                         <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, fontWeight: 700 }}>
                           <CircularProgress size={16} color="primary" /> Loading...
                         </Typography>
