@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -25,6 +25,8 @@ import { User } from '../../types';
 import { DashboardCalendar, todayStr } from './DashboardCalendar';
 import { getUniqueSubmissions } from './PipelineKPIs';
 
+import { api } from '../../services/api';
+
 interface CalculatedMetrics {
   jobsCount: number;
   submissions: number;
@@ -32,6 +34,10 @@ interface CalculatedMetrics {
   offers: number;
   offerAccepted: number;
   onboard: number;
+}
+
+interface BackendUserMetric extends CalculatedMetrics {
+  jobCodes?: string[];
 }
 
 interface TreeElement {
@@ -125,85 +131,53 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const theme = useTheme();
   const navigate = useNavigate();
   const { users } = useAppSelector(state => state.users);
-  const { applications, notes } = useAppSelector(state => state.applications || { applications: [], notes: {} });
+  const { applications } = useAppSelector(state => state.applications || { applications: [] });
   const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
 
   const [localStartDate, setLocalStartDate] = useState(todayStr());
   const [localEndDate, setLocalEndDate] = useState(todayStr());
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
+  const [backendUserMetrics, setBackendUserMetrics] = useState<Record<string, BackendUserMetric>>({});
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
   const effectiveEndDate = endDate !== undefined ? endDate : localEndDate;
 
-  const deduplicatedApps = useMemo(() => {
-    return getUniqueSubmissions(applications);
-  }, [applications]);
+  useEffect(() => {
+    let url = 'applications/hierarchy-stats/';
+    if (effectiveStartDate && effectiveEndDate) {
+      url += `?start_date=${effectiveStartDate}&end_date=${effectiveEndDate}`;
+    }
+    setBackendUserMetrics({});
+    setIsStatsLoading(true);
+    let isCancelled = false;
+    api.get(url)
+      .then((res: any) => {
+        if (isCancelled) return;
+        if (res.data?.user_metrics) {
+          setBackendUserMetrics(res.data.user_metrics);
+        } else {
+          setBackendUserMetrics({});
+        }
+      })
+      .catch((err: any) => {
+        if (isCancelled) return;
+        console.error("Failed to load hierarchy stats:", err);
+        setBackendUserMetrics({});
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsStatsLoading(false);
+        }
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [effectiveStartDate, effectiveEndDate]);
 
   const deduplicatedSubmissionsApps = useMemo(() => {
     return getUniqueSubmissions(applications);
   }, [applications]);
-
-  // Fast O(1) Parent Job Cache Map
-  const parentJobCacheMap = useMemo(() => {
-    const codeMap = new Map<string, any>();
-    const posClientMap = new Map<string, any[]>();
-
-    deduplicatedApps.forEach(a => {
-      if (a.candidate_name) return; // Only parent jobs
-      const code = getRemarkField(a.remarks, 'Job Code');
-      if (code && code !== 'N/A') {
-        const key = code.toUpperCase().trim();
-        if (!codeMap.has(key)) codeMap.set(key, a);
-      }
-
-      const normPos = a.position?.toLowerCase().trim();
-      const normClient = a.client_name?.toLowerCase().trim();
-      if (normPos && normClient) {
-        const key = `${normPos}|${normClient}`;
-        if (!posClientMap.has(key)) posClientMap.set(key, []);
-        posClientMap.get(key)!.push(a);
-      }
-    });
-
-    return { codeMap, posClientMap };
-  }, [deduplicatedApps]);
-
-  const findParentJobForApp = (app: any): any => {
-    if (!app) return null;
-    if (!app.candidate_name) return app;
-
-    // 1. Match by explicit Job Code from remarks
-    const directCode = getRemarkField(app.remarks, 'Job Code');
-    if (directCode && directCode !== 'N/A') {
-      const parentByCode = parentJobCacheMap.codeMap.get(directCode.toUpperCase().trim());
-      if (parentByCode) return parentByCode;
-    }
-
-    // 2. Match by position + client_name
-    const normPos = app.position?.toLowerCase().trim();
-    const normClient = app.client_name?.toLowerCase().trim();
-    if (!normPos || !normClient) return null;
-
-    const candidates = parentJobCacheMap.posClientMap.get(`${normPos}|${normClient}`);
-    if (!candidates || candidates.length === 0) return null;
-
-    // Prefer parent job within effective date filter range
-    if (effectiveStartDate && effectiveEndDate) {
-      const inRange = candidates.find(a => {
-        const d = (a.created_at || '').slice(0, 10);
-        return d >= effectiveStartDate && d <= effectiveEndDate;
-      });
-      if (inRange) return inRange;
-    }
-
-    // Fallback to most recent matching job created on or before candidate submission date
-    const subDate = (app.created_at || '').slice(0, 10);
-    const onOrBefore = candidates
-      .filter(a => (a.created_at || '').slice(0, 10) <= subDate)
-      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
-
-    return onOrBefore || candidates[0];
-  };
 
   // Pre-computed map of descendant emails for fast lookup
   const descendantEmailsMap = useMemo(() => {
@@ -225,127 +199,89 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return map;
   }, [filteredUsers]);
 
-  const handleMetricClick = (userEmail: string, _userName: string, _roleName: string, metricType: string, isSelfRow: boolean) => {
+  const [drilldownLoadingKey, setDrilldownLoadingKey] = useState<string | null>(null);
+
+  const handleMetricClick = async (userEmail: string, _userName: string, _roleName: string, metricType: string, isSelfRow: boolean) => {
+    if (drilldownLoadingKey !== null) return;
+    const clickKey = `${userEmail}_${metricType}_${isSelfRow}`;
+
     const cleanEmail = userEmail.replace(/_(cwr|fte)$/i, '').toLowerCase();
 
     const emailSet = descendantEmailsMap.get(cleanEmail);
     const emails = isSelfRow ? [cleanEmail] : (emailSet ? Array.from(emailSet) : [cleanEmail]);
-    const targetUserObjs = filteredUsers.filter(u => emails.includes(u.email.toLowerCase()));
-    const targetFullNames = targetUserObjs.map(u => u.full_name?.toLowerCase()).filter(Boolean);
 
-    const userApps = deduplicatedApps.filter(app => {
-      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (assignedEmail && emails.includes(assignedEmail)) return true;
-      if (app.recruiter) {
-        const rec = app.recruiter.toLowerCase();
-        if (emails.includes(rec)) return true;
-        if (targetFullNames.includes(rec)) return true;
-      }
-      return false;
-    });
-
-    let filtered: any[] = [];
     let label = '';
     let isJobs = false;
     let isApplicants = false;
     let isHierarchy = false;
 
     if (metricType === 'JOBS') {
-      const seen = new Set<string>();
-      const dateFiltered = userApps.filter(app => {
-        const parentJob = findParentJobForApp(app);
-        const appToUse = parentJob || app;
-        const d = (appToUse.created_at || '').slice(0, 10);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      });
-      dateFiltered.forEach(app => {
-        const parentJob = findParentJobForApp(app);
-        const appToUse = parentJob || app;
-        let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
-        if (jobCode === 'N/A' || !jobCode) {
-          if (!appToUse.candidate_name) {
-            jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
-          }
-        }
-        if (!jobCode || jobCode === 'N/A') return;
-        const key = jobCode.toUpperCase().trim();
-        if (!seen.has(key)) {
-          seen.add(key);
-          const group = dateFiltered.filter(a => {
-            const pJob = findParentJobForApp(a) || a;
-            let code = getRemarkField(pJob.remarks, 'Job Code');
-            if (code === 'N/A' || !code) {
-              if (!pJob.candidate_name) {
-                code = `PPW-${String(pJob.id).padStart(4, '0')}`;
-              }
-            }
-            return code && code.toUpperCase().trim() === key;
-          });
-          const parent = findParentJobForApp(group[0]);
-          const rep = { ...(parent || group.find(a => !a.candidate_name) || group[0]) };
-          rep.associatedApps = group;
-          filtered.push(rep);
-        }
-      });
       label = 'Jobs Count';
       isJobs = true;
     } else if (metricType === 'SUBMISSIONS') {
-      filtered = userApps.filter(app =>
-        app.candidate_name &&
-        (() => {
-          const d = getStatusTransitionDate(app, 'Submitted', notes);
-          return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-        })()
-      );
       label = 'Client Submissions';
       isApplicants = true;
     } else if (metricType === 'INTERVIEWS') {
-      filtered = userApps.filter(app => {
-        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
-        const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
-        const matchScheduled = !effectiveStartDate || !effectiveEndDate || (dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate);
-        const matchCompleted = !effectiveStartDate || !effectiveEndDate || (dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate);
-        return matchScheduled || matchCompleted;
-      });
       label = 'Client Interviews';
       isApplicants = true;
     } else if (metricType === 'OFFERS') {
-      filtered = userApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Sent', notes);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      });
       label = 'Offer Sent';
       isApplicants = true;
     } else if (metricType === 'OFFER_ACCEPTED') {
-      filtered = userApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
-        return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      });
       label = 'Offer Accepted';
       isApplicants = true;
     } else if (metricType === 'ONBOARD') {
-      filtered = userApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Placed', notes);
-        const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-        const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
-        return isWithinDate && !isSystem;
-      });
       label = 'Onboard';
       isApplicants = true;
     }
 
-    navigate('/drill-down', {
-      state: {
-        modalTitle: label,
-        modalData: filtered,
-        isJobsType: isJobs,
-        isApplicantsType: isApplicants,
-        isHierarchyType: isHierarchy
-      }
-    });
+    try {
+      setDrilldownLoadingKey(clickKey);
+      const res = await api.post('applications/hierarchy-drilldown/', {
+        metric_type: metricType,
+        emails: emails,
+        start_date: effectiveStartDate,
+        end_date: effectiveEndDate
+      });
+      const records = res.data?.results || res.data || [];
+      navigate('/drill-down', {
+        state: {
+          modalTitle: label,
+          modalData: records,
+          isJobsType: isJobs,
+          isApplicantsType: isApplicants,
+          isHierarchyType: isHierarchy
+        }
+      });
+    } catch (err) {
+      console.error('Failed to load drilldown data:', err);
+    } finally {
+      setDrilldownLoadingKey(null);
+    }
   };
 
   const renderClickableMetric = (value: number, userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
+    const clickKey = `${userEmail}_${metricType}_${isSelfRow}`;
+    const isDrillLoading = drilldownLoadingKey === clickKey;
+
+    if (isStatsLoading) {
+      return (
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '18px' }}>
+          <CircularProgress size={12} sx={{ color: theme.palette.text.secondary, opacity: 0.5 }} />
+        </Box>
+      );
+    }
+
+    if (isDrillLoading) {
+      return (
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '18px' }}>
+          <CircularProgress size={12} color="primary" />
+        </Box>
+      );
+    }
+
+    const isClickable = value > 0 && !drilldownLoadingKey;
+
     return (
       <Typography
         variant="body2"
@@ -353,14 +289,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           fontWeight: isSelfRow ? 500 : 700,
           fontSize: '0.75rem',
           color: value === 0 ? 'text.secondary' : 'primary.main',
-          cursor: value === 0 ? 'default' : 'pointer',
+          cursor: isClickable ? 'pointer' : 'default',
+          opacity: drilldownLoadingKey ? 0.6 : 1,
+          pointerEvents: drilldownLoadingKey ? 'none' : 'auto',
           '&:hover': {
-            color: value === 0 ? 'text.secondary' : 'primary.dark',
-            textDecoration: value === 0 ? 'none' : 'underline'
+            color: isClickable ? 'primary.dark' : (value === 0 ? 'text.secondary' : 'primary.main'),
+            textDecoration: isClickable ? 'underline' : 'none'
           }
         }}
         onClick={() => {
-          if (value === 0) return;
+          if (!isClickable) return;
           handleMetricClick(userEmail, userName, roleName, metricType, isSelfRow);
         }}
       >
@@ -396,73 +334,27 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
   // Helper to compute individual metrics for a user
   const computeIndividualMetrics = (email: string): CalculatedMetrics => {
-    const targetUserObj = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    const userFullName = targetUserObj?.full_name?.toLowerCase() || '';
+    const cleanEmail = email.toLowerCase();
+    const stats = backendUserMetrics[cleanEmail];
+    if (stats) {
+      return {
+        jobsCount: stats.jobsCount || 0,
+        submissions: stats.submissions || 0,
+        interviews: stats.interviews || 0,
+        offers: stats.offers || 0,
+        offerAccepted: stats.offerAccepted || 0,
+        onboard: stats.onboard || 0
+      };
+    }
 
-    const userApps = deduplicatedApps.filter(app => {
-      const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-      if (assignedEmail === email.toLowerCase()) return true;
-      if (app.recruiter) {
-        const rec = app.recruiter.toLowerCase();
-        if (rec === email.toLowerCase() || (userFullName && rec === userFullName)) return true;
-      }
-      return false;
-    });
-
-    const seenJobs = new Set<string>();
-    userApps.forEach(app => {
-      const parentJob = findParentJobForApp(app);
-      const appToUse = parentJob || app;
-      const d = (appToUse.created_at || '').slice(0, 10);
-      const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      if (!isWithinDate) return;
-
-      let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
-      if (jobCode === 'N/A' || !jobCode) {
-        if (!appToUse.candidate_name) {
-          jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
-        }
-      }
-      if (!jobCode || jobCode === 'N/A') return;
-      seenJobs.add(jobCode.toUpperCase().trim());
-    });
-    const jobsCount = seenJobs.size;
-
-    const submissions = deduplicatedSubmissionsApps.filter(app =>
-      app.assigned_employee?.email?.toLowerCase() === email.toLowerCase() &&
-      app.candidate_name &&
-      (() => {
-        const d = getStatusTransitionDate(app, 'Submitted', notes);
-        return d && (!effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate));
-          })()
-      ).length;
-
-    const interviews = userApps.filter(app => {
-      const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
-      const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
-      const matchScheduled = !effectiveStartDate || !effectiveEndDate || (dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate);
-      const matchCompleted = !effectiveStartDate || !effectiveEndDate || (dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate);
-      return matchScheduled || matchCompleted;
-    }).length;
-
-    const offers = userApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Offer Sent', notes);
-      return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-    }).length;
-
-    const offerAccepted = userApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
-      return !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-    }).length;
-
-    const onboard = userApps.filter(app => {
-      const d = getStatusTransitionDate(app, 'Placed', notes);
-      const isWithinDate = !effectiveStartDate || !effectiveEndDate || (d >= effectiveStartDate && d <= effectiveEndDate);
-      const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
-      return isWithinDate && !isSystem;
-    }).length;
-
-    return { jobsCount, submissions, interviews, offers, offerAccepted, onboard };
+    return {
+      jobsCount: 0,
+      submissions: 0,
+      interviews: 0,
+      offers: 0,
+      offerAccepted: 0,
+      onboard: 0
+    };
   };
 
   // Build Hierarchy Tree recursively
@@ -570,30 +462,11 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
 
-          const descendantApps = deduplicatedApps.filter(app =>
-            app.assigned_employee?.email &&
-            emailSet.has(app.assigned_employee.email.toLowerCase())
-          );
-
           const seen = new Set<string>();
-          descendantApps.forEach(app => {
-            const parentJob = findParentJobForApp(app);
-            const appToUse = parentJob || app;
-            if (effectiveStartDate && effectiveEndDate) {
-              const d = (appToUse.created_at || '').slice(0, 10);
-              if (d < effectiveStartDate || d > effectiveEndDate) return;
-            }
-
-            let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
-            if (jobCode === 'N/A' || !jobCode) {
-              if (!appToUse.candidate_name) {
-                jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
-              }
-            }
-            if (!jobCode || jobCode === 'N/A') return;
-            seen.add(jobCode.toUpperCase().trim());
+          emailSet.forEach(e => {
+            const codes = backendUserMetrics[e]?.jobCodes || [];
+            codes.forEach(c => seen.add(c));
           });
-
           return seen.size;
         };
 
@@ -669,30 +542,11 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
             collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
 
-          const descendantApps = deduplicatedApps.filter(app =>
-            app.assigned_employee?.email &&
-            emailSet.has(app.assigned_employee.email.toLowerCase())
-          );
-
           const seen = new Set<string>();
-          descendantApps.forEach(app => {
-            const parentJob = findParentJobForApp(app);
-            const appToUse = parentJob || app;
-            if (effectiveStartDate && effectiveEndDate) {
-              const d = (appToUse.created_at || '').slice(0, 10);
-              if (d < effectiveStartDate || d > effectiveEndDate) return;
-            }
-
-            let jobCode = getRemarkField(appToUse.remarks, 'Job Code');
-            if (jobCode === 'N/A' || !jobCode) {
-              if (!appToUse.candidate_name) {
-                jobCode = `PPW-${String(appToUse.id).padStart(4, '0')}`;
-              }
-            }
-            if (!jobCode || jobCode === 'N/A') return;
-            seen.add(jobCode.toUpperCase().trim());
+          emailSet.forEach(e => {
+            const codes = backendUserMetrics[e]?.jobCodes || [];
+            codes.forEach(c => seen.add(c));
           });
-
           return seen.size;
         };
 
@@ -741,7 +595,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     );
 
     return trueRoots.map(buildTreeElement);
-  }, [filteredUsers, applications, effectiveStartDate, effectiveEndDate, rootEmail]);
+  }, [filteredUsers, applications, effectiveStartDate, effectiveEndDate, rootEmail, backendUserMetrics]);
 
   // Flatten Tree for Grid Rendering
   const rows = useMemo(() => {
@@ -919,7 +773,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
                 {rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} style={{ padding: '24px', textAlign: 'center' }}>
-                      {users.length === 0 || applications.length === 0 ? (
+                      {users.length === 0 || isStatsLoading ? (
                         <Typography variant="body2" color="primary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, fontWeight: 700 }}>
                           <CircularProgress size={16} color="primary" /> Loading...
                         </Typography>

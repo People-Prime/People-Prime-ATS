@@ -90,6 +90,9 @@ export const JobPostings: React.FC = () => {
 
   // Career Portal Applicants states
   const [portalApplicants, setPortalApplicants] = useState<CareerPortalApplicant[]>([]);
+  const [portalApplicantsPage, setPortalApplicantsPage] = useState<number>(1);
+  const [portalApplicantsPageSize, setPortalApplicantsPageSize] = useState<number>(100);
+  const [portalApplicantsTotalCount, setPortalApplicantsTotalCount] = useState<number>(0);
   const [isPortalLoading, setIsPortalLoading] = useState<boolean>(true);
   const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
   const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
@@ -97,26 +100,16 @@ export const JobPostings: React.FC = () => {
   const [linkedinSearchTerms, setLinkedinSearchTerms] = useState<Record<number, string>>({});
   const [expandedLinkedInSections, setExpandedLinkedInSections] = useState<Record<number, boolean>>({});
 
-  const fetchPortalApplicants = async () => {
+  const portalApplicantsTotalPages = Math.max(1, Math.ceil(portalApplicantsTotalCount / portalApplicantsPageSize));
+
+  const fetchPortalApplicants = async (pageToFetch = portalApplicantsPage, pageSize = portalApplicantsPageSize) => {
     setIsPortalLoading(true);
     try {
-      // Backend now paginates career-portal-applicants (page_size=100, max=200).
-      // Fetch all pages so the UI continues to show every applicant.
-      let allApplicants: any[] = [];
-      let nextPage = 1;
-      let hasMore = true;
-      while (hasMore) {
-        const res = await api.get(`applications/career-portal-applicants/?page=${nextPage}&page_size=100`);
-        const pageData = res.data?.results ?? res.data ?? [];
-        allApplicants = allApplicants.concat(pageData);
-        const totalCount = res.data?.count;
-        if (!totalCount || allApplicants.length >= totalCount || pageData.length === 0) {
-          hasMore = false;
-        } else {
-          nextPage++;
-        }
-      }
-      setPortalApplicants(allApplicants);
+      const res = await api.get(`applications/career-portal-applicants/?page=${pageToFetch}&page_size=${pageSize}`);
+      const pageData = res.data?.results ?? res.data ?? [];
+      const count = res.data?.count ?? (Array.isArray(pageData) ? pageData.length : 0);
+      setPortalApplicants(Array.isArray(pageData) ? pageData : []);
+      setPortalApplicantsTotalCount(count);
     } catch (err) {
       console.error("Failed to fetch career portal applicants", err);
     } finally {
@@ -125,8 +118,8 @@ export const JobPostings: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPortalApplicants();
-  }, []);
+    fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
+  }, [portalApplicantsPage, portalApplicantsPageSize]);
 
   // @ts-ignore
   const _handleImportPortalApplicant = async (portalApplicantId: number) => {
@@ -136,8 +129,8 @@ export const JobPostings: React.FC = () => {
       const list = appsRes.data?.results ?? appsRes.data ?? [];
       setLocalApplications(list);
       dispatch(setApplications(list));
-      // Refresh career portal applicants
-      await fetchPortalApplicants();
+      // Refresh career portal applicants (current page only)
+      await fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
       alert("Candidate imported into ATS successfully!");
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to import candidate into ATS.");
@@ -158,7 +151,11 @@ export const JobPostings: React.FC = () => {
     if (window.confirm(`Are you sure you want to delete the career portal submission for "${name}"?`)) {
       try {
         await api.delete(`applications/career-portal-applicants/${portalApplicantId}/`);
-        setPortalApplicants(prev => prev.filter(p => p.id !== portalApplicantId));
+        if (portalApplicants.length === 1 && portalApplicantsPage > 1) {
+          setPortalApplicantsPage(prev => prev - 1);
+        } else {
+          fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
+        }
         alert("Career portal applicant deleted successfully.");
       } catch (err: any) {
         alert(err?.response?.data?.error || "Failed to delete career portal applicant.");
@@ -183,37 +180,7 @@ export const JobPostings: React.FC = () => {
     return Array.from(unique.values());
   }, [users]);
 
-  // Calculate team members for Team Lead role filtering
-  const myTeamUserEmails = React.useMemo(() => {
-    if (!currentUser) return new Set<string>();
-    const myEmail = currentUser.email?.toLowerCase();
-    const emailSet = new Set<string>();
-    if (myEmail) emailSet.add(myEmail);
 
-    const myTeamIds = (currentUser.teams || []).map(t => String(t.id));
-
-    const addDownline = (leadEmail: string) => {
-      users.forEach(u => {
-        const uEmail = u.email?.toLowerCase();
-        if (!uEmail || emailSet.has(uEmail)) return;
-
-        const directReport = u.reporting_to?.email?.toLowerCase() === leadEmail.toLowerCase();
-        const listReport = u.reporting_to_list?.some((r: any) => r.email?.toLowerCase() === leadEmail.toLowerCase());
-
-        const userTeamIds = (u.teams || []).map(t => String(t.id));
-        const sameTeam = myTeamIds.length > 0 && userTeamIds.some(id => myTeamIds.includes(id));
-
-        if (directReport || listReport || sameTeam) {
-          emailSet.add(uEmail);
-          addDownline(uEmail);
-        }
-      });
-    };
-
-    if (myEmail) addDownline(myEmail);
-
-    return emailSet;
-  }, [currentUser, users]);
 
   // Drawer detail states
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
@@ -530,37 +497,63 @@ export const JobPostings: React.FC = () => {
   };
 
   const [localApplications, setLocalApplications] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(50);
+  const [candidatesByJobId, setCandidatesByJobId] = useState<Record<string, any[]>>({});
+  const [loadingCandidates, setLoadingCandidates] = useState<Record<string, boolean>>({});
 
-  // Reset page when search or date filters change
+  // Reset page when search, date, status, or team filters change
   useEffect(() => {
     setPage(0);
-  }, [searchTerm, startDate, endDate]);
+  }, [searchTerm, startDate, endDate, statusFilter, selectedTeamId]);
 
   useEffect(() => {
     setLoading(true);
-    let url = 'applications/?';
+    let url = 'applications/job-postings/?';
     if (debouncedSearchTerm.trim()) {
       url += `global_search=${encodeURIComponent(debouncedSearchTerm.trim())}&`;
     } else {
       url += `start_date=${startDate}&end_date=${endDate}&`;
     }
-    // all_records=true bypasses pagination for this page.
-    // JobPostings groups both job-posting records and candidate records together
-    // and REQUIRES the full result set for a given date range to build correct
-    // groups. The date filter above ensures this is always a bounded request.
-    url += 'all_records=true&';
+    if (statusFilter !== 'ALL') {
+      url += `status=${encodeURIComponent(statusFilter)}&`;
+    }
+    if (selectedTeamId !== 'ALL') {
+      url += `team_id=${encodeURIComponent(selectedTeamId)}&`;
+    }
+    url += `page=${page + 1}&page_size=${rowsPerPage}`;
 
     api.get(url).then((res) => {
-      const list = res.data?.results ?? res.data ?? [];
+      const list = res.data?.results ?? [];
+      const count = res.data?.count ?? list.length;
       setLocalApplications(list);
+      setTotalCount(count);
     }).catch((err) => {
       console.error("Error loading job postings", err);
     }).finally(() => {
       setLoading(false);
     });
-  }, [startDate, endDate, debouncedSearchTerm]);
+  }, [startDate, endDate, debouncedSearchTerm, statusFilter, selectedTeamId, page, rowsPerPage]);
+
+  const handleToggleExpandJob = async (jobCodeKey: string, appId: number | string) => {
+    const isCurrentlyExpanded = !!expandedJobs[jobCodeKey];
+    const willExpand = !isCurrentlyExpanded;
+    setExpandedJobs(prev => ({ ...prev, [jobCodeKey]: willExpand }));
+
+    if (willExpand && !candidatesByJobId[jobCodeKey]) {
+      setLoadingCandidates(prev => ({ ...prev, [jobCodeKey]: true }));
+      try {
+        const res = await api.get(`applications/job-candidates/?job_id=${appId}`);
+        const cands = res.data?.candidates ?? [];
+        setCandidatesByJobId(prev => ({ ...prev, [jobCodeKey]: cands }));
+      } catch (err) {
+        console.error("Failed to load candidates for job", err);
+      } finally {
+        setLoadingCandidates(prev => ({ ...prev, [jobCodeKey]: false }));
+      }
+    }
+  };
 
   // Auto-open drawer if appId is in search params
   useEffect(() => {
@@ -585,153 +578,7 @@ export const JobPostings: React.FC = () => {
     if (status !== null) setStatusFilter(status);
   }, [location.search]);
 
-  // 1. Single-pass linear pre-computation map for resolved Job Codes & Parent Jobs (O(N) time)
-  const { jobCodeMap, parentJobMap } = React.useMemo(() => {
-    const parentJobCodeByPosClient = new Map<string, string>();
-    const parentJobObjByPosClient = new Map<string, any>();
-    const resolvedCodeByAppId = new Map<number | string, string>();
-    const parentJobByAppId = new Map<number | string, any>();
-
-    // Pass 1: Index all parent Job Openings (!candidate_name)
-    localApplications.forEach((a: any) => {
-      if (!a.candidate_name) {
-        const directCode = getRemarkField(a.remarks, 'Job Code');
-        const finalCode = (directCode && directCode !== 'N/A') ? directCode : `PPW - ${String(a.id).padStart(4, '0')}`;
-        resolvedCodeByAppId.set(a.id, finalCode);
-        parentJobByAppId.set(a.id, a);
-
-        const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
-        if (!parentJobCodeByPosClient.has(posKey)) {
-          parentJobCodeByPosClient.set(posKey, finalCode);
-          parentJobObjByPosClient.set(posKey, a);
-        }
-      }
-    });
-
-    // Pass 2: Index all candidate submissions
-    localApplications.forEach((a: any) => {
-      if (a.candidate_name) {
-        const directCode = getRemarkField(a.remarks, 'Job Code');
-        if (directCode && directCode !== 'N/A') {
-          resolvedCodeByAppId.set(a.id, directCode);
-          const parent = localApplications.find((pj: any) => !pj.candidate_name && getRemarkField(pj.remarks, 'Job Code').toUpperCase().trim() === directCode.toUpperCase().trim());
-          if (parent) parentJobByAppId.set(a.id, parent);
-        } else {
-          const posKey = `${a.position?.toLowerCase().trim()}|${a.client_name?.toLowerCase().trim()}`;
-          const parentCode = parentJobCodeByPosClient.get(posKey);
-          const parentObj = parentJobObjByPosClient.get(posKey);
-          if (parentCode) {
-            resolvedCodeByAppId.set(a.id, parentCode);
-            if (parentObj) parentJobByAppId.set(a.id, parentObj);
-          }
-        }
-      }
-    });
-
-    return { jobCodeMap: resolvedCodeByAppId, parentJobMap: parentJobByAppId };
-  }, [localApplications]);
-
-  const groupedApps = React.useMemo(() => {
-    const filteredApps = localApplications.filter((app: any) => {
-      if (!searchTerm.trim()) {
-        const parentJob = parentJobMap.get(app.id) || app;
-        const appDate = (parentJob.created_at || '').slice(0, 10);
-        if (appDate < startDate || appDate > endDate) return false;
-      }
-
-      if ((activeRole === 'ADMIN' || activeRole === 'CEO' || activeRole === 'REPORTING_TEAM') && selectedTeamId !== 'ALL') {
-        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-        if (!assignedEmail) return false;
-        const recruiterUser = users.find((u: any) => u.email.toLowerCase() === assignedEmail);
-        const isMemberOfTeam = recruiterUser?.teams?.some((t: any) => String(t.id) === selectedTeamId);
-        if (!isMemberOfTeam) return false;
-      }
-
-      if (activeRole === 'ASSOCIATE_ANALYST' || activeRole === 'SENIOR_ANALYST') {
-        if (app.assigned_employee?.email?.toLowerCase() !== currentUser?.email?.toLowerCase()) return false;
-      } else if (activeRole === 'TEAM_LEAD' || activeRole === 'SUB_LEAD') {
-        const assignedEmail = app.assigned_employee?.email?.toLowerCase();
-        if (!assignedEmail || !myTeamUserEmails.has(assignedEmail)) return false;
-      }
-
-      if (statusFilter !== 'ALL') {
-        if (statusFilter === 'HAS_CANDIDATE' && !app.candidate_name) return false;
-        else if (statusFilter === 'INTERVIEWS' && !['Interview Scheduled', 'Interview Completed'].includes(app.status)) return false;
-        else if (statusFilter !== 'HAS_CANDIDATE' && statusFilter !== 'INTERVIEWS' && app.status !== statusFilter) return false;
-      }
-
-      const term = debouncedSearchTerm.trim().toLowerCase();
-      if (term) {
-        const matchCandidate = app.candidate_name?.toLowerCase().includes(term);
-        const matchClient = app.client_name?.toLowerCase().includes(term);
-        const matchPosition = app.position?.toLowerCase().includes(term);
-        const matchTech = app.technology?.toLowerCase().includes(term);
-        const matchAppId = String(app.id).toLowerCase().includes(term);
-        const matchJobCode = (jobCodeMap.get(app.id) || '').toLowerCase().includes(term);
-        return matchCandidate || matchClient || matchPosition || matchTech || matchAppId || matchJobCode;
-      }
-
-      return true;
-    }).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    // Pre-group applications linearly
-    const appsByJobCode = new Map<string, any[]>();
-    localApplications.forEach((a: any) => {
-      if (!debouncedSearchTerm.trim()) {
-        if (!a.candidate_name) {
-          // Parent Job Posting record
-          const jobDate = (a.created_at || '').slice(0, 10);
-          if (jobDate < startDate || jobDate > endDate) return;
-        } else {
-          // Candidate submission record: Include only if created in range OR status updated in range
-          const candCreated = (a.created_at || '').slice(0, 10);
-          const candUpdated = (a.updated_at || a.created_at || '').slice(0, 10);
-          const isCreatedInRange = candCreated >= startDate && candCreated <= endDate;
-          const isUpdatedInRange = candUpdated >= startDate && candUpdated <= endDate;
-          if (!isCreatedInRange && !isUpdatedInRange) return;
-        }
-      }
-      const code = jobCodeMap.get(a.id);
-      if (code) {
-        const key = code.toUpperCase().trim();
-        if (!appsByJobCode.has(key)) {
-          appsByJobCode.set(key, []);
-        }
-        appsByJobCode.get(key)!.push(a);
-      }
-    });
-
-    const result: any[] = [];
-    const seenKeys = new Set<string>();
-
-    filteredApps.forEach((app: any) => {
-      const code = jobCodeMap.get(app.id);
-      if (code) {
-        const key = code.toUpperCase().trim();
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          const group = appsByJobCode.get(key) || [app];
-          const parent = parentJobMap.get(app.id);
-          const rep = { ...(parent || group.find((a: any) => !a.candidate_name) || group[0]) };
-          (rep as any).associatedIds = group.map((a: any) => String(a.id));
-          (rep as any).associatedApps = group;
-
-          const employeeNames = group
-            .map((a: any) => a.assigned_employee?.full_name)
-            .filter(Boolean);
-          (rep as any).consolidatedAnalysts = employeeNames.length > 0 ? Array.from(new Set(employeeNames)).join(', ') : 'Unassigned';
-
-          result.push(rep);
-        }
-      }
-    });
-
-    return result;
-  }, [localApplications, startDate, endDate, debouncedSearchTerm, statusFilter, activeRole, currentUser, selectedTeamId, myTeamUserEmails, users, jobCodeMap]);
-
-  const paginatedApps = React.useMemo(() => {
-    return groupedApps.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-  }, [groupedApps, page, rowsPerPage]);
+  const paginatedApps = localApplications;
 
   // Handle redirection to edit candidate/requirement details
   const handleAppSelect = (app: Application) => {
@@ -869,85 +716,101 @@ Remarks: ${candidateForm.remarks}`;
   };
 
   // CSV Export matching exact page display & filters
-  const handleExportCSV = () => {
-    const headers = [
-      'Job Code',
-      'Job Title',
-      'Client',
-      'Location',
-      'Job Status',
-      'Client Bill Rate / Salary',
-      'Pay Rate / Salary',
-      'Manager',
-      'TL',
-      'Recruiter',
-      'Created Date',
-      'Min Sal',
-      'Max Sal',
-      'Avg Sal',
-      'Modified By'
-    ];
+  const handleExportCSV = async () => {
+    try {
+      let url = 'applications/job-postings/?all_records=true&';
+      if (debouncedSearchTerm.trim()) {
+        url += `global_search=${encodeURIComponent(debouncedSearchTerm.trim())}&`;
+      } else {
+        url += `start_date=${startDate}&end_date=${endDate}&`;
+      }
+      if (statusFilter !== 'ALL') {
+        url += `status=${encodeURIComponent(statusFilter)}&`;
+      }
+      if (selectedTeamId !== 'ALL') {
+        url += `team_id=${encodeURIComponent(selectedTeamId)}&`;
+      }
 
-    const rows = groupedApps.map(app => {
-      const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
-      const loc = getRemarkField(app.remarks, 'Location');
-      const locationVal = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
-      const jobStatusVal = getRemarkField(app.remarks, 'Job Status') !== 'N/A' ? getRemarkField(app.remarks, 'Job Status') : 'Active';
-      const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
-      const salary = getRemarkField(app.remarks, 'Salary');
-      const billRateVal = billRate !== 'N/A' ? billRate : (salary !== 'N/A' ? salary : '—');
-      const payRate = getRemarkField(app.remarks, 'Pay Rate');
-      const payRateVal = payRate !== 'N/A' ? payRate : '—';
+      const res = await api.get(url);
+      const exportList: any[] = res.data?.results ?? res.data ?? [];
 
-      const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
-      const recruitersText = Array.from(new Set(
-        app.associatedApps
-          ?.map((a: any) => a.assigned_employee?.full_name || a.recruiter)
-          .filter(Boolean)
-      )).join(', ') || 'Unassigned';
-      const hierarchyInfo = getHierarchyInfo(recruiterEmails);
-      const creationDateText = app.created_at ? new Date(app.created_at).toLocaleString('en-US', { hour12: true }) : '—';
-      const salaryInfo = getSalaryInfo(app.remarks || '');
-
-      return [
-        jobCodeVal !== 'N/A' ? jobCodeVal : '—',
-        app.position || '—',
-        app.client_name || '—',
-        locationVal,
-        jobStatusVal,
-        billRateVal,
-        payRateVal,
-        hierarchyInfo.manager,
-        hierarchyInfo.tl,
-        recruitersText,
-        creationDateText,
-        salaryInfo.min,
-        salaryInfo.max,
-        salaryInfo.avg,
-        app.modified_by || 'System'
+      const headers = [
+        'Job Code',
+        'Job Title',
+        'Client',
+        'Location',
+        'Job Status',
+        'Client Bill Rate / Salary',
+        'Pay Rate / Salary',
+        'Manager',
+        'TL',
+        'Recruiter',
+        'Created Date',
+        'Min Sal',
+        'Max Sal',
+        'Avg Sal',
+        'Modified By'
       ];
-    });
 
-    const escapeCell = (val: any): string => {
-      if (val === null || val === undefined) return '""';
-      const str = String(val).replace(/"/g, '""');
-      return `"${str}"`;
-    };
+      const rows = exportList.map(app => {
+        const jobCodeVal = getRemarkField(app.remarks, 'Job Code');
+        const loc = getRemarkField(app.remarks, 'Location');
+        const locationVal = loc !== 'N/A' ? loc : [app.city, app.state].filter(Boolean).join(', ') || '—';
+        const jobStatusVal = getRemarkField(app.remarks, 'Job Status') !== 'N/A' ? getRemarkField(app.remarks, 'Job Status') : 'Active';
+        const billRate = getRemarkField(app.remarks, 'Client Bill Rate');
+        const salary = getRemarkField(app.remarks, 'Salary');
+        const billRateVal = billRate !== 'N/A' ? billRate : (salary !== 'N/A' ? salary : '—');
+        const payRate = getRemarkField(app.remarks, 'Pay Rate');
+        const payRateVal = payRate !== 'N/A' ? payRate : '—';
 
-    const csvContent = [
-      headers.map(escapeCell).join(','),
-      ...rows.map(row => row.map(escapeCell).join(','))
-    ].join('\r\n');
+        const recruiterEmails = app.assigned_employee?.email ? [app.assigned_employee.email.toLowerCase()] : [];
+        const recruitersText = app.consolidated_analysts || app.assigned_employee?.full_name || app.recruiter || 'Unassigned';
+        const hierarchyInfo = getHierarchyInfo(recruiterEmails);
+        const creationDateText = app.created_at ? new Date(app.created_at).toLocaleString('en-US', { hour12: true }) : '—';
+        const salaryInfo = getSalaryInfo(app.remarks || '');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `job_postings_export_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+        return [
+          jobCodeVal !== 'N/A' ? jobCodeVal : (app.id ? `PPW - ${String(app.id).padStart(4, '0')}` : '—'),
+          app.position || '—',
+          app.client_name || '—',
+          locationVal,
+          jobStatusVal,
+          billRateVal,
+          payRateVal,
+          hierarchyInfo.manager,
+          hierarchyInfo.tl,
+          recruitersText,
+          creationDateText,
+          salaryInfo.min,
+          salaryInfo.max,
+          salaryInfo.avg,
+          app.modified_by || 'System'
+        ];
+      });
+
+      const escapeCell = (val: any): string => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const csvContent = [
+        headers.map(escapeCell).join(','),
+        ...rows.map(row => row.map(escapeCell).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', blobUrl);
+      link.setAttribute('download', `job_postings_export_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert("Failed to export Job Postings CSV.");
+    }
   };
 
   const getStatusChipColor = (status: string) => {
@@ -1112,15 +975,16 @@ Remarks: ${candidateForm.remarks}`;
                   ? jobCodeVal.toUpperCase().trim()
                   : `${app.position?.toLowerCase().trim()}|${app.client_name?.toLowerCase().trim()}`;
 
-                // Use the exact candidate group matching this Job Code
-                const jobApplicants = (app.associatedApps || []).filter((a: any) => a.candidate_name);
+                // Use the exact candidate group matching this Job Code loaded on-demand
+                const jobApplicants = candidatesByJobId[jobCodeKey] || (app.associatedApps || []).filter((a: any) => a.candidate_name);
+                const isLoadingApplicants = loadingCandidates[jobCodeKey];
+                const displayCandidateCount = candidatesByJobId[jobCodeKey]
+                  ? candidatesByJobId[jobCodeKey].length
+                  : (app.candidates_count ?? jobApplicants.length ?? 0);
 
-                const recruiterEmails = app.associatedApps?.map((a: any) => a.assigned_employee?.email?.toLowerCase()).filter(Boolean) || [];
-                const recruitersText = Array.from(new Set(
-                  app.associatedApps
-                    ?.map((a: any) => a.assigned_employee?.full_name || a.recruiter)
-                    .filter(Boolean)
-                )).join(', ');
+                const recruiterEmails = (app.assigned_employee?.email ? [app.assigned_employee.email.toLowerCase()] : []);
+                const recruitersText = app.consolidated_analysts ||
+                  (app.associatedApps ? Array.from(new Set(app.associatedApps.map((a: any) => a.assigned_employee?.full_name || a.recruiter).filter(Boolean))).join(', ') : (app.assigned_employee?.full_name || app.recruiter || 'Unassigned'));
                 const hierarchyInfo = getHierarchyInfo(recruiterEmails);
                 const creationDateText = app.created_at ? new Date(app.created_at).toLocaleString('en-US', { hour12: true }) : '—';
                 const salaryInfo = getSalaryInfo(app.remarks || '');
@@ -1141,7 +1005,7 @@ Remarks: ${candidateForm.remarks}`;
                         <Box
                           onClick={(e) => {
                             e.stopPropagation();
-                            setExpandedJobs(prev => ({ ...prev, [jobCodeKey]: !prev[jobCodeKey] }));
+                            handleToggleExpandJob(jobCodeKey, app.id);
                           }}
                           sx={{
                             display: 'inline-flex',
@@ -1178,7 +1042,11 @@ Remarks: ${candidateForm.remarks}`;
                               height: 15
                             }}
                           >
-                            {jobApplicants.length}
+                            {isLoadingApplicants ? (
+                              <CircularProgress size={8} sx={{ color: '#fff' }} />
+                            ) : (
+                              displayCandidateCount
+                            )}
                           </Box>
                         </Box>
                       </td>
@@ -1338,13 +1206,15 @@ Remarks: ${candidateForm.remarks}`;
                                 sx={{ color: 'error.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' }, fontSize: '0.75rem', fontWeight: 700 }}
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  const group = app.associatedApps || [];
-                                  if (window.confirm(`Are you sure you want to delete the job requirement "${app.position}" and all of its ${group.length} candidate submissions?`)) {
+                                  const groupIds = app.associated_ids || (app.associatedApps || []).map((a: any) => a.id) || [app.id];
+                                  if (window.confirm(`Are you sure you want to delete the job requirement "${app.position}" and all of its associated records?`)) {
                                     try {
-                                      for (const sub of group) {
-                                        await api.delete(`applications/${sub.id}/`);
-                                        dispatch(deleteApplication(String(sub.id)));
+                                      for (const subId of groupIds) {
+                                        await api.delete(`applications/${subId}/`);
+                                        dispatch(deleteApplication(String(subId)));
                                       }
+                                      setLocalApplications(prev => prev.filter(a => !groupIds.includes(a.id)));
+                                      setTotalCount(prev => Math.max(0, prev - 1));
                                     } catch (err) {
                                       alert("Failed to delete some records.");
                                     }
@@ -1414,7 +1284,7 @@ Remarks: ${candidateForm.remarks}`;
                                         <td style={{ padding: activeRole === 'CEO' ? '2px 4px' : '4px 8px', fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
                                            {(() => {
                                              const rawCode = getRemarkField(applicant.remarks, 'Job Code');
-                                             const fallbackCode = jobCodeMap.get(applicant.id) || getRemarkField(app.remarks, 'Job Code');
+                                             const fallbackCode = getRemarkField(app.remarks, 'Job Code');
                                              const finalCode = (rawCode && rawCode !== 'N/A') ? rawCode : (fallbackCode && fallbackCode !== 'N/A' ? fallbackCode : '—');
                                              return renderCellText(finalCode, 90);
                                            })()}
@@ -1497,7 +1367,7 @@ Remarks: ${candidateForm.remarks}`;
                             const reqId = Number(app.id);
                             // Match portal applicants against ALL job IDs in the same group
                             // (handles duplicate job postings sharing the same Job Code)
-                            const reqIds = new Set((app.associatedApps || [app]).map((a: any) => Number(a.id)));
+                            const reqIds = new Set((app.associated_ids || (app.associatedApps || [app]).map((a: any) => a.id)).map(Number));
                             const portalApps = portalApplicants.filter(pa => reqIds.has(Number(pa.job)));
 
                             // Split LinkedIn vs Career Portal
@@ -1537,7 +1407,7 @@ Remarks: ${candidateForm.remarks}`;
                               <>
                                 {/* Career Portal Section */}
                                 <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                                     <Box
                                       sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
                                       onClick={() => setExpandedPortalSections(prev => ({ ...prev, [reqId]: !isPortalSectionExpanded }))}
@@ -1547,18 +1417,62 @@ Remarks: ${candidateForm.remarks}`;
                                       </Typography>
                                     </Box>
 
-                                    {isPortalSectionExpanded && careerPortalApps.length > 0 && (
-                                      <TextField
-                                        size="small"
-                                        placeholder="Search portal applicants (Name, Email, Mobile)..."
-                                        value={portalSearch}
-                                        onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
-                                        InputProps={{
-                                          startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
-                                          sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
-                                        }}
-                                        sx={{ width: 280 }}
-                                      />
+                                    {isPortalSectionExpanded && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                        {/* Pagination Controls */}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage <= 1 || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.max(1, prev - 1))}
+                                            sx={{ minWidth: 65, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Previous
+                                          </Button>
+                                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                            Page {portalApplicantsPage} of {portalApplicantsTotalPages} ({portalApplicantsTotalCount} total)
+                                          </Typography>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage >= portalApplicantsTotalPages || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.min(portalApplicantsTotalPages, prev + 1))}
+                                            sx={{ minWidth: 50, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Next
+                                          </Button>
+                                          <FormControl size="small" variant="standard" sx={{ minWidth: 70 }}>
+                                            <Select
+                                              value={portalApplicantsPageSize}
+                                              onChange={(e) => {
+                                                setPortalApplicantsPageSize(Number(e.target.value));
+                                                setPortalApplicantsPage(1);
+                                              }}
+                                              disableUnderline
+                                              sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}
+                                            >
+                                              <MenuItem value={50} sx={{ fontSize: '0.7rem' }}>50 / page</MenuItem>
+                                              <MenuItem value={100} sx={{ fontSize: '0.7rem' }}>100 / page</MenuItem>
+                                              <MenuItem value={200} sx={{ fontSize: '0.7rem' }}>200 / page</MenuItem>
+                                            </Select>
+                                          </FormControl>
+                                        </Box>
+
+                                        {careerPortalApps.length > 0 && (
+                                          <TextField
+                                            size="small"
+                                            placeholder="Search portal applicants (Name, Email, Mobile)..."
+                                            value={portalSearch}
+                                            onChange={(e) => setPortalSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                            InputProps={{
+                                              startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                              sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                            }}
+                                            sx={{ width: 280 }}
+                                          />
+                                        )}
+                                      </Box>
                                     )}
                                   </Box>
 
@@ -1708,7 +1622,7 @@ Remarks: ${candidateForm.remarks}`;
 
                                 {/* LinkedIn Section */}
                                 <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                                     <Box
                                       sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
                                       onClick={() => setExpandedLinkedInSections(prev => ({ ...prev, [reqId]: !isLinkedInSectionExpanded }))}
@@ -1718,18 +1632,62 @@ Remarks: ${candidateForm.remarks}`;
                                       </Typography>
                                     </Box>
 
-                                    {isLinkedInSectionExpanded && linkedinApps.length > 0 && (
-                                      <TextField
-                                        size="small"
-                                        placeholder="Search LinkedIn applicants (Name, Email, Mobile)..."
-                                        value={linkedinSearch}
-                                        onChange={(e) => setLinkedinSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
-                                        InputProps={{
-                                          startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
-                                          sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
-                                        }}
-                                        sx={{ width: 280 }}
-                                      />
+                                    {isLinkedInSectionExpanded && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                        {/* Pagination Controls */}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage <= 1 || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.max(1, prev - 1))}
+                                            sx={{ minWidth: 65, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Previous
+                                          </Button>
+                                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                                            Page {portalApplicantsPage} of {portalApplicantsTotalPages} ({portalApplicantsTotalCount} total)
+                                          </Typography>
+                                          <Button
+                                            size="small"
+                                            variant="outlined"
+                                            disabled={portalApplicantsPage >= portalApplicantsTotalPages || isPortalLoading}
+                                            onClick={() => setPortalApplicantsPage(prev => Math.min(portalApplicantsTotalPages, prev + 1))}
+                                            sx={{ minWidth: 50, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
+                                          >
+                                            Next
+                                          </Button>
+                                          <FormControl size="small" variant="standard" sx={{ minWidth: 70 }}>
+                                            <Select
+                                              value={portalApplicantsPageSize}
+                                              onChange={(e) => {
+                                                setPortalApplicantsPageSize(Number(e.target.value));
+                                                setPortalApplicantsPage(1);
+                                              }}
+                                              disableUnderline
+                                              sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}
+                                            >
+                                              <MenuItem value={50} sx={{ fontSize: '0.7rem' }}>50 / page</MenuItem>
+                                              <MenuItem value={100} sx={{ fontSize: '0.7rem' }}>100 / page</MenuItem>
+                                              <MenuItem value={200} sx={{ fontSize: '0.7rem' }}>200 / page</MenuItem>
+                                            </Select>
+                                          </FormControl>
+                                        </Box>
+
+                                        {linkedinApps.length > 0 && (
+                                          <TextField
+                                            size="small"
+                                            placeholder="Search LinkedIn applicants (Name, Email, Mobile)..."
+                                            value={linkedinSearch}
+                                            onChange={(e) => setLinkedinSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                            InputProps={{
+                                              startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                              sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                            }}
+                                            sx={{ width: 280 }}
+                                          />
+                                        )}
+                                      </Box>
                                     )}
                                   </Box>
 
@@ -1885,7 +1843,7 @@ Remarks: ${candidateForm.remarks}`;
                   </React.Fragment>
                 );
               })}
-              {groupedApps.length === 0 && (
+              {paginatedApps.length === 0 && (
                 <tr>
                   <td colSpan={shouldHideAction ? 8 : 9} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
                     {loading ? (
@@ -1904,7 +1862,7 @@ Remarks: ${candidateForm.remarks}`;
         <TablePagination
           rowsPerPageOptions={[25, 50, 100]}
           component="div"
-          count={groupedApps.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={(_, newPage) => setPage(newPage)}

@@ -1,6 +1,8 @@
 import csv
 import re
-from django.http import HttpResponse
+from collections import defaultdict
+from datetime import datetime, date
+from django.http import HttpResponse, StreamingHttpResponse
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -106,6 +108,58 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
             import threading
             threading.Thread(target=_dispatch_email, daemon=True).start()
 
+
+class Echo:
+    """An object that implements just the write method of the file-like interface."""
+    def write(self, value):
+        """Write the value by returning it, instead of storing in a buffer."""
+        return value
+
+
+def _extract_remark_field_for_export(remarks, field_name):
+    if not remarks:
+        return 'N/A'
+    if field_name == 'Variable Pay':
+        m = re.search(r'^(Variable Pay|Gross Revenue):[ \t]*(.+)', remarks, re.IGNORECASE | re.MULTILINE)
+        if m:
+            val = m.group(2).strip()
+            return val if val else 'N/A'
+        return 'N/A'
+    if field_name == 'Offer Value':
+        m = re.search(r'^(Offer Value|Invoice Amount):[ \t]*(.+)', remarks, re.IGNORECASE | re.MULTILINE)
+        if m:
+            val = m.group(2).strip()
+            return val if val else 'N/A'
+        return 'N/A'
+    m = re.search(rf'^{re.escape(field_name)}:[ \t]*(.+)', remarks, re.IGNORECASE | re.MULTILINE)
+    if m:
+        val = m.group(1).strip()
+        clean_val = val if val else 'N/A'
+        if field_name == 'Job Code' and clean_val != 'N/A':
+            if not clean_val.upper().startswith('PPW'):
+                return 'N/A'
+        return clean_val
+    return 'N/A'
+
+
+def _format_date_ddmmyyyy(val):
+    if not val or val in ('N/A', '—', 'None', 'undefined', 'null'):
+        return 'N/A'
+    if isinstance(val, (datetime, date)):
+        return val.strftime('%d-%m-%Y')
+    s = str(val).strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}', s):
+        parts = s.split('T')[0].split('-')
+        if len(parts) == 3:
+            return f"{parts[2]}-{parts[1]}-{parts[0]}"
+    try:
+        dt = datetime.fromisoformat(s)
+        return dt.strftime('%d-%m-%Y')
+    except Exception:
+        pass
+    return s
+
+
 from rest_framework.pagination import PageNumberPagination
 
 class StandardResultsSetPagination(PageNumberPagination):
@@ -143,6 +197,91 @@ class StandardResultsSetPagination(PageNumberPagination):
             'count': self.page.paginator.count,
             'results': data
         })
+
+from django.core.cache import cache
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+import time
+
+# Fallback in-process cache for environments where Redis daemon is offline
+_HIERARCHY_STATS_FALLBACK_CACHE = {}
+_HIERARCHY_STATS_FALLBACK_VERSION = 1
+HIERARCHY_STATS_VERSION_CACHE_KEY = 'HIERARCHY_STATS_CACHE_VERSION'
+
+_REDIS_AVAILABLE = None
+_LAST_REDIS_CHECK = 0
+
+def _check_redis_alive():
+    global _REDIS_AVAILABLE, _LAST_REDIS_CHECK
+    now = time.time()
+    if _REDIS_AVAILABLE is False and (now - _LAST_REDIS_CHECK) < 30:
+        return False
+    _LAST_REDIS_CHECK = now
+    try:
+        cache.get('_ping')
+        _REDIS_AVAILABLE = True
+        return True
+    except Exception:
+        _REDIS_AVAILABLE = False
+        return False
+
+def get_hierarchy_stats_version():
+    global _HIERARCHY_STATS_FALLBACK_VERSION
+    if _check_redis_alive():
+        try:
+            ver = cache.get(HIERARCHY_STATS_VERSION_CACHE_KEY)
+            if ver is None:
+                ver = 1
+                cache.set(HIERARCHY_STATS_VERSION_CACHE_KEY, ver, timeout=None)
+            return ver
+        except Exception:
+            pass
+    return _HIERARCHY_STATS_FALLBACK_VERSION
+
+def invalidate_hierarchy_stats_cache(sender=None, **kwargs):
+    global _HIERARCHY_STATS_FALLBACK_VERSION, _HIERARCHY_STATS_FALLBACK_CACHE
+    _HIERARCHY_STATS_FALLBACK_VERSION += 1
+    _HIERARCHY_STATS_FALLBACK_CACHE.clear()
+    if _check_redis_alive():
+        try:
+            cache.incr(HIERARCHY_STATS_VERSION_CACHE_KEY)
+        except Exception:
+            try:
+                cache.set(HIERARCHY_STATS_VERSION_CACHE_KEY, int(time.time()), timeout=None)
+            except Exception:
+                pass
+
+def get_cached_hierarchy_stats(cache_key):
+    if _check_redis_alive():
+        try:
+            return cache.get(cache_key)
+        except Exception:
+            pass
+    entry = _HIERARCHY_STATS_FALLBACK_CACHE.get(cache_key)
+    if entry is not None:
+        val, expiry = entry
+        if time.time() < expiry:
+            return val
+        _HIERARCHY_STATS_FALLBACK_CACHE.pop(cache_key, None)
+    return None
+
+def set_cached_hierarchy_stats(cache_key, data, timeout=900):
+    if _check_redis_alive():
+        try:
+            cache.set(cache_key, data, timeout=timeout)
+        except Exception:
+            pass
+    expiry = time.time() + timeout if timeout is not None else float('inf')
+    _HIERARCHY_STATS_FALLBACK_CACHE[cache_key] = (data, expiry)
+
+@receiver(post_save, sender=Application)
+@receiver(post_delete, sender=Application)
+@receiver(post_save, sender=Note)
+@receiver(post_delete, sender=Note)
+@receiver(post_save, sender=User)
+@receiver(post_delete, sender=User)
+def handle_hierarchy_cache_invalidation(sender, **kwargs):
+    invalidate_hierarchy_stats_cache()
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     serializer_class = ApplicationSerializer
@@ -214,6 +353,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         elif is_job_posting == 'false':
             qs = qs.exclude(candidate_name='')
 
+        # Apply team filter if present
+        team_id = self.request.query_params.get('team_id')
+        if team_id and team_id != 'ALL':
+            qs = qs.filter(assigned_employee__teams__id=team_id)
+
         # Apply global search if present
         if global_search:
             search_query = Q(candidate_name__icontains=global_search) | \
@@ -231,6 +375,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         status_param = self.request.query_params.get('status')
         if status_param and status_param not in ['ALL', 'HAS_CANDIDATE', 'INTERVIEWS']:
             qs = qs.filter(status=status_param)
+        elif status_param == 'INTERVIEWS':
+            qs = qs.filter(status__in=['Interview Scheduled', 'Interview Completed'])
+        elif status_param == 'HAS_CANDIDATE':
+            qs = qs.exclude(candidate_name='')
 
         # Apply date range filtering if not in global search
         if not global_search:
@@ -239,6 +387,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             all_applicants = self.request.query_params.get('all_applicants')
  
             if start_date and end_date:
+                if len(start_date) == 10 and start_date[2] == '-' and start_date[5] == '-':
+                    d, m, y = start_date.split('-')
+                    if len(y) == 4:
+                        start_date = f'{y}-{m}-{d}'
+                if len(end_date) == 10 and end_date[2] == '-' and end_date[5] == '-':
+                    d, m, y = end_date.split('-')
+                    if len(y) == 4:
+                        end_date = f'{y}-{m}-{d}'
  
                 # Dashboard / all applicants:
                 # Count applications ONLY by their creation date.
@@ -319,7 +475,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Job not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Extract job code from remarks to find sibling candidate applications
-        job_code_match = re.search(r'Job Code:\s*(.*)', parent_job.remarks or '')
+        job_code_match = re.search(r'Job Code:\s*(PPW\s*-\s*\d+)', parent_job.remarks or '', re.IGNORECASE)
         job_code = job_code_match.group(1).strip() if job_code_match else None
 
         # Find candidates for this job by job code in remarks, or by position+client match
@@ -339,7 +495,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             .order_by('-created_at')
 
         if job_code and 'Auto Generated' not in job_code:
-            candidates = base_qs.filter(remarks__icontains=f'Job Code: {job_code}')
+            clean_code = re.sub(r'\s+', '', job_code)
+            candidates = base_qs.filter(
+                Q(remarks__icontains=job_code) | Q(remarks__icontains=clean_code)
+            )
         else:
             # Fall back to position + client match
             candidates = base_qs.filter(
@@ -351,7 +510,150 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return Response({
             'job': ApplicationSerializer(parent_job, context={'request': request}).data,
             'candidates': serializer.data,
-            'count': candidates.count()
+            'count': len(serializer.data)
+        })
+
+    @action(detail=False, methods=['get'], url_path='job-postings')
+    def job_postings(self, request):
+        """
+        Return paginated, grouped Job Postings for the Job Postings Pipeline page.
+        Groups sibling job assignment records sharing the same Job Code or (position, client_name)
+        and consolidates assigned recruiters into consolidated_analysts.
+        """
+        global_search = request.query_params.get('global_search')
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date and len(start_date) == 10 and start_date[2] == '-' and start_date[5] == '-':
+            d, m, y = start_date.split('-')
+            if len(y) == 4:
+                start_date = f'{y}-{m}-{d}'
+        if end_date and len(end_date) == 10 and end_date[2] == '-' and end_date[5] == '-':
+            d, m, y = end_date.split('-')
+            if len(y) == 4:
+                end_date = f'{y}-{m}-{d}'
+        status_param = request.query_params.get('status', 'ALL')
+        team_id = request.query_params.get('team_id')
+        all_records = request.query_params.get('all_records') == 'true'
+
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except (ValueError, TypeError):
+            page = 1
+        try:
+            page_size = min(100, max(1, int(request.query_params.get('page_size', 50))))
+        except (ValueError, TypeError):
+            page_size = 50
+
+        qs = self.get_queryset().filter(candidate_name='')
+
+        if team_id and team_id != 'ALL':
+            qs = qs.filter(assigned_employee__teams__id=team_id)
+
+        if global_search:
+            term = global_search.strip()
+            search_query = (
+                Q(position__icontains=term) |
+                Q(client_name__icontains=term) |
+                Q(technology__icontains=term) |
+                Q(remarks__icontains=term)
+            )
+            if term.isdigit():
+                search_query |= Q(id=int(term))
+            qs = qs.filter(search_query)
+        elif start_date and end_date:
+            qs = qs.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+
+        job_records = list(
+            qs.select_related('assigned_employee')
+              .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')
+              .order_by('-created_at')
+        )
+
+        groups = {}
+        ordered_groups = []
+
+        for job in job_records:
+            m = re.search(r'Job Code:\s*(PPW\s*-\s*\d+)', job.remarks or '')
+            code = m.group(1).strip() if m else f"PPW - {job.id:04d}"
+            pos_key = f"{(job.position or '').lower().strip()}|{(job.client_name or '').lower().strip()}"
+            group_key = code.upper().strip() if code else pos_key
+
+            if group_key not in groups:
+                grp = {
+                    'primary_job': job,
+                    'associated_ids': [job.id],
+                    'recruiter_names': [job.assigned_employee.full_name or job.assigned_employee.email] if job.assigned_employee else ([job.recruiter] if job.recruiter else [])
+                }
+                groups[group_key] = grp
+                ordered_groups.append(grp)
+            else:
+                grp = groups[group_key]
+                grp['associated_ids'].append(job.id)
+                if job.assigned_employee:
+                    r_name = job.assigned_employee.full_name or job.assigned_employee.email
+                    if r_name and r_name not in grp['recruiter_names']:
+                        grp['recruiter_names'].append(r_name)
+
+        if status_param and status_param != 'ALL':
+            filtered = []
+            for grp in ordered_groups:
+                job = grp['primary_job']
+                job_status_match = re.search(r'Job Status:\s*(.*)', job.remarks or '')
+                job_status = job_status_match.group(1).strip() if job_status_match else 'Active'
+                if status_param.lower() in [job.status.lower(), job_status.lower()]:
+                    filtered.append(grp)
+            ordered_groups = filtered
+
+        total_count = len(ordered_groups)
+
+        if all_records:
+            page_groups = ordered_groups
+        else:
+            start_idx = (page - 1) * page_size
+            end_idx = start_idx + page_size
+            page_groups = ordered_groups[start_idx:end_idx]
+
+        # Build candidate counts mapping from active candidates
+        cand_tuples = list(self.get_queryset().exclude(candidate_name='').values_list('remarks', 'position', 'client_name'))
+        cand_by_code = defaultdict(int)
+        cand_by_pos_client = defaultdict(int)
+
+        for rem, pos, client in cand_tuples:
+            codes = set(re.findall(r'Job Code:\s*(PPW\s*-\s*\d+)', rem or '', re.IGNORECASE))
+            if codes:
+                for c in codes:
+                    clean = re.sub(r'\s+', '', c).upper()
+                    cand_by_code[clean] += 1
+            else:
+                p = (pos or '').lower().strip()
+                c = (client or '').lower().strip()
+                if p and c:
+                    cand_by_pos_client[f"{p}|{c}"] += 1
+
+        page_results = []
+        for grp in page_groups:
+            pj = grp['primary_job']
+            data = ApplicationSerializer(pj, context={'request': request}).data
+            data['associated_ids'] = grp['associated_ids']
+            data['consolidated_analysts'] = ', '.join(grp['recruiter_names']) if grp['recruiter_names'] else 'Unassigned'
+
+            m = re.search(r'Job Code:\s*(PPW\s*-\s*\d+)', pj.remarks or '', re.IGNORECASE)
+            code = m.group(1).strip() if m else f"PPW - {pj.id:04d}"
+            clean_code = re.sub(r'\s+', '', code).upper()
+
+            cand_count = cand_by_code.get(clean_code)
+            if cand_count is None:
+                pos_key = f"{(pj.position or '').lower().strip()}|{(pj.client_name or '').lower().strip()}"
+                cand_count = cand_by_pos_client.get(pos_key, 0)
+            data['candidates_count'] = cand_count
+
+            page_results.append(data)
+
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size if not all_records else total_count,
+            'results': page_results
         })
 
     @action(detail=False, methods=['get'], url_path='check-candidate')
@@ -466,37 +768,186 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         
         return Response(NoteSerializer(note).data, status=status.HTTP_201_CREATED)
 
-    # Export filtered candidate listings to CSV
+    # Export filtered candidate listings to CSV (Full 27 columns, unlimited streaming)
     @action(detail=False, methods=['get'], url_path='export-csv')
     def export_csv(self, request):
         queryset = self.get_queryset()
-        
-        response = HttpResponse(content_type='text/csv')
+
+        status_notes_prefetch = Prefetch(
+            'notes',
+            queryset=Note.objects.filter(
+                content__startswith='Status updated to '
+            ).order_by('created_at'),
+            to_attr='status_notes'
+        )
+        queryset = queryset.select_related('assigned_employee') \
+                           .prefetch_related(status_notes_prefetch) \
+                           .defer('ai_job_embedding', 'ai_job_embedding_nemotron',
+                                  'ai_job_embedding_metadata', 'job_embedding') \
+                           .order_by('-created_at')
+
+        # 1. Pre-fetch all parent job postings into memory once for parent job fallbacks
+        parent_jobs = list(Application.objects.filter(candidate_name='').select_related('assigned_employee'))
+        parent_by_code = {}
+        parent_by_title_client = {}
+        sibling_recruiters_by_code = {}
+
+        for pj in parent_jobs:
+            code = _extract_remark_field_for_export(pj.remarks, 'Job Code')
+            if code and code != 'N/A':
+                parent_by_code[code] = pj
+                if code not in sibling_recruiters_by_code:
+                    sibling_recruiters_by_code[code] = []
+                if pj.assigned_employee and pj.assigned_employee.email:
+                    sibling_recruiters_by_code[code].append(pj.assigned_employee.email)
+
+            pos = (pj.position or '').lower().strip()
+            client = (pj.client_name or '').lower().strip()
+            if pos and client and (pos, client) not in parent_by_title_client:
+                parent_by_title_client[(pos, client)] = pj
+
+        # 2. Pre-fetch users for hierarchy resolution
+        all_users = {u.email.lower(): u for u in User.objects.all().prefetch_related('reporting_to')}
+        reporting_map = {
+            u.email.lower(): [p.email.lower() for p in u.reporting_to.all()]
+            for u in all_users.values()
+        }
+
+        def get_hierarchy_info(recruiter_emails):
+            tls = set()
+            managers = set()
+            for email in recruiter_emails:
+                curr_email = email.lower() if email else ''
+                visited = set()
+                while curr_email and curr_email not in visited:
+                    visited.add(curr_email)
+                    curr_user = all_users.get(curr_email)
+                    if not curr_user:
+                        break
+                    if curr_user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
+                        tls.add(curr_user.full_name or curr_user.email)
+                    if curr_user.role in [Role.JUNIOR_MANAGER, Role.SENIOR_MANAGER]:
+                        managers.add(curr_user.full_name or curr_user.email)
+
+                    parents = reporting_map.get(curr_email, [])
+                    curr_email = parents[0] if parents else None
+
+            return {
+                'tl': ', '.join(sorted(tls)) if tls else 'N/A',
+                'manager': ', '.join(sorted(managers)) if managers else 'N/A'
+            }
+
+        hierarchy_cache = {}
+        def get_cached_hierarchy(recruiter_emails):
+            key = tuple(sorted(recruiter_emails))
+            if key not in hierarchy_cache:
+                hierarchy_cache[key] = get_hierarchy_info(recruiter_emails)
+            return hierarchy_cache[key]
+
+        headers = [
+            'Applicant ID',
+            'Applicant Name',
+            'Email',
+            'Job Code',
+            'City',
+            'State',
+            'Applicant Status',
+            'Job Title',
+            'Job Type',
+            'Client Name',
+            'Tentative Start Date',
+            'Manager',
+            'Team Lead',
+            'Recruiter',
+            'PAN Card',
+            'Aadhaar',
+            'Alt Mobile',
+            'Source',
+            'Interest to Work',
+            'Modified By',
+            'Pay Rate',
+            'Variable Pay',
+            'Offer Value',
+            'Profit Amount',
+            'Date of Join',
+            'Created Date',
+            'Status Changed Date'
+        ]
+
+        pseudo_buffer = Echo()
+        writer = csv.writer(pseudo_buffer)
+
+        def row_generator():
+            yield writer.writerow(headers)
+            for app in queryset.iterator(chunk_size=2000):
+                # Job code resolution
+                display_job_code = _extract_remark_field_for_export(app.remarks, 'Job Code')
+                if display_job_code == 'N/A' or not display_job_code:
+                    pos_key = ((app.position or '').lower().strip(), (app.client_name or '').lower().strip())
+                    pj_by_title = parent_by_title_client.get(pos_key)
+                    if pj_by_title:
+                        p_code = _extract_remark_field_for_export(pj_by_title.remarks, 'Job Code')
+                        display_job_code = p_code if (p_code and p_code != 'N/A') else f"PPW - {pj_by_title.id:04d}"
+                if not display_job_code:
+                    display_job_code = 'N/A'
+
+                display_position = app.position if (app.position and app.position != 'N/A') else 'N/A'
+                pj = parent_by_code.get(display_job_code)
+                display_job_type = _extract_remark_field_for_export(pj.remarks, 'Job Type') if pj else 'N/A'
+                display_client_name = app.client_name if (app.client_name and app.client_name != 'N/A') else (pj.client_name if pj and pj.client_name else 'N/A')
+                display_start_date = _extract_remark_field_for_export(pj.remarks, 'Start Date') if pj else 'N/A'
+
+                recruiter_emails = list(sibling_recruiters_by_code.get(display_job_code, []))
+                if not recruiter_emails and app.assigned_employee and app.assigned_employee.email:
+                    recruiter_emails.append(app.assigned_employee.email)
+
+                hierarchy = get_cached_hierarchy(recruiter_emails)
+
+                # Status changed date
+                status_changed_date = None
+                if hasattr(app, 'status_notes') and app.status_notes:
+                    for note in app.status_notes:
+                        if note.content and note.content.startswith("Status updated to "):
+                            status_part = note.content[18:].split(".")[0].split("\n")[0].strip()
+                            if status_part == app.status:
+                                status_changed_date = note.created_at
+                                break
+                if not status_changed_date:
+                    status_changed_date = app.updated_at
+
+                row = [
+                    app.id,
+                    app.candidate_name or 'N/A',
+                    app.candidate_email or 'N/A',
+                    display_job_code,
+                    app.city or 'N/A',
+                    app.state or 'N/A',
+                    app.status or 'N/A',
+                    display_position,
+                    display_job_type,
+                    display_client_name,
+                    _format_date_ddmmyyyy(display_start_date),
+                    hierarchy['manager'],
+                    hierarchy['tl'],
+                    app.recruiter or (app.assigned_employee.full_name if app.assigned_employee else 'System'),
+                    app.pan_card or 'N/A',
+                    app.aadhaar or 'N/A',
+                    app.alternate_mobile_number or 'N/A',
+                    app.source or 'N/A',
+                    app.interest_to_work_for_client or 'N/A',
+                    app.modified_by or 'System',
+                    _extract_remark_field_for_export(app.remarks, 'Pay Rate'),
+                    _extract_remark_field_for_export(app.remarks, 'Variable Pay'),
+                    _extract_remark_field_for_export(app.remarks, 'Offer Value'),
+                    _extract_remark_field_for_export(app.remarks, 'Profit Amount'),
+                    _format_date_ddmmyyyy(_extract_remark_field_for_export(app.remarks, 'Date of Join')),
+                    _format_date_ddmmyyyy(app.created_at),
+                    _format_date_ddmmyyyy(status_changed_date)
+                ]
+                yield writer.writerow(row)
+
+        response = StreamingHttpResponse(row_generator(), content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="ats_applications.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow([
-            'ID', 'Candidate Name', 'Candidate Email', 'Candidate Phone',
-            'Client Name', 'Position', 'Technology', 'Experience Required',
-            'Recruiter', 'Assigned Associate', 'Status', 'Updated At'
-        ])
-        
-        for app in queryset:
-            writer.writerow([
-                app.id,
-                app.candidate_name or 'N/A',
-                app.candidate_email or 'N/A',
-                app.candidate_phone or 'N/A',
-                app.client_name,
-                app.position,
-                app.technology,
-                app.experience,
-                app.recruiter or 'N/A',
-                app.assigned_employee.full_name if app.assigned_employee else 'Unassigned',
-                app.status,
-                app.updated_at.strftime('%Y-%m-%d %H:%M:%S')
-            ])
-            
         return response
 
     # Generate a pre-signed S3 URL for secure resume access (valid 1 hour)
@@ -799,6 +1250,606 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             'fileName': file_obj.name
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='hierarchy-stats')
+    def hierarchy_stats(self, request):
+        from collections import defaultdict
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date and len(start_date) == 10 and start_date[2] == '-' and start_date[5] == '-':
+            d, m, y = start_date.split('-')
+            if len(y) == 4:
+                start_date = f'{y}-{m}-{d}'
+        if end_date and len(end_date) == 10 and end_date[2] == '-' and end_date[5] == '-':
+            d, m, y = end_date.split('-')
+            if len(y) == 4:
+                end_date = f'{y}-{m}-{d}'
+
+        version = get_hierarchy_stats_version()
+        cache_key = f"hierarchy_stats_v{version}_{start_date or 'all'}_{end_date or 'all'}"
+        cached_response = get_cached_hierarchy_stats(cache_key)
+        if cached_response is not None:
+            return Response(cached_response, status=status.HTTP_200_OK)
+
+        TARGET_STATUS_PREFIXES = (
+            ('submitted', 'status updated to submitted'),
+            ('interview scheduled', 'status updated to interview scheduled'),
+            ('interview completed', 'status updated to interview completed'),
+            ('offer sent', 'status updated to offer sent'),
+            ('offer accepted', 'status updated to offer accepted'),
+            ('placed', 'status updated to placed'),
+        )
+
+        def extract_job_code_fast(remarks):
+            if not remarks:
+                return 'N/A'
+            idx = remarks.find('Job Code:')
+            if idx == -1:
+                idx = remarks.lower().find('job code:')
+                if idx == -1:
+                    return 'N/A'
+            start = idx + 9
+            end = remarks.find('\n', start)
+            val = remarks[start:end].strip() if end != -1 else remarks[start:].strip()
+            if val and val.upper().startswith('PPW'):
+                return val
+            return 'N/A'
+
+        apps_tuples = list(Application.objects.values_list(
+            'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
+            'remarks', 'recruiter', 'assigned_employee__email', 'status', 'modified_by', 'created_at'
+        ))
+
+        notes_tuples = list(Note.objects.filter(content__istartswith='Status updated to ').values_list('application_id', 'content', 'created_at').order_by('created_at'))
+        notes_map = defaultdict(dict)
+        for app_id, content, created_at in notes_tuples:
+            c_lower = (content or '').strip().lower()
+            for st_key, prefix in TARGET_STATUS_PREFIXES:
+                if c_lower.startswith(prefix):
+                    d_str = created_at.strftime('%Y-%m-%d') if created_at else ''
+                    notes_map[app_id][st_key] = (d_str, created_at)
+                    break
+
+        users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']).values_list('email', 'full_name'))
+
+        app_job_codes = {}
+        app_created_dates = {}
+        candidate_groups = defaultdict(list)
+        group_has_real_job = defaultdict(bool)
+
+        for item in apps_tuples:
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+            code = extract_job_code_fast(remarks)
+            app_job_codes[app_id] = code
+            c_date = created_at.strftime('%Y-%m-%d') if created_at else ''
+            app_created_dates[app_id] = c_date
+
+            if cand_name:
+                k = (cand_email or '').lower().strip() or cand_name.lower().strip()
+                candidate_groups[k].append(item)
+                if code != 'N/A':
+                    group_has_real_job[k] = True
+
+        deduplicated_apps = []
+        for item in apps_tuples:
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+            if not cand_name:
+                deduplicated_apps.append(item)
+                continue
+            k = (cand_email or '').lower().strip() or cand_name.lower().strip()
+            if group_has_real_job[k]:
+                if app_job_codes[app_id] != 'N/A':
+                    deduplicated_apps.append(item)
+            else:
+                group = candidate_groups[k]
+                if app_id == group[0][0]:
+                    deduplicated_apps.append(item)
+
+        code_map = {}
+        pos_client_map = defaultdict(list)
+        for item in deduplicated_apps:
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+            if cand_name:
+                continue
+            code = app_job_codes[app_id]
+            if code != 'N/A':
+                key = code.upper().strip()
+                if key not in code_map:
+                    code_map[key] = item
+            norm_pos = (pos or '').lower().strip()
+            norm_client = (client or '').lower().strip()
+            if norm_pos and norm_client:
+                pos_client_map[f'{norm_pos}|{norm_client}'].append(item)
+
+        parent_job_by_app_id = {}
+        for item in deduplicated_apps:
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+            if not cand_name:
+                parent_job_by_app_id[app_id] = item
+                continue
+            code = app_job_codes[app_id]
+            if code != 'N/A':
+                p = code_map.get(code.upper().strip())
+                if p:
+                    parent_job_by_app_id[app_id] = p
+                    continue
+            norm_pos = (pos or '').lower().strip()
+            norm_client = (client or '').lower().strip()
+            if not norm_pos or not norm_client:
+                parent_job_by_app_id[app_id] = None
+                continue
+            candidates = pos_client_map.get(f'{norm_pos}|{norm_client}')
+            if not candidates:
+                parent_job_by_app_id[app_id] = None
+                continue
+            if start_date and end_date:
+                match = None
+                for c in candidates:
+                    d = app_created_dates[c[0]]
+                    if d >= start_date and d <= end_date:
+                        match = c
+                        break
+                if match:
+                    parent_job_by_app_id[app_id] = match
+                    continue
+            sub_date = app_created_dates[app_id]
+            on_or_before = [c for c in candidates if app_created_dates[c[0]] <= sub_date]
+            if on_or_before:
+                on_or_before.sort(key=lambda x: x[10], reverse=True)
+                parent_job_by_app_id[app_id] = on_or_before[0]
+            else:
+                parent_job_by_app_id[app_id] = candidates[0]
+
+        def get_trans_info(app_id, app_st, created_at, created_date_str, target_status_lower):
+            app_n = notes_map.get(app_id)
+            if app_n and target_status_lower in app_n:
+                d_str, dt = app_n[target_status_lower]
+                return (d_str, True, dt)
+            if (app_st or '').lower() == target_status_lower:
+                return (created_date_str, False, created_at)
+            return ('', False, None)
+
+        user_by_email = {u[0].lower(): u[0].lower() for u in users}
+        name_to_emails = defaultdict(list)
+        for u in users:
+            if u[1]:
+                name_to_emails[u[1].lower()].append(u[0].lower())
+
+        user_apps_map = defaultdict(list)
+        user_subs_map = defaultdict(list)
+
+        for item in deduplicated_apps:
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+            matched_emails = set()
+            e_email = (emp_email or '').lower()
+            if e_email:
+                if e_email in user_by_email:
+                    matched_emails.add(e_email)
+                if cand_name:
+                    user_subs_map[e_email].append(item)
+
+            if rec:
+                rec_lower = rec.lower()
+                if rec_lower in user_by_email:
+                    matched_emails.add(rec_lower)
+                if rec_lower in name_to_emails:
+                    for target in name_to_emails[rec_lower]:
+                        matched_emails.add(target)
+
+            for e in matched_emails:
+                user_apps_map[e].append(item)
+
+        placed_apps_for_hierarchy = []
+        for k, group in candidate_groups.items():
+            if group_has_real_job[k]:
+                for item in group:
+                    if app_job_codes[item[0]] != 'N/A':
+                        d, _, _ = get_trans_info(item[0], item[8], item[10], app_created_dates[item[0]], 'placed')
+                        mod_by = item[9]
+                        if d and (not start_date or not end_date or (d >= start_date and d <= end_date)) and (mod_by and mod_by.lower() != 'system'):
+                            placed_apps_for_hierarchy.append(item)
+            else:
+                qualifying = []
+                for item in group:
+                    date_str, has_note, dt = get_trans_info(item[0], item[8], item[10], app_created_dates[item[0]], 'placed')
+                    mod_by = item[9]
+                    if date_str and (not start_date or not end_date or (date_str >= start_date and date_str <= end_date)) and (mod_by and mod_by.lower() != 'system'):
+                        qualifying.append((item, has_note, dt))
+                if qualifying:
+                    qualifying.sort(key=lambda x: (1 if x[1] else 0, x[2] or x[0][10], x[0][0]))
+                    placed_apps_for_hierarchy.append(qualifying[-1][0])
+
+        user_onboard_map = defaultdict(list)
+        for item in placed_apps_for_hierarchy:
+            matched_emails = set()
+            emp_email = (item[7] or '').lower()
+            if emp_email and emp_email in user_by_email:
+                matched_emails.add(emp_email)
+            rec = item[6]
+            if rec:
+                rec_lower = rec.lower()
+                if rec_lower in user_by_email:
+                    matched_emails.add(rec_lower)
+                if rec_lower in name_to_emails:
+                    for target in name_to_emails[rec_lower]:
+                        matched_emails.add(target)
+            for e in matched_emails:
+                user_onboard_map[e].append(item)
+
+        app_sub_match = {}
+        app_int_match = {}
+        app_off_match = {}
+        app_acc_match = {}
+        app_parent_job_code_date = {}
+
+        for item in deduplicated_apps:
+            aid = item[0]
+            p_job = parent_job_by_app_id[aid] or item
+            p_date = app_created_dates[p_job[0]]
+            if not start_date or not end_date or (p_date >= start_date and p_date <= end_date):
+                code = app_job_codes[p_job[0]]
+                if not code or code == 'N/A':
+                    if not p_job[1]:
+                        code = f'PPW-{str(p_job[0]).zfill(4)}'
+                if code and code != 'N/A':
+                    app_parent_job_code_date[aid] = code.upper().strip()
+                else:
+                    app_parent_job_code_date[aid] = None
+            else:
+                app_parent_job_code_date[aid] = None
+
+            if item[1]:
+                d_sub, _, _ = get_trans_info(aid, item[8], item[10], app_created_dates[aid], 'submitted')
+                app_sub_match[aid] = bool(d_sub and (not start_date or not end_date or (d_sub >= start_date and d_sub <= end_date)))
+            else:
+                app_sub_match[aid] = False
+
+            d_s, _, _ = get_trans_info(aid, item[8], item[10], app_created_dates[aid], 'interview scheduled')
+            d_c, _, _ = get_trans_info(aid, item[8], item[10], app_created_dates[aid], 'interview completed')
+            match_s = bool(d_s and (not start_date or not end_date or (d_s >= start_date and d_s <= end_date)))
+            match_c = bool(d_c and (not start_date or not end_date or (d_c >= start_date and d_c <= end_date)))
+            app_int_match[aid] = match_s or match_c
+
+            d_off, _, _ = get_trans_info(aid, item[8], item[10], app_created_dates[aid], 'offer sent')
+            app_off_match[aid] = bool(d_off and (not start_date or not end_date or (d_off >= start_date and d_off <= end_date)))
+
+            d_acc, _, _ = get_trans_info(aid, item[8], item[10], app_created_dates[aid], 'offer accepted')
+            app_acc_match[aid] = bool(d_acc and (not start_date or not end_date or (d_acc >= start_date and d_acc <= end_date)))
+
+        user_metrics = {}
+        for u in users:
+            email = u[0].lower()
+            user_apps = user_apps_map.get(email, [])
+
+            seen_jobs = set()
+            int_count = 0
+            off_count = 0
+            off_acc = 0
+            for a in user_apps:
+                aid = a[0]
+                jcode = app_parent_job_code_date[aid]
+                if jcode:
+                    seen_jobs.add(jcode)
+                if app_int_match[aid]:
+                    int_count += 1
+                if app_off_match[aid]:
+                    off_count += 1
+                if app_acc_match[aid]:
+                    off_acc += 1
+
+            sub_count = 0
+            for a in user_subs_map.get(email, []):
+                if app_sub_match[a[0]]:
+                    sub_count += 1
+
+            onboard = len(user_onboard_map.get(email, []))
+
+            user_metrics[email] = {
+                'jobsCount': len(seen_jobs),
+                'submissions': sub_count,
+                'interviews': int_count,
+                'offers': off_count,
+                'offerAccepted': off_acc,
+                'onboard': onboard,
+                'jobCodes': list(seen_jobs)
+            }
+
+        response_data = {
+            'user_metrics': user_metrics,
+            'start_date': start_date,
+            'end_date': end_date
+        }
+        set_cached_hierarchy_stats(cache_key, response_data, timeout=900)
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get', 'post'], url_path='hierarchy-drilldown')
+    def hierarchy_drilldown(self, request):
+        import hashlib
+        import json
+        import re
+        from collections import defaultdict
+        start_date = request.query_params.get('start_date') or request.data.get('start_date')
+        end_date = request.query_params.get('end_date') or request.data.get('end_date')
+        if start_date and len(start_date) == 10 and start_date[2] == '-' and start_date[5] == '-':
+            d, m, y = start_date.split('-')
+            if len(y) == 4:
+                start_date = f'{y}-{m}-{d}'
+        if end_date and len(end_date) == 10 and end_date[2] == '-' and end_date[5] == '-':
+            d, m, y = end_date.split('-')
+            if len(y) == 4:
+                end_date = f'{y}-{m}-{d}'
+        metric_type = request.query_params.get('metric_type') or request.data.get('metric_type')
+        emails_param = request.query_params.get('emails') or request.data.get('emails')
+
+        if isinstance(emails_param, list):
+            target_emails = [e.strip().lower() for e in emails_param if e and isinstance(e, str) and e.strip()]
+        elif isinstance(emails_param, str):
+            target_emails = [e.strip().lower() for e in emails_param.split(',') if e.strip()]
+        else:
+            target_emails = []
+
+        version = get_hierarchy_stats_version()
+        user_scope = str(getattr(request.user, 'pk', getattr(request.user, 'email', 'anonymous'))) if (request.user and request.user.is_authenticated) else 'anonymous'
+        user_role = getattr(request.user, 'role', '') if (request.user and request.user.is_authenticated) else ''
+        key_dict = {
+            'version': version,
+            'metric_type': metric_type or '',
+            'start_date': start_date or '',
+            'end_date': end_date or '',
+            'target_emails': sorted(target_emails),
+            'user_scope': user_scope,
+            'user_role': user_role,
+        }
+        key_hash = hashlib.sha256(json.dumps(key_dict, sort_keys=True).encode('utf-8')).hexdigest()
+        cache_key = f"hierarchy_drilldown_{key_hash}"
+        cached_response = get_cached_hierarchy_stats(cache_key)
+        if cached_response is not None:
+            return Response(cached_response, status=status.HTTP_200_OK)
+
+        users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']))
+        target_names = [u.full_name.lower() for u in users if u.email.lower() in target_emails and u.full_name]
+
+        apps_tuples = list(Application.objects.values_list(
+            'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
+            'remarks', 'recruiter', 'assigned_employee__email', 'status', 'modified_by', 'created_at'
+        ))
+
+        notes_qs = Note.objects.filter(content__istartswith='Status updated to ').values('application_id', 'content', 'created_at')
+        notes_dict = defaultdict(list)
+        for n in notes_qs:
+            notes_dict[n['application_id']].append(n)
+
+        def get_remark_field(remarks, field_name):
+            if not remarks:
+                return 'N/A'
+            m = re.search(r'^' + field_name + r':[ \t]*(.+)', remarks, re.M | re.I)
+            val = m.group(1).strip() if m else 'N/A'
+            if field_name == 'Job Code' and val != 'N/A':
+                if not val.upper().startswith('PPW'):
+                    return 'N/A'
+            return val if val else 'N/A'
+
+        candidate_groups = defaultdict(list)
+        for a in apps_tuples:
+            if not a[1]:
+                continue
+            k = (a[2] or '').lower().strip() or (a[1] or '').lower().strip()
+            candidate_groups[k].append(a)
+
+        deduplicated_apps = []
+        for a in apps_tuples:
+            if not a[1]:
+                deduplicated_apps.append(a)
+                continue
+            k = (a[2] or '').lower().strip() or (a[1] or '').lower().strip()
+            group = candidate_groups[k]
+            has_real_job = any(get_remark_field(x[5], 'Job Code') != 'N/A' for x in group)
+            if has_real_job:
+                if get_remark_field(a[5], 'Job Code') != 'N/A':
+                    deduplicated_apps.append(a)
+            else:
+                if a[0] == group[0][0]:
+                    deduplicated_apps.append(a)
+
+        code_map = {}
+        pos_client_map = defaultdict(list)
+        for a in deduplicated_apps:
+            if a[1]:
+                continue
+            code = get_remark_field(a[5], 'Job Code')
+            if code and code != 'N/A':
+                key = code.upper().strip()
+                if key not in code_map:
+                    code_map[key] = a
+            norm_pos = (a[3] or '').lower().strip()
+            norm_client = (a[4] or '').lower().strip()
+            if norm_pos and norm_client:
+                pos_client_map[f'{norm_pos}|{norm_client}'].append(a)
+
+        def find_parent_job(app_tuple):
+            if not app_tuple:
+                return None
+            if not app_tuple[1]:
+                return app_tuple
+            direct_code = get_remark_field(app_tuple[5], 'Job Code')
+            if direct_code and direct_code != 'N/A':
+                p = code_map.get(direct_code.upper().strip())
+                if p:
+                    return p
+            norm_pos = (app_tuple[3] or '').lower().strip()
+            norm_client = (app_tuple[4] or '').lower().strip()
+            if not norm_pos or not norm_client:
+                return None
+            candidates = pos_client_map.get(f'{norm_pos}|{norm_client}')
+            if not candidates:
+                return None
+            if start_date and end_date:
+                for c in candidates:
+                    d = (c[10].strftime('%Y-%m-%d') if c[10] else '')
+                    if d >= start_date and d <= end_date:
+                        return c
+            sub_date = (app_tuple[10].strftime('%Y-%m-%d') if app_tuple[10] else '')
+            on_or_before = [c for c in candidates if (c[10].strftime('%Y-%m-%d') if c[10] else '') <= sub_date]
+            if on_or_before:
+                on_or_before.sort(key=lambda x: x[10], reverse=True)
+                return on_or_before[0]
+            return candidates[0]
+
+        def get_status_transition_info(app_tuple, target_status):
+            app_notes = notes_dict.get(app_tuple[0], [])
+            target_prefix = f'status updated to {target_status}'.lower()
+            matching_notes = [n for n in app_notes if (n['content'] or '').strip().lower().startswith(target_prefix)]
+            if matching_notes:
+                matching_notes.sort(key=lambda n: n['created_at'], reverse=True)
+                return (matching_notes[0]['created_at'].strftime('%Y-%m-%d'), True, matching_notes[0]['created_at'])
+            if app_tuple[8] == target_status:
+                return (app_tuple[10].strftime('%Y-%m-%d') if app_tuple[10] else '', False, app_tuple[10])
+            return ('', False, None)
+
+        def get_status_transition_date(app_tuple, target_status):
+            date_str, _, _ = get_status_transition_info(app_tuple, target_status)
+            return date_str
+
+        user_apps = []
+        user_subs = []
+        for a in deduplicated_apps:
+            emp_email = a[7].lower() if a[7] else None
+            rec_lower = a[6].lower() if a[6] else None
+            is_match = False
+            if not target_emails or (emp_email and emp_email in target_emails):
+                is_match = True
+                if a[1]:
+                    user_subs.append(a)
+            if not target_emails or (rec_lower and (rec_lower in target_emails or rec_lower in target_names)):
+                is_match = True
+            if is_match:
+                user_apps.append(a)
+
+        status_notes_prefetch = Prefetch(
+            'notes',
+            queryset=Note.objects.filter(
+                content__startswith='Status updated to '
+            ).select_related('author').order_by('created_at'),
+            to_attr='status_notes'
+        )
+
+        if metric_type == 'JOBS':
+            date_filtered = []
+            for a in user_apps:
+                p = find_parent_job(a) or a
+                d = (p[10].strftime('%Y-%m-%d') if p[10] else '')
+                if not start_date or not end_date or (d >= start_date and d <= end_date):
+                    date_filtered.append(a)
+
+            groups_by_code = defaultdict(list)
+            ordered_group_keys = []
+            parent_by_key = {}
+            all_needed_ids = set()
+
+            for item in date_filtered:
+                p = find_parent_job(item) or item
+                code = get_remark_field(p[5], 'Job Code')
+                if not code or code == 'N/A':
+                    if not p[1]:
+                        code = f'PPW-{str(p[0]).zfill(4)}'
+                if not code or code == 'N/A':
+                    continue
+                key = code.upper().strip()
+                if key not in groups_by_code:
+                    ordered_group_keys.append(key)
+                    parent_by_key[key] = find_parent_job(item)
+                groups_by_code[key].append(item)
+                all_needed_ids.add(item[0])
+                if parent_by_key[key]:
+                    all_needed_ids.add(parent_by_key[key][0])
+
+            needed_instances = {
+                app.id: app for app in Application.objects.filter(id__in=all_needed_ids)
+                .select_related('assigned_employee')
+                .prefetch_related(status_notes_prefetch)
+                .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')
+            }
+
+            job_results = []
+            for key in ordered_group_keys:
+                group = groups_by_code[key]
+                parent = parent_by_key[key]
+                rep_tuple = parent or next((x for x in group if not x[1]), group[0])
+                rep_obj = needed_instances.get(rep_tuple[0])
+                if not rep_obj:
+                    continue
+
+                group_objs = [needed_instances[x[0]] for x in group if x[0] in needed_instances]
+                rep_data = ApplicationSerializer(rep_obj, context={'request': request}).data
+                rep_data['associatedApps'] = ApplicationSerializer(group_objs, many=True, context={'request': request}).data
+                job_results.append(rep_data)
+
+            response_data = {
+                'results': job_results,
+                'count': len(job_results)
+            }
+            set_cached_hierarchy_stats(cache_key, response_data, timeout=900)
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        elif metric_type == 'SUBMISSIONS':
+            matched = [a for a in user_subs if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Submitted'))]
+        elif metric_type == 'INTERVIEWS':
+            matched = [a for a in user_apps if (lambda ds, dc: (ds and (not start_date or not end_date or (ds >= start_date and ds <= end_date))) or (dc and (not start_date or not end_date or (dc >= start_date and dc <= end_date))))(get_status_transition_date(a, 'Interview Scheduled'), get_status_transition_date(a, 'Interview Completed'))]
+        elif metric_type == 'OFFERS':
+            matched = [a for a in user_apps if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Offer Sent'))]
+        elif metric_type == 'OFFER_ACCEPTED':
+            matched = [a for a in user_apps if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Offer Accepted'))]
+        elif metric_type == 'ONBOARD':
+            placed_apps_for_hierarchy = []
+            for k, group in candidate_groups.items():
+                has_real_job = any(get_remark_field(x[5], 'Job Code') != 'N/A' for x in group)
+                if has_real_job:
+                    for a in group:
+                        if get_remark_field(a[5], 'Job Code') != 'N/A':
+                            d = get_status_transition_date(a, 'Placed')
+                            if d and (not start_date or not end_date or (d >= start_date and d <= end_date)) and (a[9] and a[9].lower() != 'system'):
+                                placed_apps_for_hierarchy.append(a)
+                else:
+                    qualifying = []
+                    for a in group:
+                        date_str, has_note, dt = get_status_transition_info(a, 'Placed')
+                        if date_str and (not start_date or not end_date or (date_str >= start_date and date_str <= end_date)) and (a[9] and a[9].lower() != 'system'):
+                            qualifying.append((a, has_note, dt))
+                    if qualifying:
+                        qualifying.sort(key=lambda item: (1 if item[1] else 0, item[2] or item[0][10], item[0][0]))
+                        placed_apps_for_hierarchy.append(qualifying[-1][0])
+
+            matched = []
+            for a in placed_apps_for_hierarchy:
+                emp_email = a[7].lower() if a[7] else None
+                rec_lower = a[6].lower() if a[6] else None
+                is_match = False
+                if not target_emails or (emp_email and emp_email in target_emails):
+                    is_match = True
+                if not target_emails or (rec_lower and (rec_lower in target_emails or rec_lower in target_names)):
+                    is_match = True
+                if is_match:
+                    matched.append(a)
+        elif metric_type == 'REJECTIONS':
+            matched = [a for a in user_apps if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Rejected'))]
+        else:
+            matched = []
+
+        matched_ids = [a[0] for a in matched]
+        needed_instances = {
+            app.id: app for app in Application.objects.filter(id__in=matched_ids)
+            .select_related('assigned_employee')
+            .prefetch_related(status_notes_prefetch)
+            .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')
+        }
+        ordered_instances = [needed_instances[aid] for aid in matched_ids if aid in needed_instances]
+        serialized = ApplicationSerializer(ordered_instances, many=True, context={'request': request}).data
+        response_data = {
+            'results': serialized,
+            'count': len(serialized)
+        }
+        set_cached_hierarchy_stats(cache_key, response_data, timeout=900)
+        return Response(response_data, status=status.HTTP_200_OK)
 
     # Dynamic metrics loader for role dashboards
     @action(detail=False, methods=['get'], url_path='dashboard-stats')

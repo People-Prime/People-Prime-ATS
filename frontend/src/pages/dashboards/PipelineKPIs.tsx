@@ -5,10 +5,12 @@ import {
   Card,
   Typography,
   useTheme,
-  Box
+  Box,
+  CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../../redux/store';
+import { api } from '../../services/api';
 import {
   Send,
   CalendarClock,
@@ -268,21 +270,22 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
     return [email, ...direct.flatMap((d: any) => getDescendantEmails(d.email))];
   }, [filteredUsers]);
 
-  const scopeApps = React.useMemo(() => {
+  const scopeEmailsLower = React.useMemo(() => {
     const isHierarchyRoot = ['CEO', 'ADMIN', 'REPORTING_TEAM'].includes(currentUser?.role);
     const scopeEmails = isHierarchyRoot 
       ? filteredUsers.map((u: any) => u.email)
       : getDescendantEmails(currentUser?.email || '');
+    return scopeEmails.map((e: string) => e.toLowerCase());
+  }, [currentUser, filteredUsers, getDescendantEmails]);
 
-    const scopeEmailsLower = scopeEmails.map((e: string) => e.toLowerCase());
-
+  const scopeApps = React.useMemo(() => {
     const deduplicatedApps = getUniqueSubmissions(allApps);
 
     return deduplicatedApps.filter((app: any) => 
       app.assigned_employee?.email && 
       scopeEmailsLower.includes(app.assigned_employee.email.toLowerCase())
     );
-  }, [allApps, currentUser, filteredUsers, getDescendantEmails]);
+  }, [allApps, scopeEmailsLower]);
 
   const submissions = React.useMemo(() => {
     return scopeApps.filter((app: any) =>
@@ -337,77 +340,62 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
     }).length;
   }, [scopeApps, notes, effectiveStartDate, effectiveEndDate]);
 
-  const handleCardClick = (label: string, value: number) => {
-    if (value === 0) return;
-    let filtered: any[] = [];
+  const [loadingMetric, setLoadingMetric] = React.useState<string | null>(null);
+
+  const handleCardClick = async (label: string, value: number) => {
+    if (value === 0 || loadingMetric !== null) return;
+
+    let metricType = '';
+    let isJobs = false;
+    let isApplicants = false;
 
     if (label === 'Jobs Count') {
-      const seen = new Set<string>();
-      const sourceApps = isAssociate ? dateFilteredAssigned : applications;
-      sourceApps.forEach((app: any) => {
-        const jobCode = getRemarkFieldVal(app.remarks, 'Job Code');
-        if (jobCode === 'N/A' || !jobCode) return;
-        const key = jobCode.toUpperCase().trim();
-        if (!seen.has(key)) {
-          seen.add(key);
-          const group = allApps.filter((a: any) => {
-            const code = getRemarkFieldVal(a.remarks, 'Job Code');
-            return code && code.toUpperCase().trim() === key;
-          });
-          const rep = { ...(group.find((a: any) => !a.candidate_name) || group[0]) };
-          rep.associatedApps = group;
-          filtered.push(rep);
-        }
-      });
+      metricType = 'JOBS';
+      isJobs = true;
     } else if (label === 'Client Submissions') {
-      filtered = scopeApps.filter(app =>
-        app.candidate_name &&
-        hasReachedSubmittedMilestone(app) &&
-        (() => {
-          const d = getStatusTransitionDate(app, 'Submitted', notes);
-          return d >= effectiveStartDate && d <= effectiveEndDate;
-        })()
-      );
+      metricType = 'SUBMISSIONS';
+      isApplicants = true;
     } else if (label === 'Client Interviews') {
-      filtered = scopeApps.filter(app => {
-        const dScheduled = getStatusTransitionDate(app, 'Interview Scheduled', notes);
-        const dCompleted = getStatusTransitionDate(app, 'Interview Completed', notes);
-        const matchScheduled = dScheduled >= effectiveStartDate && dScheduled <= effectiveEndDate;
-        const matchCompleted = dCompleted >= effectiveStartDate && dCompleted <= effectiveEndDate;
-        return matchScheduled || matchCompleted;
-      });
+      metricType = 'INTERVIEWS';
+      isApplicants = true;
     } else if (label === 'Client Rejections') {
-      filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Rejected', notes);
-        return d >= effectiveStartDate && d <= effectiveEndDate;
-      });
+      metricType = 'REJECTIONS';
+      isApplicants = true;
     } else if (label === 'Offer Sent') {
-      filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Sent', notes);
-        return d >= effectiveStartDate && d <= effectiveEndDate;
-      });
+      metricType = 'OFFERS';
+      isApplicants = true;
     } else if (label === 'Offer Accepted') {
-      filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Offer Accepted', notes);
-        return d >= effectiveStartDate && d <= effectiveEndDate;
-      });
+      metricType = 'OFFER_ACCEPTED';
+      isApplicants = true;
     } else if (label === 'Onboard') {
-      filtered = scopeApps.filter(app => {
-        const d = getStatusTransitionDate(app, 'Placed', notes);
-        const isWithinDate = d >= effectiveStartDate && d <= effectiveEndDate;
-        const isSystem = !app.modified_by || app.modified_by.toLowerCase() === 'system';
-        return isWithinDate && !isSystem;
-      });
+      metricType = 'ONBOARD';
+      isApplicants = true;
     }
 
-    navigate('/drill-down', {
-      state: {
-        modalTitle: label,
-        modalData: filtered,
-        isJobsType: label === 'Jobs Count',
-        isApplicantsType: label !== 'Jobs Count'
-      }
-    });
+    if (!metricType) return;
+
+    try {
+      setLoadingMetric(label);
+      const res = await api.post('applications/hierarchy-drilldown/', {
+        metric_type: metricType,
+        emails: scopeEmailsLower,
+        start_date: effectiveStartDate,
+        end_date: effectiveEndDate
+      });
+      const records = res.data?.results || res.data || [];
+      navigate('/drill-down', {
+        state: {
+          modalTitle: label,
+          modalData: records,
+          isJobsType: isJobs,
+          isApplicantsType: isApplicants
+        }
+      });
+    } catch (err) {
+      console.error('Failed to load drilldown records:', err);
+    } finally {
+      setLoadingMetric(null);
+    }
   };
 
   const cards = [
@@ -437,6 +425,8 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
           const { Icon } = card;
           const iconColor = isDark ? '#3b82f6' : '#0062AD';
           const iconBg = isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 98, 173, 0.08)';
+          const isCardLoading = loadingMetric === card.label;
+          const isClickable = card.value > 0 && !loadingMetric;
           return (
             <Grid item xs={6} sm={3} md={1.7} key={card.label}>
               <Card
@@ -455,8 +445,10 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
                   minHeight: '88px',
                   position: 'relative',
                   overflow: 'hidden',
-                  cursor: card.value > 0 ? 'pointer' : 'default',
-                  '&:hover': card.value > 0 ? {
+                  cursor: isClickable ? 'pointer' : 'default',
+                  opacity: loadingMetric && !isCardLoading ? 0.7 : 1,
+                  pointerEvents: loadingMetric ? (isCardLoading ? 'none' : 'none') : 'auto',
+                  '&:hover': isClickable ? {
                     borderColor: 'primary.main',
                     boxShadow: '0 4px 12px rgba(0, 98, 173, 0.08)'
                   } : {}
@@ -478,12 +470,16 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
                     flexShrink: 0,
                   }}
                 >
-                  <Icon size={14} color={iconColor} strokeWidth={2.2} />
+                  {isCardLoading ? (
+                    <CircularProgress size={14} sx={{ color: iconColor }} />
+                  ) : (
+                    <Icon size={14} color={iconColor} strokeWidth={2.2} />
+                  )}
                 </Box>
 
                 <Typography
                   variant="h5"
-                  sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5 }}
+                  sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}
                 >
                   {card.value}
                 </Typography>
