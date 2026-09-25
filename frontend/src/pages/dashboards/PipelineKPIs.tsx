@@ -5,7 +5,8 @@ import {
   Card,
   Typography,
   useTheme,
-  Box
+  Box,
+  CircularProgress
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../../redux/store';
@@ -339,8 +340,10 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
     }).length;
   }, [scopeApps, notes, effectiveStartDate, effectiveEndDate]);
 
+  const [loadingMetric, setLoadingMetric] = React.useState<string | null>(null);
+
   const handleCardClick = async (label: string, value: number) => {
-    if (value === 0) return;
+    if (value === 0 || loadingMetric !== null) return;
 
     let metricType = '';
     let isJobs = false;
@@ -372,6 +375,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
     if (!metricType) return;
 
     try {
+      setLoadingMetric(label);
       const res = await api.post('applications/hierarchy-drilldown/', {
         metric_type: metricType,
         emails: scopeEmailsLower,
@@ -389,6 +393,8 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
       });
     } catch (err) {
       console.error('Failed to load drilldown records:', err);
+    } finally {
+      setLoadingMetric(null);
     }
   };
 
@@ -419,6 +425,8 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
           const { Icon } = card;
           const iconColor = isDark ? '#3b82f6' : '#0062AD';
           const iconBg = isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 98, 173, 0.08)';
+          const isCardLoading = loadingMetric === card.label;
+          const isClickable = card.value > 0 && !loadingMetric;
           return (
             <Grid item xs={6} sm={3} md={1.7} key={card.label}>
               <Card
@@ -437,8 +445,10 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
                   minHeight: '88px',
                   position: 'relative',
                   overflow: 'hidden',
-                  cursor: card.value > 0 ? 'pointer' : 'default',
-                  '&:hover': card.value > 0 ? {
+                  cursor: isClickable ? 'pointer' : 'default',
+                  opacity: loadingMetric && !isCardLoading ? 0.7 : 1,
+                  pointerEvents: loadingMetric ? (isCardLoading ? 'none' : 'none') : 'auto',
+                  '&:hover': isClickable ? {
                     borderColor: 'primary.main',
                     boxShadow: '0 4px 12px rgba(0, 98, 173, 0.08)'
                   } : {}
@@ -460,12 +470,16 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
                     flexShrink: 0,
                   }}
                 >
-                  <Icon size={14} color={iconColor} strokeWidth={2.2} />
+                  {isCardLoading ? (
+                    <CircularProgress size={14} sx={{ color: iconColor }} />
+                  ) : (
+                    <Icon size={14} color={iconColor} strokeWidth={2.2} />
+                  )}
                 </Box>
 
                 <Typography
                   variant="h5"
-                  sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5 }}
+                  sx={{ fontWeight: 800, color: 'text.primary', mb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}
                 >
                   {card.value}
                 </Typography>

@@ -199,7 +199,12 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     return map;
   }, [filteredUsers]);
 
+  const [drilldownLoadingKey, setDrilldownLoadingKey] = useState<string | null>(null);
+
   const handleMetricClick = async (userEmail: string, _userName: string, _roleName: string, metricType: string, isSelfRow: boolean) => {
+    if (drilldownLoadingKey !== null) return;
+    const clickKey = `${userEmail}_${metricType}_${isSelfRow}`;
+
     const cleanEmail = userEmail.replace(/_(cwr|fte)$/i, '').toLowerCase();
 
     const emailSet = descendantEmailsMap.get(cleanEmail);
@@ -231,6 +236,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
     }
 
     try {
+      setDrilldownLoadingKey(clickKey);
       const res = await api.post('applications/hierarchy-drilldown/', {
         metric_type: metricType,
         emails: emails,
@@ -249,10 +255,15 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       });
     } catch (err) {
       console.error('Failed to load drilldown data:', err);
+    } finally {
+      setDrilldownLoadingKey(null);
     }
   };
 
   const renderClickableMetric = (value: number, userEmail: string, userName: string, roleName: string, metricType: string, isSelfRow: boolean) => {
+    const clickKey = `${userEmail}_${metricType}_${isSelfRow}`;
+    const isDrillLoading = drilldownLoadingKey === clickKey;
+
     if (isStatsLoading) {
       return (
         <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '18px' }}>
@@ -260,6 +271,17 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         </Box>
       );
     }
+
+    if (isDrillLoading) {
+      return (
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: '18px' }}>
+          <CircularProgress size={12} color="primary" />
+        </Box>
+      );
+    }
+
+    const isClickable = value > 0 && !drilldownLoadingKey;
+
     return (
       <Typography
         variant="body2"
@@ -267,14 +289,16 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           fontWeight: isSelfRow ? 500 : 700,
           fontSize: '0.75rem',
           color: value === 0 ? 'text.secondary' : 'primary.main',
-          cursor: value === 0 ? 'default' : 'pointer',
+          cursor: isClickable ? 'pointer' : 'default',
+          opacity: drilldownLoadingKey ? 0.6 : 1,
+          pointerEvents: drilldownLoadingKey ? 'none' : 'auto',
           '&:hover': {
-            color: value === 0 ? 'text.secondary' : 'primary.dark',
-            textDecoration: value === 0 ? 'none' : 'underline'
+            color: isClickable ? 'primary.dark' : (value === 0 ? 'text.secondary' : 'primary.main'),
+            textDecoration: isClickable ? 'underline' : 'none'
           }
         }}
         onClick={() => {
-          if (value === 0) return;
+          if (!isClickable) return;
           handleMetricClick(userEmail, userName, roleName, metricType, isSelfRow);
         }}
       >

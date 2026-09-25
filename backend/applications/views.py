@@ -1564,6 +1564,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get', 'post'], url_path='hierarchy-drilldown')
     def hierarchy_drilldown(self, request):
+        import hashlib
+        import json
         import re
         from collections import defaultdict
         start_date = request.query_params.get('start_date') or request.data.get('start_date')
@@ -1586,10 +1588,31 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         else:
             target_emails = []
 
+        version = get_hierarchy_stats_version()
+        user_scope = str(getattr(request.user, 'pk', getattr(request.user, 'email', 'anonymous'))) if (request.user and request.user.is_authenticated) else 'anonymous'
+        user_role = getattr(request.user, 'role', '') if (request.user and request.user.is_authenticated) else ''
+        key_dict = {
+            'version': version,
+            'metric_type': metric_type or '',
+            'start_date': start_date or '',
+            'end_date': end_date or '',
+            'target_emails': sorted(target_emails),
+            'user_scope': user_scope,
+            'user_role': user_role,
+        }
+        key_hash = hashlib.sha256(json.dumps(key_dict, sort_keys=True).encode('utf-8')).hexdigest()
+        cache_key = f"hierarchy_drilldown_{key_hash}"
+        cached_response = get_cached_hierarchy_stats(cache_key)
+        if cached_response is not None:
+            return Response(cached_response, status=status.HTTP_200_OK)
+
         users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']))
         target_names = [u.full_name.lower() for u in users if u.email.lower() in target_emails and u.full_name]
 
-        apps = list(Application.objects.select_related('assigned_employee').all())
+        apps_tuples = list(Application.objects.values_list(
+            'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
+            'remarks', 'recruiter', 'assigned_employee__email', 'status', 'modified_by', 'created_at'
+        ))
 
         notes_qs = Note.objects.filter(content__istartswith='Status updated to ').values('application_id', 'content', 'created_at')
         notes_dict = defaultdict(list)
@@ -1607,54 +1630,54 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return val if val else 'N/A'
 
         candidate_groups = defaultdict(list)
-        for a in apps:
-            if not a.candidate_name:
+        for a in apps_tuples:
+            if not a[1]:
                 continue
-            k = (a.candidate_email or '').lower().strip() or (a.candidate_name or '').lower().strip()
+            k = (a[2] or '').lower().strip() or (a[1] or '').lower().strip()
             candidate_groups[k].append(a)
 
         deduplicated_apps = []
-        for a in apps:
-            if not a.candidate_name:
+        for a in apps_tuples:
+            if not a[1]:
                 deduplicated_apps.append(a)
                 continue
-            k = (a.candidate_email or '').lower().strip() or (a.candidate_name or '').lower().strip()
+            k = (a[2] or '').lower().strip() or (a[1] or '').lower().strip()
             group = candidate_groups[k]
-            has_real_job = any(get_remark_field(x.remarks, 'Job Code') != 'N/A' for x in group)
+            has_real_job = any(get_remark_field(x[5], 'Job Code') != 'N/A' for x in group)
             if has_real_job:
-                if get_remark_field(a.remarks, 'Job Code') != 'N/A':
+                if get_remark_field(a[5], 'Job Code') != 'N/A':
                     deduplicated_apps.append(a)
             else:
-                if a.id == group[0].id:
+                if a[0] == group[0][0]:
                     deduplicated_apps.append(a)
 
         code_map = {}
         pos_client_map = defaultdict(list)
         for a in deduplicated_apps:
-            if a.candidate_name:
+            if a[1]:
                 continue
-            code = get_remark_field(a.remarks, 'Job Code')
+            code = get_remark_field(a[5], 'Job Code')
             if code and code != 'N/A':
                 key = code.upper().strip()
                 if key not in code_map:
                     code_map[key] = a
-            norm_pos = (a.position or '').lower().strip()
-            norm_client = (a.client_name or '').lower().strip()
+            norm_pos = (a[3] or '').lower().strip()
+            norm_client = (a[4] or '').lower().strip()
             if norm_pos and norm_client:
                 pos_client_map[f'{norm_pos}|{norm_client}'].append(a)
 
-        def find_parent_job(app):
-            if not app:
+        def find_parent_job(app_tuple):
+            if not app_tuple:
                 return None
-            if not app.candidate_name:
-                return app
-            direct_code = get_remark_field(app.remarks, 'Job Code')
+            if not app_tuple[1]:
+                return app_tuple
+            direct_code = get_remark_field(app_tuple[5], 'Job Code')
             if direct_code and direct_code != 'N/A':
                 p = code_map.get(direct_code.upper().strip())
                 if p:
                     return p
-            norm_pos = (app.position or '').lower().strip()
-            norm_client = (app.client_name or '').lower().strip()
+            norm_pos = (app_tuple[3] or '').lower().strip()
+            norm_client = (app_tuple[4] or '').lower().strip()
             if not norm_pos or not norm_client:
                 return None
             candidates = pos_client_map.get(f'{norm_pos}|{norm_client}')
@@ -1662,87 +1685,111 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 return None
             if start_date and end_date:
                 for c in candidates:
-                    d = (c.created_at.strftime('%Y-%m-%d') if c.created_at else '')
+                    d = (c[10].strftime('%Y-%m-%d') if c[10] else '')
                     if d >= start_date and d <= end_date:
                         return c
-            sub_date = (app.created_at.strftime('%Y-%m-%d') if app.created_at else '')
-            on_or_before = [c for c in candidates if (c.created_at.strftime('%Y-%m-%d') if c.created_at else '') <= sub_date]
+            sub_date = (app_tuple[10].strftime('%Y-%m-%d') if app_tuple[10] else '')
+            on_or_before = [c for c in candidates if (c[10].strftime('%Y-%m-%d') if c[10] else '') <= sub_date]
             if on_or_before:
-                on_or_before.sort(key=lambda x: x.created_at, reverse=True)
+                on_or_before.sort(key=lambda x: x[10], reverse=True)
                 return on_or_before[0]
             return candidates[0]
 
-        def get_status_transition_info(app, target_status):
-            app_notes = notes_dict.get(app.id, [])
+        def get_status_transition_info(app_tuple, target_status):
+            app_notes = notes_dict.get(app_tuple[0], [])
             target_prefix = f'status updated to {target_status}'.lower()
             matching_notes = [n for n in app_notes if (n['content'] or '').strip().lower().startswith(target_prefix)]
             if matching_notes:
                 matching_notes.sort(key=lambda n: n['created_at'], reverse=True)
                 return (matching_notes[0]['created_at'].strftime('%Y-%m-%d'), True, matching_notes[0]['created_at'])
-            if app.status == target_status:
-                return (app.created_at.strftime('%Y-%m-%d') if app.created_at else '', False, app.created_at)
+            if app_tuple[8] == target_status:
+                return (app_tuple[10].strftime('%Y-%m-%d') if app_tuple[10] else '', False, app_tuple[10])
             return ('', False, None)
 
-        def get_status_transition_date(app, target_status):
-            date_str, _, _ = get_status_transition_info(app, target_status)
+        def get_status_transition_date(app_tuple, target_status):
+            date_str, _, _ = get_status_transition_info(app_tuple, target_status)
             return date_str
 
         user_apps = []
         user_subs = []
         for a in deduplicated_apps:
-            emp_email = a.assigned_employee.email.lower() if a.assigned_employee else None
-            rec_lower = a.recruiter.lower() if a.recruiter else None
+            emp_email = a[7].lower() if a[7] else None
+            rec_lower = a[6].lower() if a[6] else None
             is_match = False
             if not target_emails or (emp_email and emp_email in target_emails):
                 is_match = True
-                if a.candidate_name:
+                if a[1]:
                     user_subs.append(a)
             if not target_emails or (rec_lower and (rec_lower in target_emails or rec_lower in target_names)):
                 is_match = True
             if is_match:
                 user_apps.append(a)
 
+        status_notes_prefetch = Prefetch(
+            'notes',
+            queryset=Note.objects.filter(
+                content__startswith='Status updated to '
+            ).select_related('author').order_by('created_at'),
+            to_attr='status_notes'
+        )
+
         if metric_type == 'JOBS':
             date_filtered = []
             for a in user_apps:
                 p = find_parent_job(a) or a
-                d = (p.created_at.strftime('%Y-%m-%d') if p.created_at else '')
+                d = (p[10].strftime('%Y-%m-%d') if p[10] else '')
                 if not start_date or not end_date or (d >= start_date and d <= end_date):
                     date_filtered.append(a)
 
-            seen = set()
-            job_results = []
-            for a in date_filtered:
-                p = find_parent_job(a) or a
-                code = get_remark_field(p.remarks, 'Job Code')
+            groups_by_code = defaultdict(list)
+            ordered_group_keys = []
+            parent_by_key = {}
+            all_needed_ids = set()
+
+            for item in date_filtered:
+                p = find_parent_job(item) or item
+                code = get_remark_field(p[5], 'Job Code')
                 if not code or code == 'N/A':
-                    if not p.candidate_name:
-                        code = f'PPW-{str(p.id).zfill(4)}'
+                    if not p[1]:
+                        code = f'PPW-{str(p[0]).zfill(4)}'
                 if not code or code == 'N/A':
                     continue
                 key = code.upper().strip()
-                if key not in seen:
-                    seen.add(key)
-                    group = []
-                    for item in date_filtered:
-                        p_item = find_parent_job(item) or item
-                        c_item = get_remark_field(p_item.remarks, 'Job Code')
-                        if not c_item or c_item == 'N/A':
-                            if not p_item.candidate_name:
-                                c_item = f'PPW-{str(p_item.id).zfill(4)}'
-                        if c_item and c_item.upper().strip() == key:
-                            group.append(item)
-                    parent = find_parent_job(group[0])
-                    rep = parent or next((x for x in group if not x.candidate_name), group[0])
+                if key not in groups_by_code:
+                    ordered_group_keys.append(key)
+                    parent_by_key[key] = find_parent_job(item)
+                groups_by_code[key].append(item)
+                all_needed_ids.add(item[0])
+                if parent_by_key[key]:
+                    all_needed_ids.add(parent_by_key[key][0])
 
-                    rep_data = ApplicationSerializer(rep).data
-                    rep_data['associatedApps'] = ApplicationSerializer(group, many=True).data
-                    job_results.append(rep_data)
+            needed_instances = {
+                app.id: app for app in Application.objects.filter(id__in=all_needed_ids)
+                .select_related('assigned_employee')
+                .prefetch_related(status_notes_prefetch)
+                .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')
+            }
 
-            return Response({
+            job_results = []
+            for key in ordered_group_keys:
+                group = groups_by_code[key]
+                parent = parent_by_key[key]
+                rep_tuple = parent or next((x for x in group if not x[1]), group[0])
+                rep_obj = needed_instances.get(rep_tuple[0])
+                if not rep_obj:
+                    continue
+
+                group_objs = [needed_instances[x[0]] for x in group if x[0] in needed_instances]
+                rep_data = ApplicationSerializer(rep_obj, context={'request': request}).data
+                rep_data['associatedApps'] = ApplicationSerializer(group_objs, many=True, context={'request': request}).data
+                job_results.append(rep_data)
+
+            response_data = {
                 'results': job_results,
                 'count': len(job_results)
-            }, status=status.HTTP_200_OK)
+            }
+            set_cached_hierarchy_stats(cache_key, response_data, timeout=900)
+            return Response(response_data, status=status.HTTP_200_OK)
 
         elif metric_type == 'SUBMISSIONS':
             matched = [a for a in user_subs if (lambda d: bool(d and (not start_date or not end_date or (d >= start_date and d <= end_date))))(get_status_transition_date(a, 'Submitted'))]
@@ -1755,27 +1802,27 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         elif metric_type == 'ONBOARD':
             placed_apps_for_hierarchy = []
             for k, group in candidate_groups.items():
-                has_real_job = any(get_remark_field(x.remarks, 'Job Code') != 'N/A' for x in group)
+                has_real_job = any(get_remark_field(x[5], 'Job Code') != 'N/A' for x in group)
                 if has_real_job:
                     for a in group:
-                        if get_remark_field(a.remarks, 'Job Code') != 'N/A':
+                        if get_remark_field(a[5], 'Job Code') != 'N/A':
                             d = get_status_transition_date(a, 'Placed')
-                            if d and (not start_date or not end_date or (d >= start_date and d <= end_date)) and (a.modified_by and a.modified_by.lower() != 'system'):
+                            if d and (not start_date or not end_date or (d >= start_date and d <= end_date)) and (a[9] and a[9].lower() != 'system'):
                                 placed_apps_for_hierarchy.append(a)
                 else:
                     qualifying = []
                     for a in group:
                         date_str, has_note, dt = get_status_transition_info(a, 'Placed')
-                        if date_str and (not start_date or not end_date or (date_str >= start_date and date_str <= end_date)) and (a.modified_by and a.modified_by.lower() != 'system'):
+                        if date_str and (not start_date or not end_date or (date_str >= start_date and date_str <= end_date)) and (a[9] and a[9].lower() != 'system'):
                             qualifying.append((a, has_note, dt))
                     if qualifying:
-                        qualifying.sort(key=lambda item: (1 if item[1] else 0, item[2] or item[0].created_at, item[0].id))
+                        qualifying.sort(key=lambda item: (1 if item[1] else 0, item[2] or item[0][10], item[0][0]))
                         placed_apps_for_hierarchy.append(qualifying[-1][0])
 
             matched = []
             for a in placed_apps_for_hierarchy:
-                emp_email = a.assigned_employee.email.lower() if a.assigned_employee else None
-                rec_lower = a.recruiter.lower() if a.recruiter else None
+                emp_email = a[7].lower() if a[7] else None
+                rec_lower = a[6].lower() if a[6] else None
                 is_match = False
                 if not target_emails or (emp_email and emp_email in target_emails):
                     is_match = True
@@ -1788,11 +1835,21 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         else:
             matched = []
 
-        serialized = ApplicationSerializer(matched, many=True).data
-        return Response({
+        matched_ids = [a[0] for a in matched]
+        needed_instances = {
+            app.id: app for app in Application.objects.filter(id__in=matched_ids)
+            .select_related('assigned_employee')
+            .prefetch_related(status_notes_prefetch)
+            .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')
+        }
+        ordered_instances = [needed_instances[aid] for aid in matched_ids if aid in needed_instances]
+        serialized = ApplicationSerializer(ordered_instances, many=True, context={'request': request}).data
+        response_data = {
             'results': serialized,
             'count': len(serialized)
-        }, status=status.HTTP_200_OK)
+        }
+        set_cached_hierarchy_stats(cache_key, response_data, timeout=900)
+        return Response(response_data, status=status.HTTP_200_OK)
 
     # Dynamic metrics loader for role dashboards
     @action(detail=False, methods=['get'], url_path='dashboard-stats')
