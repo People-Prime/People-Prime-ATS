@@ -189,6 +189,18 @@ CELERY_BEAT_SCHEDULE = {
 }
 CELERY_TIMEZONE = TIME_ZONE
 
+# Cache Configuration (Redis)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv(
+            'DJANGO_CACHE_REDIS_URL',
+            'redis://localhost:6379/1'
+        ),
+        'TIMEOUT': 900,
+    }
+}
+
 # AWS S3 Media Storage Configurations
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
