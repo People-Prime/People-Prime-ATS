@@ -1408,11 +1408,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 return (created_date_str, False, created_at)
             return ('', False, None)
 
-        user_by_email = {u[0].lower(): u[0].lower() for u in users}
+        user_by_email = {u[0].lower().strip(): u[0].lower().strip() for u in users}
         name_to_emails = defaultdict(list)
         for u in users:
             if u[1]:
-                name_to_emails[u[1].lower()].append(u[0].lower())
+                name_to_emails[u[1].lower().strip()].append(u[0].lower().strip())
 
         user_apps_map = defaultdict(list)
         user_subs_map = defaultdict(list)
@@ -1420,15 +1420,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         for item in deduplicated_apps:
             app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
             matched_emails = set()
-            e_email = (emp_email or '').lower()
-            if e_email:
-                if e_email in user_by_email:
-                    matched_emails.add(e_email)
-                if cand_name:
-                    user_subs_map[e_email].append(item)
+            e_email = (emp_email or '').lower().strip()
+            if e_email and e_email in user_by_email:
+                matched_emails.add(e_email)
 
             if rec:
-                rec_lower = rec.lower()
+                rec_lower = rec.lower().strip()
                 if rec_lower in user_by_email:
                     matched_emails.add(rec_lower)
                 if rec_lower in name_to_emails:
@@ -1437,6 +1434,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
             for e in matched_emails:
                 user_apps_map[e].append(item)
+                if cand_name:
+                    user_subs_map[e].append(item)
 
         placed_apps_for_hierarchy = []
         for k, group in candidate_groups.items():
@@ -1461,12 +1460,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         user_onboard_map = defaultdict(list)
         for item in placed_apps_for_hierarchy:
             matched_emails = set()
-            emp_email = (item[7] or '').lower()
+            emp_email = (item[7] or '').lower().strip()
             if emp_email and emp_email in user_by_email:
                 matched_emails.add(emp_email)
             rec = item[6]
             if rec:
-                rec_lower = rec.lower()
+                rec_lower = rec.lower().strip()
                 if rec_lower in user_by_email:
                     matched_emails.add(rec_lower)
                 if rec_lower in name_to_emails:
@@ -1607,7 +1606,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return Response(cached_response, status=status.HTTP_200_OK)
 
         users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']))
-        target_names = [u.full_name.lower() for u in users if u.email.lower() in target_emails and u.full_name]
+        target_names = [u.full_name.lower().strip() for u in users if u.email.lower().strip() in target_emails and u.full_name]
 
         apps_tuples = list(Application.objects.values_list(
             'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
@@ -1702,7 +1701,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             if matching_notes:
                 matching_notes.sort(key=lambda n: n['created_at'], reverse=True)
                 return (matching_notes[0]['created_at'].strftime('%Y-%m-%d'), True, matching_notes[0]['created_at'])
-            if app_tuple[8] == target_status:
+            if (app_tuple[8] or '').lower() == target_status.lower():
                 return (app_tuple[10].strftime('%Y-%m-%d') if app_tuple[10] else '', False, app_tuple[10])
             return ('', False, None)
 
@@ -1713,17 +1712,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         user_apps = []
         user_subs = []
         for a in deduplicated_apps:
-            emp_email = a[7].lower() if a[7] else None
-            rec_lower = a[6].lower() if a[6] else None
+            emp_email = a[7].lower().strip() if a[7] else None
+            rec_lower = a[6].lower().strip() if a[6] else None
             is_match = False
             if not target_emails or (emp_email and emp_email in target_emails):
                 is_match = True
-                if a[1]:
-                    user_subs.append(a)
             if not target_emails or (rec_lower and (rec_lower in target_emails or rec_lower in target_names)):
                 is_match = True
             if is_match:
                 user_apps.append(a)
+                if a[1]:
+                    user_subs.append(a)
 
         status_notes_prefetch = Prefetch(
             'notes',
