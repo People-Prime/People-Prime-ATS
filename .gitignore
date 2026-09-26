@@ -26,3 +26,6 @@ Thumbs.db
 media/
 downloaded_resumes/
 backend/investigate_notes.py
+
+# Celery Beat runtime files
+backend/celerybeat-schedule*
