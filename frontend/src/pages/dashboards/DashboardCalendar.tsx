@@ -42,6 +42,8 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
     setLocalEnd(endDate || todayStr());
   }, [startDate, endDate]);
 
+  const isPending = (localStart !== (startDate || '') || localEnd !== (endDate || '')) && Boolean(localStart) && Boolean(localEnd);
+
   const handleSingleDateIconClick = () => {
     if (singleDateInputRef.current) {
       if (typeof singleDateInputRef.current.showPicker === 'function') {
@@ -53,7 +55,20 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
   };
 
   const handleConfirm = () => {
-    onChange(localStart, localEnd);
+    if (!localStart || !localEnd) return;
+    if (localStart > localEnd) {
+      setLocalEnd(localStart);
+      onChange(localStart, localStart);
+    } else {
+      onChange(localStart, localEnd);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleConfirm();
+    }
   };
 
   const maxDate = todayStr();
@@ -66,12 +81,16 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         size="small"
         value={localStart}
         onChange={(e) => setLocalStart(e.target.value)}
+        onKeyDown={handleKeyDown}
         InputLabelProps={{ shrink: true }}
         inputProps={{ max: maxDate }}
         sx={{ 
           width: 140,
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
           '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+          '& .MuiOutlinedInput-root': {
+            borderColor: isPending ? 'primary.main' : undefined
+          },
           '& input::-webkit-calendar-picker-indicator': {
             filter: iconFilter
           }
@@ -88,6 +107,7 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
           if (val) {
             setLocalStart(val);
             setLocalEnd(val);
+            onChange(val, val);
           }
         }}
         style={{
@@ -122,33 +142,42 @@ export const DashboardCalendar: React.FC<DashboardCalendarProps> = ({
         size="small"
         value={localEnd}
         onChange={(e) => setLocalEnd(e.target.value)}
+        onKeyDown={handleKeyDown}
         InputLabelProps={{ shrink: true }}
         inputProps={{ max: maxDate }}
         sx={{ 
           width: 140,
           '& .MuiInputBase-input': { padding: '6px 8px', fontSize: '0.75rem' },
           '& .MuiInputLabel-root': { fontSize: '0.75rem' },
+          '& .MuiOutlinedInput-root': {
+            borderColor: isPending ? 'primary.main' : undefined
+          },
           '& input::-webkit-calendar-picker-indicator': {
             filter: iconFilter
           }
         }}
       />
 
-      <Button
-        variant="contained"
-        size="small"
-        onClick={handleConfirm}
-        sx={{
-          height: '32px',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          textTransform: 'none',
-          borderRadius: '8px',
-          px: 1.5
-        }}
-      >
-        OK
-      </Button>
+      <Tooltip title={isPending ? 'Click to apply date filter' : 'Filter applied'}>
+        <Button
+          variant={isPending ? 'contained' : 'outlined'}
+          color="primary"
+          size="small"
+          onClick={handleConfirm}
+          sx={{
+            height: '32px',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            textTransform: 'none',
+            borderRadius: '8px',
+            px: 1.5,
+            boxShadow: isPending ? '0 0 0 2px rgba(79, 70, 229, 0.2)' : 'none',
+            transition: 'all 0.2s ease-in-out'
+          }}
+        >
+          {isPending ? 'Apply' : 'OK'}
+        </Button>
+      </Tooltip>
     </Box>
   );
 };
