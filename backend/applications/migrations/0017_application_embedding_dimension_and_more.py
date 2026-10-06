@@ -4,6 +4,9 @@ from django.db import migrations, models
 import pgvector.django.vector
 
 
+from pgvector.django import VectorExtension
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,11 +14,13 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        VectorExtension(),
         migrations.AddField(
             model_name='application',
             name='embedding_dimension',
             field=models.IntegerField(default=2048),
         ),
+
         migrations.AddField(
             model_name='application',
             name='embedding_generated_at',

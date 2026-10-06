@@ -212,6 +212,73 @@ class CareerPortalApplicant(models.Model):
     embedding_version = models.CharField(max_length=50, default='nemotron-v1')
     embedding_generated_at = models.DateTimeField(null=True, blank=True)
 
+    # Foundit Candidate Tracking Fields
+    foundit_application_id = models.CharField(max_length=100, blank=True, default='', db_index=True)
+    foundit_candidate_id = models.CharField(max_length=100, blank=True, default='', db_index=True)
+
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.email}) - Job ID: {self.job_id}"
+
+
+class JobBoardPosting(models.Model):
+    JOB_BOARD_CHOICES = [
+        ("Foundit", "Foundit"),
+    ]
+    STATUS_CHOICES = [
+        ("UNPUBLISHED", "Unpublished"),
+        ("PENDING", "Pending"),
+        ("PUBLISHED", "Published"),
+        ("FAILED", "Failed"),
+        ("EXPIRED", "Expired / Closed"),
+    ]
+    job = models.ForeignKey(
+        "applications.Application",
+        on_delete=models.CASCADE,
+        related_name="job_board_postings",
+    )
+    job_board = models.CharField(
+        max_length=50,
+        choices=JOB_BOARD_CHOICES,
+        db_index=True,
+    )
+    external_job_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=50,
+        choices=STATUS_CHOICES,
+        default="UNPUBLISHED",
+        db_index=True,
+    )
+    external_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+    )
+    published_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    last_synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    error_message = models.TextField(
+        blank=True,
+        default="",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("job", "job_board")
+        verbose_name = "Job Board Posting"
+        verbose_name_plural = "Job Board Postings"
+
+    def __str__(self):
+        return f"{self.job_board} - {self.job.position} ({self.status})"
+
 
