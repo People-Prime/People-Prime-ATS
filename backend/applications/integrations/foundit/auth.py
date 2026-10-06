@@ -68,6 +68,7 @@ class FounditAuthService:
 
         headers = {
             HEADER_API_KEY: self.credentials["api_key"],
+            "apiKey": self.credentials["api_key"],
             "Content-Type": "application/json"
         }
 
