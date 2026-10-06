@@ -22,7 +22,7 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
     if not application.candidate_name and application.assigned_employee:
         if is_new or old_assignee_email != application.assigned_employee.email:
             remarks = application.remarks or ''
-            
+
             def extract_field(field_name):
                 import re
                 match = re.search(field_name + r':\s*(.*)', remarks)
@@ -31,7 +31,7 @@ def check_and_send_assignment_email(application, request_user, is_new=False, old
             job_code = extract_field('Job Code')
             if job_code == 'N/A' or not job_code or 'Auto Generated' in job_code:
                 job_code = f"PPW - {application.id:04d}"
-            
+
             start_date_str = extract_field('Start Date')
             end_date_str = extract_field('End Date')
             duration = "N/A"
@@ -385,7 +385,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             start_date = self.request.query_params.get('start_date')
             end_date = self.request.query_params.get('end_date')
             all_applicants = self.request.query_params.get('all_applicants')
- 
+
             if start_date and end_date:
                 if len(start_date) == 10 and start_date[2] == '-' and start_date[5] == '-':
                     d, m, y = start_date.split('-')
@@ -395,7 +395,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     d, m, y = end_date.split('-')
                     if len(y) == 4:
                         end_date = f'{y}-{m}-{d}'
- 
+
                 # Dashboard / all applicants:
                 # Count applications ONLY by their creation date.
                 # A status change on an older application must NOT
@@ -405,7 +405,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                         created_at__date__gte=start_date,
                         created_at__date__lte=end_date
                     )
- 
+
                 # Normal Applicants page:
                 # Preserve existing behavior where a status transition
                 # during the selected date range can make an application
@@ -417,7 +417,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                         created_at__date__gte=start_date,
                         created_at__date__lte=end_date
                     )
- 
+
                     qs = qs.filter(
                         Q(
                             created_at__date__gte=start_date,
@@ -662,14 +662,14 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         phone = request.query_params.get('phone')
         if not email or not phone:
             return Response({'exists': False}, status=status.HTTP_200_OK)
-            
+
         qs = Application.objects.exclude(candidate_name='').filter(
             candidate_email__iexact=email.strip(),
             candidate_phone=phone.strip()
         )
         if not qs.exists():
             return Response({'exists': False}, status=status.HTTP_200_OK)
-            
+
         candidate = qs.first()
         assigned_jobs = []
         for app in qs:
@@ -678,7 +678,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     'position': app.position.lower().strip(),
                     'client_name': app.client_name.lower().strip(),
                 })
-                
+
         name_parts = (candidate.candidate_name or '').split(' ')
         first_name = name_parts[0] if len(name_parts) > 0 else ''
         last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
@@ -731,7 +731,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
                 old_remarks = instance.remarks or ''
                 new_remarks = serializer.validated_data.get('remarks') or ''
-                
+
                 if (extract_field(old_remarks, 'Job Code') != extract_field(new_remarks, 'Job Code') or
                     extract_field(old_remarks, 'Start Date') != extract_field(new_remarks, 'Start Date') or
                     extract_field(old_remarks, 'End Date') != extract_field(new_remarks, 'End Date')):
@@ -739,12 +739,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     raise ValidationError("Team Leads are not allowed to change Job Code, Start Date, or End Date during edits.")
 
         old_assignee_email = instance.assigned_employee.email if instance.assigned_employee else None
-        
+
         # Keep original recruiter value if it exists and a new one isn't provided in the request data
         recruiter_provided = 'recruiter' in self.request.data and self.request.data['recruiter']
         if instance.recruiter and not recruiter_provided:
             serializer.validated_data['recruiter'] = instance.recruiter
-            
+
         user = self.request.user
         modified_by_val = user.full_name or user.email
         serializer.instance._modifying_user = user
@@ -757,15 +757,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         application = self.get_object()
         serializer = NoteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         note = serializer.save(
             application=application,
             author=request.user
         )
-        
+
         # Auto-update application timestamp on new note
         application.save()
-        
+
         return Response(NoteSerializer(note).data, status=status.HTTP_201_CREATED)
 
     # Export filtered candidate listings to CSV (Full 27 columns, unlimited streaming)
@@ -1052,7 +1052,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         file_obj = request.FILES.get('file')
         if not file_obj:
             return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         import os
         import boto3
         from botocore.config import Config
@@ -1061,7 +1061,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         region = os.getenv('AWS_S3_REGION_NAME', 'ap-south-1')
         access_key = os.getenv('AWS_ACCESS_KEY_ID')
         secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        
+
         try:
             s3_config = Config(
                 connect_timeout=5,
@@ -1076,7 +1076,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 config=s3_config
             )
             filename = file_obj.name
-            
+
             content_type = 'application/octet-stream'
             if filename.lower().endswith('.pdf'):
                 content_type = 'application/pdf'
@@ -1102,10 +1102,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         file_obj = request.FILES.get('file')
         if not file_obj:
             return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         name = file_obj.name.lower()
         text = ""
-        
+
         try:
             if name.endswith('.pdf'):
                 import pypdf
@@ -1128,7 +1128,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         # Regex heuristics to parse details from raw text
         import re
-        
+
         # 1. Extract email
         email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
         emails = re.findall(email_pattern, text)
@@ -1151,7 +1151,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             if 2 <= len(words) <= 4:
                 candidate_name = line
                 break
-        
+
         # Fallback to filename if name not found in text
         if not candidate_name:
             filename_clean = re.sub(r'[-_]', ' ', file_obj.name.split('.')[0])
@@ -1172,15 +1172,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             (r'\b(?:bachelor|b\.?s\b|b\.?tech|b\.?e\b|b\.?c\.?a|b\.?b\.?a|b\.?sc|undergraduate)\b', 3, 'Bachelors'),
             (r'\b(?:diploma|associate)\b', 2, 'Diploma')
         ]
-        
+
         lines_list = [line.strip() for line in text.split('\n') if line.strip()]
         best_rank = 0
         best_val = ""
         in_education = False
-        
+
         edu_headers = r'^(?:education|educational|academics?|academic background|qualifications?)\b'
         other_headers = r'^(?:experience|employment|work|history|professional|projects?|skills?|summary|profile|about|certifications?)\b'
-        
+
         for line in lines_list:
             # Check for section boundaries
             if re.search(edu_headers, line, re.IGNORECASE):
@@ -1188,7 +1188,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 continue
             elif re.search(other_headers, line, re.IGNORECASE):
                 in_education = False
-                
+
             for pattern, rank, label in degree_ranks:
                 match = re.search(pattern, line, re.IGNORECASE)
                 if match:
@@ -1197,7 +1197,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     if actual_rank > best_rank:
                         best_rank = actual_rank
                         matched_text = match.group(0)
-                        
+
                         # Find the most specific degree phrase in that line
                         detailed_patterns = [
                             r'\b(?:master of science|master of technology|master of computer applications|master of business administration|master of engineering)\b',
@@ -1210,12 +1210,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                             if m_det:
                                 matched_text = m_det.group(0)
                                 break
-                        
+
                         # Normalize punctuation (e.g. M.Tech -> M.Tech)
                         normalized = matched_text.strip()
                         # Capitalize nicely
                         best_val = normalized.title() if len(normalized) > 4 else normalized.upper()
-        
+
         degree = best_val if best_val else "Bachelors Degree"
 
         # 6. Extract skills
@@ -1231,7 +1231,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         for skill in common_skills:
             if re.search(r'\b' + re.escape(skill) + r'\b', text, re.IGNORECASE):
                 matched_skills.append(skill)
-        
+
         skills_str = ", ".join(matched_skills[:8]) if matched_skills else "React, TypeScript, JavaScript"
 
         # Split candidate_name into first/last name
@@ -1282,17 +1282,26 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         def extract_job_code_fast(remarks):
             if not remarks:
                 return 'N/A'
-            idx = remarks.find('Job Code:')
-            if idx == -1:
-                idx = remarks.lower().find('job code:')
+
+            search_start = 0
+
+            while True:
+                idx = remarks.find('Job Code:', search_start)
+
+                if idx == -1:
+                    idx = remarks.lower().find('job code:', search_start)
+
                 if idx == -1:
                     return 'N/A'
-            start = idx + 9
-            end = remarks.find('\n', start)
-            val = remarks[start:end].strip() if end != -1 else remarks[start:].strip()
-            if val and val.upper().startswith('PPW'):
-                return val
-            return 'N/A'
+
+                start = idx + 9
+                end = remarks.find('\\n', start)
+                val = remarks[start:end].strip() if end != -1 else remarks[start:].strip()
+
+                if val and val.upper().startswith('PPW'):
+                    return val
+
+                search_start = start
 
         apps_tuples = list(Application.objects.values_list(
             'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
@@ -1308,6 +1317,26 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     d_str = created_at.strftime('%Y-%m-%d') if created_at else ''
                     notes_map[app_id][st_key] = (d_str, created_at)
                     break
+
+        # Submission metrics must be based on actual Submitted transitions in the
+
+        # requested date range, not on global candidate/job deduplication.
+
+        submitted_app_ids = set()
+
+        for app_id, status_map in notes_map.items():
+
+            submitted_info = status_map.get('submitted')
+
+            if not submitted_info:
+
+                continue
+
+            submitted_date = submitted_info[0]
+
+            if submitted_date and (not start_date or not end_date or (start_date <= submitted_date <= end_date)):
+
+                submitted_app_ids.add(app_id)
 
         users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']).values_list('email', 'full_name'))
 
@@ -1415,27 +1444,80 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 name_to_emails[u[1].lower().strip()].append(u[0].lower().strip())
 
         user_apps_map = defaultdict(list)
-        user_subs_map = defaultdict(list)
 
         for item in deduplicated_apps:
+
             app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+
             matched_emails = set()
+
             e_email = (emp_email or '').lower().strip()
+
             if e_email and e_email in user_by_email:
+
                 matched_emails.add(e_email)
 
             if rec:
+
                 rec_lower = rec.lower().strip()
+
                 if rec_lower in user_by_email:
+
                     matched_emails.add(rec_lower)
+
                 if rec_lower in name_to_emails:
+
                     for target in name_to_emails[rec_lower]:
+
                         matched_emails.add(target)
 
             for e in matched_emails:
+
                 user_apps_map[e].append(item)
-                if cand_name:
-                    user_subs_map[e].append(item)
+
+        # Submission attribution must use all applications with a qualifying
+
+        # Submitted transition, not the globally deduplicated application set.
+
+        user_subs_map = defaultdict(list)
+
+        for item in apps_tuples:
+
+            if item[0] not in submitted_app_ids:
+
+                continue
+
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
+
+            if not cand_name:
+
+                continue
+
+            matched_emails = set()
+
+            e_email = (emp_email or '').lower().strip()
+
+            if e_email and e_email in user_by_email:
+
+                matched_emails.add(e_email)
+
+            if rec:
+
+                rec_lower = rec.lower().strip()
+
+                if rec_lower in user_by_email:
+
+                    matched_emails.add(rec_lower)
+
+                if rec_lower in name_to_emails:
+
+                    for target in name_to_emails[rec_lower]:
+
+                        matched_emails.add(target)
+
+            for e in matched_emails:
+
+                user_subs_map[e].append(item)
 
         placed_apps_for_hierarchy = []
         for k, group in candidate_groups.items():
@@ -1536,15 +1618,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     off_acc += 1
 
             sub_count = 0
+            submission_ids = []
             for a in user_subs_map.get(email, []):
-                if app_sub_match[a[0]]:
+                if a[0] in submitted_app_ids:
                     sub_count += 1
-
+                    submission_ids.append(a[0])
             onboard = len(user_onboard_map.get(email, []))
 
             user_metrics[email] = {
                 'jobsCount': len(seen_jobs),
                 'submissions': sub_count,
+                'submissionIds': submission_ids,
                 'interviews': int_count,
                 'offers': off_count,
                 'offerAccepted': off_acc,
@@ -1621,12 +1705,25 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         def get_remark_field(remarks, field_name):
             if not remarks:
                 return 'N/A'
-            m = re.search(r'^' + field_name + r':[ \t]*(.+)', remarks, re.M | re.I)
-            val = m.group(1).strip() if m else 'N/A'
-            if field_name == 'Job Code' and val != 'N/A':
-                if not val.upper().startswith('PPW'):
-                    return 'N/A'
-            return val if val else 'N/A'
+
+            matches = re.finditer(
+                r'^' + re.escape(field_name) + r':[ \\t]*(.*)$',
+                remarks,
+                re.M | re.I
+            )
+
+            for match in matches:
+                val = match.group(1).strip()
+
+                if field_name == 'Job Code':
+                    if val and val.upper().startswith('PPW'):
+                        return val
+                    continue
+
+                if val:
+                    return val
+
+            return 'N/A'
 
         candidate_groups = defaultdict(list)
         for a in apps_tuples:
@@ -1854,17 +1951,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='dashboard-stats')
     def dashboard_stats(self, request):
         user = request.user
-        
+
         # A. ADMIN / CEO STATS
         if user.is_superuser or user.role in [Role.ADMIN, Role.CEO]:
             total_staff = User.objects.count()
             active_staff = User.objects.filter(is_active=True).count()
             inactive_staff = total_staff - active_staff
-            
+
             # Role breakups
             role_breakups = User.objects.values('role').annotate(count=Count('role'))
             role_data = {item['role']: item['count'] for item in role_breakups}
-            
+
             # Team breakups
             team_breakups = User.objects.values('team__name').annotate(count=Count('email'))
             team_data = {item['team__name'] or 'Unassigned': item['count'] for item in team_breakups}
@@ -1884,7 +1981,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             user_teams = list(user.teams.all())
             first_team = user_teams[0] if user_teams else None
             team_name = first_team.name if first_team else 'General'
-            
+
             # Resolve team roster
             if user.role == Role.SENIOR_MANAGER:
                 team_members = User.objects.filter(role=Role.ASSOCIATE_ANALYST)
@@ -1894,7 +1991,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 team_members = User.objects.none()
 
             team_applications = Application.objects.filter(assigned_employee__in=team_members)
-            
+
             open_reqs = team_applications.filter(status='New').count()
             active_pipes = team_applications.exclude(status__in=['New', 'Selected', 'Rejected', 'Closed']).count()
             total_hires = team_applications.filter(status='Selected').count()
@@ -1912,7 +2009,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         # C. ASSOCIATE ANALYST STATS
         elif user.role == Role.ASSOCIATE_ANALYST:
             my_apps = Application.objects.filter(assigned_employee=user)
-            
+
             my_new = my_apps.filter(status='New').count()
             my_active = my_apps.exclude(status__in=['New', 'Selected', 'Rejected', 'Closed']).count()
             my_hires = my_apps.filter(status='Selected').count()

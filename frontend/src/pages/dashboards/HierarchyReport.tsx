@@ -38,12 +38,14 @@ interface CalculatedMetrics {
 
 interface BackendUserMetric extends CalculatedMetrics {
   jobCodes?: string[];
+  submissionIds?: number[];
 }
 
 interface TreeElement {
   user: User;
   individualMetrics: CalculatedMetrics;
   aggregatedMetrics: CalculatedMetrics;
+  aggregatedSubmissionIds?: number[];
   children: TreeElement[];
 }
 
@@ -133,11 +135,20 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
   const { users } = useAppSelector(state => state.users);
   const { applications } = useAppSelector(state => state.applications || { applications: [] });
   const filteredUsers = useMemo(() => users.filter(u => u.role !== 'ADMIN' && u.role !== 'REPORTING_TEAM'), [users]);
-
+ 
   const [localStartDate, setLocalStartDate] = useState(todayStr());
   const [localEndDate, setLocalEndDate] = useState(todayStr());
   const [collapsedNodes, setCollapsedNodes] = useState<Record<string, boolean>>({});
   const [backendUserMetrics, setBackendUserMetrics] = useState<Record<string, BackendUserMetric>>({});
+  useEffect(() => {
+  console.log("[Hierarchy DEBUG]", {
+    reduxUsers: users.length,
+    filteredUsers: filteredUsers.length,
+    backendMetricUsers: Object.keys(backendUserMetrics).length,
+    backendSubmissionIds: Object.values(backendUserMetrics)
+      .reduce((sum, m) => sum + (m.submissionIds?.length || 0), 0),
+    });
+  }, [users, filteredUsers, backendUserMetrics]);
   const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const effectiveStartDate = startDate !== undefined ? startDate : localStartDate;
@@ -481,14 +492,31 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           };
         };
 
+        const computeUniqueSubmissionsCountForTree = (individualEmails: string[], childrenList: TreeElement[]): number => {
+          const emailSet = new Set<string>(individualEmails.map(e => e.toLowerCase()));
+
+          childrenList.forEach(child => {
+            collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
+          });
+
+          const seen = new Set<number>();
+          emailSet.forEach(e => {
+            const ids = backendUserMetrics[e]?.submissionIds || [];
+            ids.forEach(id => seen.add(Number(id)));
+          });
+
+          return seen.size;
+        };
         const zeroMetrics = { jobsCount: 0, submissions: 0, interviews: 0, offers: 0, offerAccepted: 0, onboard: 0 };
         const cwrAggregated = {
           ...sumMetrics(zeroMetrics, cwrChildren),
-          jobsCount: computeUniqueJobsCountForTree([], cwrChildren)
+          jobsCount: computeUniqueJobsCountForTree([], cwrChildren),
+          submissions: computeUniqueSubmissionsCountForTree([], cwrChildren),
         };
         const fteAggregated = {
           ...sumMetrics(zeroMetrics, fteChildren),
-          jobsCount: computeUniqueJobsCountForTree([], fteChildren)
+          jobsCount: computeUniqueJobsCountForTree([], fteChildren),
+          submissions: computeUniqueSubmissionsCountForTree([], fteChildren),
         };
 
         const cwrElement: TreeElement = {
@@ -509,7 +537,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
 
         const aggregated = {
           jobsCount: computeUniqueJobsCountForTree([user.email], childrenElements),
-          submissions: individual.submissions + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
+          submissions: computeUniqueSubmissionsCountForTree([user.email], childrenElements),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
           offerAccepted: individual.offerAccepted + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offerAccepted, 0),
@@ -541,7 +569,6 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           childrenList.forEach(child => {
             collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
           });
-
           const seen = new Set<string>();
           emailSet.forEach(e => {
             const codes = backendUserMetrics[e]?.jobCodes || [];
@@ -549,10 +576,28 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
           });
           return seen.size;
         };
+ 
+        const computeUniqueSubmissionsCountForTree = (individualEmails: string[], childrenList: TreeElement[]): number => {
+          const emailSet = new Set<string>(individualEmails.map(e => e.toLowerCase()));
+
+          childrenList.forEach(child => {
+            collectAllEmails(child).forEach(e => emailSet.add(e.toLowerCase()));
+          });
+
+          const seen = new Set<number>();
+          emailSet.forEach(e => {
+            const ids = backendUserMetrics[e]?.submissionIds || [];
+            ids.forEach(id => seen.add(Number(id)));
+          });
+
+          return seen.size;
+        };
 
         const aggregated = {
-          jobsCount: computeUniqueJobsCountForTree([user.email], childrenElements),
-          submissions: individual.submissions + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.submissions, 0),
+          jobsCount: ['TEAM_LEAD', 'SUB_LEAD'].includes(user.role)
+            ? individual.jobsCount
+            : computeUniqueJobsCountForTree([user.email], childrenElements),
+          submissions: computeUniqueSubmissionsCountForTree([user.email], childrenElements),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
           offerAccepted: individual.offerAccepted + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offerAccepted, 0),

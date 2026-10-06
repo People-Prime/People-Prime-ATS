@@ -80,7 +80,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
                 content = note.content
                 if content and content.startswith("Status updated to "):
                     status_part = content[18:].split(".")[0].split("\n")[0].strip()
-                    if status_part and status_part not in dates:
+                    if status_part:
                         dates[status_part] = note.created_at.strftime('%Y-%m-%d')
         except Exception:
             pass
