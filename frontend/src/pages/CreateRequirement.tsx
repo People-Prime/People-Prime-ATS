@@ -38,7 +38,7 @@ export const CreateRequirement: React.FC = () => {
   // Form states
   const [formData, setFormData] = useState({
     // Structured Job Location (LinkedIn & ATS)
-    country: 'India',
+    country: '',
     state: '',
     city: '',
 
@@ -141,7 +141,7 @@ export const CreateRequirement: React.FC = () => {
         setAssigneeIds(emails);
 
         setFormData({
-          country: 'India',
+          country: app.country || extractField('Country') || '',
           state: app.state || extractField('State') || '',
           city: app.city || extractField('City') || '',
           jobCode: jobCode,
@@ -216,11 +216,6 @@ export const CreateRequirement: React.FC = () => {
 
     if (!formData.publishToCareerPage) {
       setError('⚠️ "Publish to Company Career Page" is mandatory. Please check this box before submitting the job requirement.');
-      return;
-    }
-
-    if (!applicationId && !formData.publishToLinkedin) {
-      setError('⚠️ "Also post on LinkedIn" is mandatory for new job postings. Please check this box before submitting.');
       return;
     }
 
@@ -502,15 +497,24 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <TextField
-                  label="Country *"
-                  required
-                  disabled
-                  fullWidth
-                  value="India"
-                  size="small"
-                  helperText="Fixed default"
-                />
+                <FormControl fullWidth size="small" required error={Boolean(error && !formData.country)}>
+                  <InputLabel id="country-label">Country *</InputLabel>
+                  <Select
+                    labelId="country-label"
+                    value={formData.country}
+                    label="Country *"
+                    required
+                    displayEmpty
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  >
+                    <MenuItem value="" disabled>Select Country</MenuItem>
+                    <MenuItem value="India">India</MenuItem>
+                    <MenuItem value="US">US</MenuItem>
+                    {formData.country && !['India', 'US'].includes(formData.country) && (
+                      <MenuItem value={formData.country}>{formData.country}</MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
               </Grid>
               <Grid item xs={12} sm={4}>
                 <TextField

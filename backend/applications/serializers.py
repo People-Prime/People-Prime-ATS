@@ -36,6 +36,17 @@ class ApplicationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'modified_by']
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        candidate_name = attrs.get('candidate_name', getattr(self.instance, 'candidate_name', ''))
+        if not candidate_name:
+            country = attrs.get('country')
+            if country is None and self.instance:
+                country = self.instance.country
+            if not country or str(country).strip() not in ['India', 'US']:
+                raise serializers.ValidationError({'country': 'Country is required and must be either India or US.'})
+        return attrs
+
     def create(self, validated_data):
         publish_career = validated_data.get('publish_to_career_page', False)
         publish_linkedin = validated_data.get('publish_to_linkedin', False)
