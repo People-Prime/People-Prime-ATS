@@ -93,6 +93,66 @@ class FounditClient:
         auth_service = FounditAuthService(transport=self.transport)
         return auth_service.get_session_token(force_refresh=force_refresh)
 
+    @staticmethod
+    def extract_error_message(response_obj, default_msg="Invalid request parameters."):
+        """
+        Safely extracts detailed, sanitized error messages from Foundit API HTTP responses.
+        Accepts a requests.Response object, parsed response dictionary/list, or raw string.
+        Inspects fields: message, error, errors, details, description.
+        Formats nested validation errors cleanly without exposing credentials or secrets.
+        """
+        data = None
+        raw_text = ""
+
+        if isinstance(response_obj, (dict, list)):
+            data = response_obj
+        elif hasattr(response_obj, "json"):
+            try:
+                data = response_obj.json()
+            except Exception:
+                data = None
+            if hasattr(response_obj, "text"):
+                raw_text = getattr(response_obj, "text", "") or ""
+        elif isinstance(response_obj, str):
+            raw_text = response_obj
+
+        if isinstance(data, dict):
+            # 1. Check nested structured error arrays (e.g. "errors", "details")
+            structured_errors = data.get("errors") or data.get("details")
+            if isinstance(structured_errors, list) and structured_errors:
+                formatted_items = []
+                for item in structured_errors:
+                    if isinstance(item, dict):
+                        field = item.get("field") or item.get("param") or item.get("key")
+                        msg = item.get("message") or item.get("error") or item.get("msg") or str(item)
+                        if field:
+                            formatted_items.append(f"Field '{field}': {msg}")
+                        else:
+                            formatted_items.append(str(msg))
+                    else:
+                        formatted_items.append(str(item))
+                if formatted_items:
+                    return "; ".join(formatted_items)
+
+            # 2. Check top-level string message fields
+            msg = data.get("message") or data.get("error") or data.get("description") or data.get("errorMessage")
+            if msg and isinstance(msg, str):
+                return msg
+
+            # 3. Fallback to sanitized JSON string if object has unknown structure
+            if data:
+                try:
+                    import json
+                    return json.dumps(data)
+                except Exception:
+                    return str(data)
+
+        # 4. Fallback to raw text for non-JSON 400 response
+        if raw_text and raw_text.strip():
+            return raw_text.strip()[:500]
+
+        return default_msg
+
     def post_job(self, payload):
         """
         POST https://recruiter.foundit.in/edge-jp/api/jobposting/ats/jp
@@ -120,11 +180,7 @@ class FounditClient:
                     data = {}
                 return data
             elif status_code == 400:
-                try:
-                    err_json = res.json()
-                    err_msg = err_json.get("message") or err_json.get("error") or "Invalid request parameters."
-                except Exception:
-                    err_msg = "Invalid request parameters."
+                err_msg = FounditClient.extract_error_message(res)
                 raise FounditAPIError(f"Foundit API Bad Request (HTTP 400): {err_msg}", status_code=400)
             elif status_code in (401, 403):
                 raise FounditAPIError(f"Foundit API Authentication/Authorization failure (HTTP {status_code}).", status_code=status_code)

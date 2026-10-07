@@ -4,6 +4,8 @@ Maps ATS Application models to official Foundit Job Posting API payload structur
 and Foundit candidate application records to CareerPortalApplicant models using documented fields.
 """
 import logging
+from applications.integrations.foundit.constants import get_foundit_credentials
+from applications.integrations.foundit.client import FounditValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +14,17 @@ class FounditJobMapper:
     def map_ats_job_to_foundit_payload(job_application, existing_folder_id=0):
         """
         Maps ATS Application model to official Foundit job posting payload.
-        Uses documented fields: folderId (0 for new), mapToExistingFolderId (0), status ("save").
+        Uses documented fields: folderId (0 for new), mapToExistingFolderId (0), status ("save"), userName.
         """
+        creds = get_foundit_credentials()
+        username = (creds.get("username") or "").strip()
+        if not username:
+            raise FounditValidationError("Validation Error: Missing required Foundit username configuration.")
+
         folder_id = int(existing_folder_id) if existing_folder_id else 0
 
         return {
+            "userName": username,
             "folderId": folder_id,
             "mapToExistingFolderId": 0,
             "status": "save",

@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase, RequestFactory
 from rest_framework.request import Request
 from applications.views import StandardResultsSetPagination, ApplicationViewSet
@@ -331,7 +331,8 @@ class MockTransport:
             raise self.exception
         if self.status_code not in (200, 201):
             if self.status_code == 400:
-                raise FounditAPIError(f"Foundit API error (HTTP 400): {self.response_data}", status_code=400)
+                err_msg = FounditClient.extract_error_message(self.response_data)
+                raise FounditAPIError(f"Foundit API Bad Request (HTTP 400): {err_msg}", status_code=400)
             elif self.status_code in (401, 403):
                 raise FounditAPIError(f"Foundit API Auth error (HTTP {self.status_code})", status_code=self.status_code)
             elif self.status_code == 429:
@@ -476,9 +477,14 @@ class FounditPhase3BJobPostingTests(TestCase):
             remarks="High-priority role."
         )
 
-    def test_1_new_job_payload_mapping(self):
-        """Test 1: Verify folderId=0, mapToExistingFolderId=0, status='save' and mapped fields in payload."""
+    @patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+    def test_1_new_job_payload_mapping(self, mock_creds):
+        """Test 1: Verify folderId=0, mapToExistingFolderId=0, status='save', userName and mapped fields in payload."""
+        mock_creds.return_value = {
+            "username": "test_username"
+        }
         payload = FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertEqual(payload["userName"], "test_username")
         self.assertEqual(payload["folderId"], 0)
         self.assertEqual(payload["mapToExistingFolderId"], 0)
         self.assertEqual(payload["status"], "save")
@@ -487,6 +493,14 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(payload["minExperience"], 5.0)
         self.assertEqual(payload["locations"][0]["city"], "Hyderabad")
         self.assertEqual(payload["locations"][0]["state"], "Telangana")
+
+    @patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+    def test_1b_missing_username_raises_validation_error(self, mock_creds):
+        """Test 1b: Verify missing Foundit username configuration raises FounditValidationError safely."""
+        mock_creds.return_value = {"username": ""}
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("Missing required Foundit username", str(ctx.exception))
 
     def test_2_successful_job_posting_response(self):
         """Test 2: Mock folderId=12345678 response and verify JobBoardPosting is saved with status=PUBLISHED."""
@@ -525,14 +539,56 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(result_posting.id, posting.id)
         self.assertEqual(mock_transport.post_count, 0)  # No second API call!
 
-    def test_5_http_400_bad_request_handling(self):
-        """Test 5: Verify HTTP 400 bad request marks posting as FAILED with error message."""
-        mock_transport = MockTransport({"message": "Invalid location"}, status_code=400)
+    def test_5a_http_400_message_structure(self):
+        """Test 5a: Structure A - {"message": "Invalid request parameters."}"""
+        mock_transport = MockTransport({"message": "Invalid request parameters."}, status_code=400)
         client = FounditClient(transport=mock_transport)
 
         posting = FounditJobPostingService.publish_job(self.job, client=client)
         self.assertEqual(posting.status, "FAILED")
-        self.assertIn("400", posting.error_message)
+        self.assertIn("Invalid request parameters.", posting.error_message)
+
+    def test_5b_http_400_error_structure(self):
+        """Test 5b: Structure B - {"error": "Invalid request parameters."}"""
+        mock_transport = MockTransport({"error": "Invalid request parameters."}, status_code=400)
+        client = FounditClient(transport=mock_transport)
+
+        posting = FounditJobPostingService.publish_job(self.job, client=client)
+        self.assertEqual(posting.status, "FAILED")
+        self.assertIn("Invalid request parameters.", posting.error_message)
+
+    def test_5c_http_400_nested_errors_array(self):
+        """Test 5c: Structure C - {"errors": [{"field": "minExperience", "message": "Must be an integer"}]}"""
+        mock_transport = MockTransport(
+            {"errors": [{"field": "minExperience", "message": "Must be an integer"}]},
+            status_code=400
+        )
+        client = FounditClient(transport=mock_transport)
+
+        posting = FounditJobPostingService.publish_job(self.job, client=client)
+        self.assertEqual(posting.status, "FAILED")
+        self.assertIn("Field 'minExperience': Must be an integer", posting.error_message)
+
+    def test_5d_http_400_nested_details_array(self):
+        """Test 5d: Structure D - {"details": [{"field": "locations", "message": "Invalid location format"}]}"""
+        mock_transport = MockTransport(
+            {"details": [{"field": "locations", "message": "Invalid location format"}]},
+            status_code=400
+        )
+        client = FounditClient(transport=mock_transport)
+
+        posting = FounditJobPostingService.publish_job(self.job, client=client)
+        self.assertEqual(posting.status, "FAILED")
+        self.assertIn("Field 'locations': Invalid location format", posting.error_message)
+
+    def test_5e_http_400_non_json_response(self):
+        """Test 5e: Structure E - Non-JSON 400 response string"""
+        mock_transport = MockTransport("<html>400 Bad Request</html>", status_code=400)
+        client = FounditClient(transport=mock_transport)
+
+        posting = FounditJobPostingService.publish_job(self.job, client=client)
+        self.assertEqual(posting.status, "FAILED")
+        self.assertIn("400 Bad Request", posting.error_message)
 
     def test_6_http_401_403_auth_failure_handling(self):
         """Test 6: Verify HTTP 401/403 auth error marks posting as FAILED without leaking secret credentials."""
