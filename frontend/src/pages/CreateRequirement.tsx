@@ -194,8 +194,8 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
-    if (!formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.clientBillRate || !formData.payRate || !formData.description) {
-      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Client Bill Rate, Pay Rate, Job Type, Detailed Job Description).');
+    if (!formData.jobTitle || !formData.primarySkills || !formData.experience || !formData.location || !formData.jobStatus || !formData.description) {
+      setError('Please fill in all required fields (Client, Job Title, Primary Skills, Experience, Location, Job Status, Job Type, Detailed Job Description).');
       return;
     }
 
@@ -204,12 +204,12 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
-    if (formData.clientBillRate.replace(/\D/g, '').length <= 4) {
+    if (formData.clientBillRate && formData.clientBillRate.replace(/\D/g, '').length <= 4) {
       setError('Client Bill Rate must be more than 4 digits.');
       return;
     }
 
-    if (formData.payRate.replace(/\D/g, '').length <= 4) {
+    if (formData.payRate && formData.payRate.replace(/\D/g, '').length <= 4) {
       setError('Pay Rate / Salary must be more than 4 digits.');
       return;
     }
@@ -445,7 +445,6 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Client Bill Rate"
-                  required
                   fullWidth
                   value={formData.clientBillRate}
                   onChange={(e) => setFormData({ ...formData, clientBillRate: e.target.value.replace(/\D/g, '') })}
@@ -456,7 +455,6 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Pay Rate / Salary"
-                  required
                   fullWidth
                   value={formData.payRate}
                   onChange={(e) => setFormData({ ...formData, payRate: e.target.value.replace(/\D/g, '') })}
