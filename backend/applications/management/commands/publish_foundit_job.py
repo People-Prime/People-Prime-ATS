@@ -41,7 +41,11 @@ class Command(BaseCommand):
         self.stdout.write(f"  Client Name: {job.client_name}")
 
         payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
-        sanitized_payload = json.dumps(payload, indent=2)
+        display_payload = {
+            k: ("***" if k.lower() in ("password", "token", "secret", "api_key") else v)
+            for k, v in payload.items()
+        }
+        sanitized_payload = json.dumps(display_payload, indent=2)
         self.stdout.write("\nSanitized Payload Summary:")
         self.stdout.write(sanitized_payload)
 

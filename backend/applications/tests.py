@@ -476,15 +476,23 @@ class FounditPhase3BJobPostingTests(TestCase):
             client_name="Acme Tech Solutions",
             remarks="High-priority role."
         )
-
-    @patch("applications.integrations.foundit.mappers.get_foundit_credentials")
-    def test_1_new_job_payload_mapping(self, mock_creds):
-        """Test 1: Verify folderId=0, mapToExistingFolderId=0, status='save', userName and mapped fields in payload."""
-        mock_creds.return_value = {
-            "username": "test_username"
+        self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "username": "test_username",
+            "password": "test_password",
+            "corp_id": "test_corp",
+            "api_key": "test_key",
+            "channel_id": "1",
+            "sub_channel_id": "1",
         }
+        self.addCleanup(self.creds_patcher.stop)
+
+    def test_1_new_job_payload_mapping(self):
+        """Test 1: Verify folderId=0, mapToExistingFolderId=0, status='save', userName, password and mapped fields in payload."""
         payload = FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
         self.assertEqual(payload["userName"], "test_username")
+        self.assertEqual(payload["password"], "test_password")
         self.assertEqual(payload["folderId"], 0)
         self.assertEqual(payload["mapToExistingFolderId"], 0)
         self.assertEqual(payload["status"], "save")
@@ -494,13 +502,19 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(payload["locations"][0]["city"], "Hyderabad")
         self.assertEqual(payload["locations"][0]["state"], "Telangana")
 
-    @patch("applications.integrations.foundit.mappers.get_foundit_credentials")
-    def test_1b_missing_username_raises_validation_error(self, mock_creds):
+    def test_1b_missing_username_raises_validation_error(self):
         """Test 1b: Verify missing Foundit username configuration raises FounditValidationError safely."""
-        mock_creds.return_value = {"username": ""}
+        self.mock_creds.return_value = {"username": "", "password": "test_password"}
         with self.assertRaises(FounditValidationError) as ctx:
             FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
         self.assertIn("Missing required Foundit username", str(ctx.exception))
+
+    def test_1c_missing_password_raises_validation_error(self):
+        """Test 1c: Verify missing Foundit password configuration raises FounditValidationError safely."""
+        self.mock_creds.return_value = {"username": "test_username", "password": ""}
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("Missing required Foundit password", str(ctx.exception))
 
     def test_2_successful_job_posting_response(self):
         """Test 2: Mock folderId=12345678 response and verify JobBoardPosting is saved with status=PUBLISHED."""
