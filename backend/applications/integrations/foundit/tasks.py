@@ -29,19 +29,33 @@ def publish_job_to_foundit_task(self, job_id):
             pass
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=60)
-def sync_foundit_applications_task(self, folder_id):
+def sync_foundit_applications_task(self, folder_id, applications_since=None):
     """
-    Celery task to poll official Foundit Application GET API for a folder_id.
+    Celery task to poll official Foundit Application GET API for a folder_id with pagination.
     """
     try:
-        from applications.integrations.foundit.client import FounditClient
-        client = FounditClient()
-        response = client.get_applications(folder_id=folder_id)
-        applications = response.get("applications", [])
-        for app_dict in applications:
-            FounditCandidateIngestionService.ingest_candidate(app_dict)
+        from applications.integrations.foundit.candidate_ingestion import FounditApplicationSyncService
+        return FounditApplicationSyncService.sync_applications_for_folder(
+            folder_id=folder_id,
+            applications_since=applications_since
+        )
     except Exception as exc:
         logger.error(f"[sync_foundit_applications_task] Failure for folder_id {folder_id}: {exc}")
+        try:
+            self.retry(exc=exc)
+        except Exception:
+            pass
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=120)
+def sync_all_foundit_jobs_task(self):
+    """
+    Celery task to scan all active/published Foundit jobs and synchronize applications.
+    """
+    try:
+        from applications.integrations.foundit.candidate_ingestion import FounditApplicationSyncService
+        return FounditApplicationSyncService.sync_all_published_jobs()
+    except Exception as exc:
+        logger.error(f"[sync_all_foundit_jobs_task] Failure: {exc}")
         try:
             self.retry(exc=exc)
         except Exception:

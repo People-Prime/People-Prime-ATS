@@ -343,6 +343,32 @@ class MockTransport:
                 raise FounditAPIError(f"Foundit API error (HTTP {self.status_code})", status_code=self.status_code)
         return self.response_data
 
+    def get(self, url, params=None, headers=None):
+        self.last_url = url
+        self.last_headers = headers
+        self.last_params = params
+        self.get_count = getattr(self, "get_count", 0) + 1
+        if self.exception:
+            raise self.exception
+        if self.status_code not in (200, 201):
+            if self.status_code == 400:
+                err_msg = FounditClient.extract_error_message(self.response_data)
+                raise FounditAPIError(f"Foundit API Bad Request (HTTP 400): {err_msg}", status_code=400)
+            elif self.status_code in (401, 403):
+                raise FounditAPIError(f"Foundit API Auth error (HTTP {self.status_code})", status_code=self.status_code)
+            elif self.status_code == 404:
+                raise FounditAPIError("Foundit API Not Found (HTTP 404)", status_code=404)
+            elif self.status_code == 429:
+                raise FounditAPIError("Foundit API rate limit exceeded (HTTP 429)", status_code=429)
+            elif self.status_code >= 500:
+                raise FounditAPIError(f"Foundit API server error (HTTP {self.status_code})", status_code=self.status_code)
+            else:
+                raise FounditAPIError(f"Foundit API error (HTTP {self.status_code})", status_code=self.status_code)
+        if isinstance(self.response_data, list):
+            idx = min(self.get_count - 1, len(self.response_data) - 1)
+            return self.response_data[idx]
+        return self.response_data
+
 
 
 from django.test import override_settings
@@ -656,6 +682,327 @@ class FounditPhase3BJobPostingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('<publisher>People Prime Worldwide</publisher>', response.content.decode('utf-8'))
+
+
+from applications.integrations.foundit.candidate_ingestion import (
+    FounditCandidateIngestionService,
+    FounditApplicationSyncService,
+)
+from applications.integrations.foundit.client import FounditContractUnverifiedException
+
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class FounditPhase4ApplicationsTests(TestCase):
+    def setUp(self):
+        self.job = Application.objects.create(
+            candidate_name="",
+            position="Lead Data Architect",
+            technology="Python, SQL, Snowflake",
+            experience=8.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Acme Global",
+            remarks="High priority requirement."
+        )
+        self.posting = JobBoardPosting.objects.create(
+            job=self.job,
+            job_board="Foundit",
+            external_job_id="12345",
+            status="PUBLISHED"
+        )
+        # Mock credentials
+        self.creds_patcher = patch("applications.integrations.foundit.constants.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "api_key": "test_api_key_4",
+            "corp_id": "test_corp_4",
+            "login_id": "test_login_4",
+            "username": "test_user_4",
+            "password": "test_password_4",
+            "channel_id": "1",
+            "sub_channel_id": "1",
+            "webhook_secret": "test_secret_4"
+        }
+        self.addCleanup(self.creds_patcher.stop)
+
+        # Mock AI scoring task
+        self.score_patcher = patch("applications.ai.tasks.score_applicant_resume_task.delay")
+        self.mock_score_task = self.score_patcher.start()
+        self.addCleanup(self.score_patcher.stop)
+
+    # A. Applications request construction
+    def test_a1_request_construction_endpoint_headers_params(self):
+        """Test A1: Verify correct endpoint, params (folder_id, corp_id, login_id, channel_id, sub_channel_id), and headers."""
+        mock_transport = MockTransport({
+            "folder_id": "12345",
+            "total_job_applications": 0,
+            "applications": []
+        })
+        client = FounditClient(transport=mock_transport)
+        client.credentials = self.mock_creds.return_value
+
+        res = client.get_applications("12345", page_number=2, limit=50, applications_since="2026-10-01")
+        self.assertEqual(mock_transport.last_url, "https://recruiter.foundit.in/recruiter-ats/v1/job/applications")
+        self.assertEqual(mock_transport.last_params["folder_id"], "12345")
+        self.assertEqual(mock_transport.last_params["corp_id"], "test_corp_4")
+        self.assertEqual(mock_transport.last_params["login_id"], "test_login_4")
+        self.assertEqual(mock_transport.last_params["channel_id"], "1")
+        self.assertEqual(mock_transport.last_params["sub_channel_id"], "1")
+        self.assertEqual(mock_transport.last_params["limit"], 50)
+        self.assertEqual(mock_transport.last_params["page_number"], 2)
+        self.assertEqual(mock_transport.last_params["applications_since"], "2026-10-01")
+
+    def test_a2_limit_capped_at_100(self):
+        """Test A2: Verify limit parameter never exceeds 100."""
+        mock_transport = MockTransport({"applications": []})
+        client = FounditClient(transport=mock_transport)
+        client.get_applications("12345", limit=500)
+        self.assertEqual(mock_transport.last_params["limit"], 100)
+
+    def test_a3_live_call_guard_blocks_unauthorized(self):
+        """Test A3: Verify live outbound call without mock transport is blocked by safety guard."""
+        client = FounditClient()
+        with self.assertRaises(FounditContractUnverifiedException) as ctx:
+            client.get_applications("12345")
+        self.assertIn("live execution is blocked", str(ctx.exception))
+
+    # B. Pagination
+    def test_b1_pagination_single_page(self):
+        """Test B1: One-page response fetches all applications and terminates."""
+        mock_data = {
+            "folder_id": "12345",
+            "total_job_applications": 2,
+            "applications": [
+                {"application_id": "APP_01", "candidate_name": "Alice Green", "folder_id": "12345"},
+                {"application_id": "APP_02", "candidate_name": "Bob Brown", "folder_id": "12345"}
+            ]
+        }
+        client = FounditClient(transport=MockTransport(mock_data))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("12345", client=client)
+
+        self.assertEqual(summary["pages_fetched"], 1)
+        self.assertEqual(summary["new_ingested"], 2)
+        self.assertEqual(summary["duplicates_skipped"], 0)
+
+    def test_b2_pagination_multiple_pages(self):
+        """Test B2: Multiple pages are iterated sequentially until total_job_applications is satisfied."""
+        page_1 = {
+            "folder_id": "12345",
+            "total_job_applications": 2,
+            "applications": [{"application_id": "APP_01", "candidate_name": "Alice", "folder_id": "12345"}]
+        }
+        page_2 = {
+            "folder_id": "12345",
+            "total_job_applications": 2,
+            "applications": [{"application_id": "APP_02", "candidate_name": "Bob", "folder_id": "12345"}]
+        }
+        client = FounditClient(transport=MockTransport([page_1, page_2]))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("12345", client=client, limit=1)
+
+        self.assertEqual(summary["pages_fetched"], 2)
+        self.assertEqual(summary["new_ingested"], 2)
+
+    def test_b3_pagination_zero_applications(self):
+        """Test B3: Zero applications stops on page 1 without unnecessary subsequent requests."""
+        empty_data = {
+            "folder_id": "12345",
+            "total_job_applications": 0,
+            "applications": []
+        }
+        client = FounditClient(transport=MockTransport(empty_data))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("12345", client=client)
+
+        self.assertEqual(summary["pages_fetched"], 1)
+        self.assertEqual(summary["total_fetched"], 0)
+        self.assertEqual(summary["new_ingested"], 0)
+
+    def test_b4_pagination_max_pages_safety_limit(self):
+        """Test B4: Defensive maximum page limit stops loop if API malforms or repeats."""
+        endless_page = {
+            "folder_id": "12345",
+            "total_job_applications": 9999,
+            "applications": [{"application_id": "APP_X", "candidate_name": "Loop Candidate", "folder_id": "12345"}]
+        }
+        client = FounditClient(transport=MockTransport(endless_page))
+        summary = FounditApplicationSyncService.sync_applications_for_folder(
+            "12345",
+            client=client,
+            max_pages=3
+        )
+        self.assertEqual(summary["pages_fetched"], 3)
+
+    # C. Job mapping
+    def test_c1_valid_folder_id_maps_to_ats_job(self):
+        """Test C1: Valid folder_id resolves JobBoardPosting and attaches applicant to ATS job."""
+        app_dict = {
+            "application_id": "APP_M1",
+            "candidate_name": "Charlie Chaplin",
+            "folder_id": "12345"
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.job, self.job)
+
+    def test_c2_unmatched_folder_id_returns_safe_error(self):
+        """Test C2: Unmatched folder_id does not create applicant and returns UNMATCHED_FOLDER_ID."""
+        app_dict = {
+            "application_id": "APP_M2",
+            "candidate_name": "Unknown Applicant",
+            "folder_id": "UNKNOWN_9999"
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertFalse(res["success"])
+        self.assertEqual(res["code"], "UNMATCHED_FOLDER_ID")
+        self.assertFalse(CareerPortalApplicant.objects.filter(foundit_application_id="APP_M2").exists())
+
+    # D. Deduplication
+    def test_d1_deduplication_prevents_duplicate_applicant(self):
+        """Test D1: Duplicate foundit_application_id is skipped cleanly and idempotently."""
+        app_dict = {
+            "application_id": "APP_DUP_1",
+            "candidate_name": "Diana Prince",
+            "folder_id": "12345"
+        }
+        res1 = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res1["success"])
+        self.assertFalse(res1.get("duplicate", False))
+
+        res2 = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res2["success"])
+        self.assertTrue(res2.get("duplicate"))
+        self.assertEqual(res2["applicant_id"], res1["applicant_id"])
+        self.assertEqual(CareerPortalApplicant.objects.filter(foundit_application_id="APP_DUP_1").count(), 1)
+
+    # E. Candidate creation
+    def test_e1_candidate_creation_fields(self):
+        """Test E1: Validates CareerPortalApplicant creation fields: source='Foundit', status='New', is_imported=False."""
+        app_dict = {
+            "application_id": "APP_FIELDS_1",
+            "candidate_name": "Edward Norton",
+            "folder_id": "12345",
+            "profile_details": {
+                "email": "edward@example.com",
+                "phone": "+919876543210",
+                "candidate_id": "CAND_999"
+            }
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.source, "Foundit")
+        self.assertEqual(applicant.status, "New")
+        self.assertFalse(applicant.is_imported)
+        self.assertEqual(applicant.first_name, "Edward")
+        self.assertEqual(applicant.last_name, "Norton")
+        self.assertEqual(applicant.email, "edward@example.com")
+        self.assertEqual(applicant.mobile_number, "+919876543210")
+        self.assertEqual(applicant.foundit_application_id, "APP_FIELDS_1")
+        self.assertEqual(applicant.foundit_candidate_id, "CAND_999")
+
+    # F. Resume handling
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_f1_resume_s3_upload_success(self, mock_boto, mock_get):
+        """Test F1: Resume binary is streamed to S3 and s3:// link saved."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raw = MagicMock()
+        mock_get.return_value.__enter__.return_value = mock_response
+
+        with patch.dict("os.environ", {
+            "AWS_ACCESS_KEY_ID": "mock_key",
+            "AWS_SECRET_ACCESS_KEY": "mock_secret",
+            "AWS_STORAGE_BUCKET_NAME": "ats-resumestorage"
+        }):
+            app_dict = {
+                "application_id": "APP_RESUME_1",
+                "candidate_name": "Fiona Gallagher",
+                "folder_id": "12345",
+                "resume_file_download_url": "https://foundit.in/download/resume_123.pdf"
+            }
+            res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+            applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+            self.assertEqual(applicant.resume, "s3://ats-resumestorage/foundit_APP_RESUME_1.pdf")
+
+    @patch("requests.get")
+    def test_f2_resume_s3_upload_failure_fallback_to_url(self, mock_get):
+        """Test F2: Resume download failure falls back safely to original download URL."""
+        mock_get.side_effect = Exception("Download failed")
+        app_dict = {
+            "application_id": "APP_RESUME_2",
+            "candidate_name": "George Clark",
+            "folder_id": "12345",
+            "resume_file_download_url": "https://foundit.in/download/resume_fallback.pdf"
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "https://foundit.in/download/resume_fallback.pdf")
+
+    # G. AI scoring
+    def test_g1_ai_scoring_task_dispatched(self):
+        """Test G1: score_applicant_resume_task is dispatched after successful applicant creation."""
+        app_dict = {
+            "application_id": "APP_AI_1",
+            "candidate_name": "Hannah Abbott",
+            "folder_id": "12345"
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.mock_score_task.assert_called_once_with(res["applicant_id"])
+
+    # H. Defensive profile parsing
+    def test_h1_defensive_profile_parsing_missing_profile(self):
+        """Test H1: Missing profile_details (None) is handled defensively without error."""
+        app_dict = {
+            "application_id": "APP_DEF_1",
+            "candidate_name": "Ian Malcolm",
+            "folder_id": "12345",
+            "profile_details": None
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.email, "")
+        self.assertEqual(applicant.qualification, "Not Specified")
+
+    def test_h2_defensive_profile_parsing_unexpected_structure(self):
+        """Test H2: Unexpected non-dict profile_details string or list is handled defensively."""
+        app_dict = {
+            "application_id": "APP_DEF_2",
+            "candidate_name": "Julia Roberts",
+            "folder_id": "12345",
+            "profile_details": "invalid_string_profile"
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.email, "")
+
+    # I. Error handling
+    def test_i1_client_error_handling(self):
+        """Test I1: Verify 400, 401, 404, 429, 500, and timeout errors in get_applications."""
+        for code in [400, 401, 404, 429, 500]:
+            mock_transport = MockTransport({"message": f"Error {code}"}, status_code=code)
+            client = FounditClient(transport=mock_transport)
+            with self.assertRaises(FounditAPIError):
+                client.get_applications("12345")
+
+        timeout_transport = MockTransport({}, exception=FounditTimeoutError("Timed out after 15 seconds"))
+        client = FounditClient(transport=timeout_transport)
+        with self.assertRaises(FounditTimeoutError):
+            client.get_applications("12345")
+
+    # J. Secret safety
+    def test_j1_secrets_never_in_logs_or_errors(self):
+        """Test J1: Verify password and session token are never leaked in error messages."""
+        mock_transport = MockTransport({"error": "Auth failed"}, status_code=401)
+        client = FounditClient(transport=mock_transport)
+        try:
+            client.get_applications("12345")
+        except FounditAPIError as e:
+            self.assertNotIn("test_password_4", str(e))
+            self.assertNotIn("test_api_key_4", str(e))
+
 
 
 

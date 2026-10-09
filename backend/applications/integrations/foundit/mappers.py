@@ -59,7 +59,9 @@ class FounditCandidateMapper:
         first_name = name_parts[0]
         last_name = name_parts[1] if len(name_parts) > 1 else ""
 
-        profile = application_dict.get("profile_details") or {}
+        profile = application_dict.get("profile_details")
+        if not isinstance(profile, dict):
+            profile = {}
 
         email = profile.get("email") or profile.get("email_id") or ""
         phone = profile.get("phone") or profile.get("mobile_number") or ""

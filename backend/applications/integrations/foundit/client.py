@@ -219,30 +219,63 @@ class FounditClient:
     def get_applications(self, folder_id, page_number=1, limit=MAX_APPLICATIONS_PER_PAGE, applications_since=None):
         """
         GET https://recruiter.foundit.in/recruiter-ats/v1/job/applications
-        BLOCKED in Phase 3B.
+        Authorized in Phase 4.
         """
         self.assert_applications_authorized()
-        if self.transport:
-            params = {
-                "folder_id": folder_id,
-                "corp_id": self.credentials["corp_id"],
-                "login_id": self.credentials["login_id"],
-                "channel_id": self.credentials["channel_id"],
-                "sub_channel_id": self.credentials["sub_channel_id"],
-                "limit": min(limit, MAX_APPLICATIONS_PER_PAGE),
-                "page_number": page_number,
-            }
-            if applications_since:
-                params["applications_since"] = applications_since
-            return self.transport.get(APPLICATIONS_ENDPOINT, params=params)
-        return {
-            "folder_id": folder_id,
-            "job_title": "",
-            "total_job_applications": 0,
-            "total_fetched_applications": 0,
-            "page_number": page_number,
-            "applications": []
+
+        safe_limit = min(int(limit) if limit else MAX_APPLICATIONS_PER_PAGE, MAX_APPLICATIONS_PER_PAGE)
+        if safe_limit < 1:
+            safe_limit = 1
+
+        params = {
+            "folder_id": str(folder_id),
+            "corp_id": self.credentials.get("corp_id", ""),
+            "login_id": self.credentials.get("login_id", ""),
+            "channel_id": self.credentials.get("channel_id", ""),
+            "sub_channel_id": self.credentials.get("sub_channel_id", ""),
+            "limit": safe_limit,
+            "page_number": int(page_number) if page_number else 1,
         }
+        if applications_since:
+            params["applications_since"] = applications_since
+
+        if self.transport:
+            return self.transport.get(APPLICATIONS_ENDPOINT, params=params)
+
+        session_token = self.generate_session_token()
+        headers = {
+            HEADER_API_KEY: self.credentials.get("api_key", ""),
+            HEADER_SESSION_TOKEN: session_token,
+        }
+
+        try:
+            res = requests.get(APPLICATIONS_ENDPOINT, headers=headers, params=params, timeout=15)
+            status_code = res.status_code
+
+            if status_code in (200, 201):
+                try:
+                    return res.json()
+                except Exception:
+                    return {}
+            elif status_code == 400:
+                err_msg = FounditClient.extract_error_message(res)
+                raise FounditAPIError(f"Foundit API Bad Request (HTTP 400): {err_msg}", status_code=400)
+            elif status_code in (401, 403):
+                raise FounditAPIError(f"Foundit API Authentication/Authorization failure (HTTP {status_code}).", status_code=status_code)
+            elif status_code == 404:
+                err_msg = FounditClient.extract_error_message(res, default_msg="Applications or folder not found.")
+                raise FounditAPIError(f"Foundit API Not Found (HTTP 404): {err_msg}", status_code=404)
+            elif status_code == 429:
+                raise FounditAPIError("Foundit API rate limit exceeded (HTTP 429). Please retry later.", status_code=429)
+            elif status_code >= 500:
+                raise FounditAPIError(f"Foundit API server error (HTTP {status_code}).", status_code=status_code)
+            else:
+                raise FounditAPIError(f"Foundit API returned unexpected status HTTP {status_code}.", status_code=status_code)
+
+        except requests.exceptions.Timeout:
+            raise FounditTimeoutError("Foundit Applications API request timed out after 15 seconds.", status_code=408)
+        except requests.exceptions.RequestException as e:
+            raise FounditAPIError(f"Foundit Applications API network request failed: {e.__class__.__name__}")
 
     def register_webhook(self, callback_url):
         """
