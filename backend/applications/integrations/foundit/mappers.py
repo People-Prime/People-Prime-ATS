@@ -21,10 +21,15 @@ class FounditJobMapper:
         if not username:
             raise FounditValidationError("Validation Error: Missing required Foundit username configuration.")
 
+        password = (creds.get("password") or "").strip()
+        if not password:
+            raise FounditValidationError("Validation Error: Missing required Foundit password configuration.")
+
         folder_id = int(existing_folder_id) if existing_folder_id else 0
 
         return {
             "userName": username,
+            "password": password,
             "folderId": folder_id,
             "mapToExistingFolderId": 0,
             "status": "save",

@@ -31,7 +31,7 @@ import {
   DialogActions,
   CircularProgress
 } from '@mui/material';
-import { X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2 } from 'lucide-react';
+import { X, Building, Search, Users, Briefcase, Award, TrendingUp, Trash2, Plus } from 'lucide-react';
 import { useAppSelector, useAppDispatch } from '../../redux/store';
 import { deleteApplication } from '../../redux/applicationsSlice';
 import { api } from '../../services/api';
@@ -312,6 +312,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           />
         </Box>
       </Box>
+
+      {/* Action buttons row below greeting */}
+      {!readOnly && (
+        <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Plus size={18} />}
+            onClick={() => navigate('/applications/create')}
+            sx={{ borderRadius: '8px', fontSize: '0.8rem', py: 0.5 }}
+          >
+            Add Job Opening
+          </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<Plus size={18} />}
+            onClick={() => navigate('/candidates/create')}
+            sx={{ borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem', py: 0.5 }}
+          >
+            Add Candidate
+          </Button>
+        </Box>
+      )}
 
       {/* Sub-navigation Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
