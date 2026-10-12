@@ -306,7 +306,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def get_permissions(self):
-        if self.request.method not in permissions.SAFE_METHODS:
+        if self.request.method not in permissions.SAFE_METHODS and self.action != 'hierarchy_drilldown':
             class IsNotReportingTeam(permissions.BasePermission):
                 def has_permission(self, request, view):
                     return request.user.role != Role.REPORTING_TEAM

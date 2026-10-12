@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 from django.test import SimpleTestCase, RequestFactory
 from rest_framework.request import Request
 from applications.views import StandardResultsSetPagination, ApplicationViewSet
+from users.models import Role
 
 
 class MockQuerySet(list):
@@ -141,3 +142,135 @@ class ApplicationViewSetQuerysetOptimizationTests(SimpleTestCase):
             'author' in select_related_dict or ('author' in (select_related_dict or {})),
             f"Expected 'author' in select_related, got {select_related_dict}"
         )
+
+
+class ReportingTeamPermissionTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _create_drf_request(self, method='POST', path='/api/applications/', user=None):
+        if method == 'POST':
+            req = self.factory.post(path)
+        elif method == 'PUT':
+            req = self.factory.put(path)
+        elif method == 'PATCH':
+            req = self.factory.patch(path)
+        elif method == 'DELETE':
+            req = self.factory.delete(path)
+        else:
+            req = self.factory.get(path)
+        drf_req = Request(req)
+        drf_req.user = user
+        return drf_req
+
+    def test_reporting_team_can_post_hierarchy_drilldown(self):
+        """Authenticated REPORTING_TEAM users must be allowed to POST hierarchy_drilldown."""
+        view = ApplicationViewSet()
+        view.action = 'hierarchy_drilldown'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='POST', path='/api/applications/hierarchy-drilldown/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertTrue(has_perm, "REPORTING_TEAM must have permission to call hierarchy_drilldown via POST")
+
+    def test_reporting_team_cannot_create_application(self):
+        """REPORTING_TEAM users must be blocked from POST create applications."""
+        view = ApplicationViewSet()
+        view.action = 'create'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='POST', path='/api/applications/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "REPORTING_TEAM must be denied permission to create applications")
+
+    def test_reporting_team_cannot_update_application(self):
+        """REPORTING_TEAM users must be blocked from PUT update applications."""
+        view = ApplicationViewSet()
+        view.action = 'update'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='PUT', path='/api/applications/1/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "REPORTING_TEAM must be denied permission to update applications")
+
+    def test_reporting_team_cannot_partial_update_application(self):
+        """REPORTING_TEAM users must be blocked from PATCH partial_update applications."""
+        view = ApplicationViewSet()
+        view.action = 'partial_update'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='PATCH', path='/api/applications/1/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "REPORTING_TEAM must be denied permission to patch applications")
+
+    def test_reporting_team_cannot_delete_application(self):
+        """REPORTING_TEAM users must be blocked from DELETE destroy applications."""
+        view = ApplicationViewSet()
+        view.action = 'destroy'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='DELETE', path='/api/applications/1/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "REPORTING_TEAM must be denied permission to delete applications")
+
+    def test_reporting_team_cannot_invoke_mutating_action_add_note(self):
+        """REPORTING_TEAM users must be blocked from mutating custom actions like add_note."""
+        view = ApplicationViewSet()
+        view.action = 'add_note'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='POST', path='/api/applications/1/add-note/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "REPORTING_TEAM must be denied permission to invoke add_note")
+
+    def test_reporting_team_cannot_invoke_mutating_action_upload_resume(self):
+        """REPORTING_TEAM users must be blocked from upload_resume."""
+        view = ApplicationViewSet()
+        view.action = 'upload_resume'
+        user = MagicMock(is_authenticated=True, role=Role.REPORTING_TEAM)
+        drf_req = self._create_drf_request(method='POST', path='/api/applications/upload-resume/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "REPORTING_TEAM must be denied permission to upload resumes")
+
+    def test_unauthenticated_user_blocked_from_hierarchy_drilldown(self):
+        """Unauthenticated requests must be blocked from hierarchy_drilldown."""
+        view = ApplicationViewSet()
+        view.action = 'hierarchy_drilldown'
+        user = MagicMock(is_authenticated=False)
+        drf_req = self._create_drf_request(method='POST', path='/api/applications/hierarchy-drilldown/', user=user)
+        view.request = drf_req
+
+        perms = view.get_permissions()
+        has_perm = all(p.has_permission(drf_req, view) for p in perms)
+        self.assertFalse(has_perm, "Unauthenticated users must be denied access to hierarchy_drilldown")
+
+    def test_existing_roles_remain_permitted_for_hierarchy_drilldown(self):
+        """All existing authorized recruitment roles must continue to have drill-down access."""
+        authorized_roles = [
+            Role.ADMIN, Role.CEO, Role.SENIOR_MANAGER, Role.JUNIOR_MANAGER,
+            Role.TEAM_LEAD, Role.SUB_LEAD, Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST
+        ]
+        view = ApplicationViewSet()
+        view.action = 'hierarchy_drilldown'
+        for role in authorized_roles:
+            user = MagicMock(is_authenticated=True, role=role)
+            drf_req = self._create_drf_request(method='POST', path='/api/applications/hierarchy-drilldown/', user=user)
+            view.request = drf_req
+            perms = view.get_permissions()
+            has_perm = all(p.has_permission(drf_req, view) for p in perms)
+            self.assertTrue(has_perm, f"Role {role} must have permission to POST hierarchy_drilldown")
