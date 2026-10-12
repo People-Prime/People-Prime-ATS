@@ -36,9 +36,12 @@ def extract_clean_job_description(remarks):
 
     cleaned_lines = []
     for line in desc.split("\n"):
-        if sensitive_key_pattern.match(line) or re.match(r"^\s*(Degree|Description|Primary Skills):\s*", line, re.IGNORECASE) or line.strip() in ("[Job Details]", "[Skills & Assignment]", "[Notice Period]", "[Document Attachment]"):
+        if sensitive_key_pattern.match(line) or re.match(r"^\s*(Degree|Primary Skills):\s*", line, re.IGNORECASE) or line.strip() in ("[Job Details]", "[Skills & Assignment]", "[Notice Period]", "[Document Attachment]"):
             continue
-        cleaned_lines.append(line)
+        if re.match(r"^\s*Description:\s*$", line, re.IGNORECASE):
+            continue
+        line_clean = re.sub(r"^\s*Description:\s*", "", line, flags=re.IGNORECASE) if re.match(r"^\s*Description:\s*\S+", line, re.IGNORECASE) else line
+        cleaned_lines.append(line_clean)
 
     result = "\n".join(cleaned_lines).strip()
     return result if result else remarks.strip()

@@ -530,6 +530,8 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(payload["jobTitle"], "Senior Python Engineer")
         self.assertIn("description", payload)
         self.assertEqual(payload["description"], "High-priority role.")
+        self.assertIn("jobDescription", payload)
+        self.assertEqual(payload["jobDescription"], payload["description"])
         self.assertIn("Python", payload["skills"])
         self.assertIsInstance(payload["minExperience"], int)
         self.assertEqual(payload["minExperience"], 5)
