@@ -507,52 +507,201 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.mock_creds.return_value = {
             "username": "test_username",
             "password": "test_password",
-            "corp_id": "test_corp",
-            "api_key": "test_key",
+            "corp_id": "188533",
+            "recruiter_id": "1220898",
             "channel_id": "1",
             "sub_channel_id": "1",
+            "company_name": "People Prime Worldwide",
+            "owner_name": "Test Owner",
+            "owner_email": "owner@people-prime.com",
+            "default_location_id": "1",
+            "default_location_name": "Hyderabad",
+            "default_industry_id": "140",
+            "default_industry_name": "Consumer Software",
+            "default_role_id": "734",
+            "default_role_name": "Software Engineer",
+            "default_function_name": "IT",
+            "default_min_salary": "500000",
+            "default_max_salary": "1000000",
+            "default_currency_id": "1",
+            "default_salary_confidential": "1",
+            "api_key": "test_key",
         }
         self.addCleanup(self.creds_patcher.stop)
 
     def test_1_new_job_payload_mapping(self):
-        """Test 1: Verify folderId=0, mapToExistingFolderId=0, status='save', userName, password and mapped fields in payload."""
+        """Test 1: Verify full-time job payload conforms to 01-ATS-EDGE-JobPosting.pdf official contract."""
         payload = FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+
+        # 1. Authentication & System Identifiers
         self.assertEqual(payload["userName"], "test_username")
         self.assertEqual(payload["password"], "test_password")
+        self.assertIsInstance(payload["corpId"], int)
+        self.assertEqual(payload["corpId"], 188533)
+        self.assertIsInstance(payload["recruiterId"], int)
+        self.assertEqual(payload["recruiterId"], 1220898)
+        self.assertIsInstance(payload["channelId"], int)
+        self.assertEqual(payload["channelId"], 1)
+        self.assertEqual(payload["subChannelId"], "1")
         self.assertEqual(payload["folderId"], 0)
         self.assertEqual(payload["mapToExistingFolderId"], 0)
         self.assertEqual(payload["status"], "save")
-        self.assertIn("applyUrl", payload)
-        self.assertEqual(payload["applyUrl"], f"https://people-prime.com/job-details?id={self.job.id}&src=Foundit")
-        self.assertIn("applicationsViaMail", payload)
-        self.assertIs(payload["applicationsViaMail"], False)
+        self.assertEqual(payload["jobPostingType"], "JP")
+        self.assertEqual(payload["jobType"], "fulltime")
+        self.assertEqual(payload["siteContext"], "rexmonster")
+
+        # 2. Company & Owner Metadata
+        self.assertEqual(payload["companyName"], "People Prime Worldwide")
+        self.assertEqual(payload["ownerName"], "Test Owner")
+        self.assertEqual(payload["ownerEmail"], "owner@people-prime.com")
+
+        # 3. Core Job Details & Application Routing
         self.assertEqual(payload["title"], "Senior Python Engineer")
-        self.assertEqual(payload["jobTitle"], "Senior Python Engineer")
-        self.assertIn("description", payload)
         self.assertEqual(payload["description"], "High-priority role.")
-        self.assertIn("jobDescription", payload)
-        self.assertEqual(payload["jobDescription"], payload["description"])
-        self.assertIn("Python", payload["skills"])
+        self.assertEqual(payload["applyUrl"], f"https://people-prime.com/job-details?id={self.job.id}&src=Foundit")
+        self.assertEqual(payload["applicationsViaMail"], "0")
+        self.assertEqual(payload["autoRenew"], "0")
+
+        # 4. Experience & Compensation
         self.assertIsInstance(payload["minExperience"], int)
         self.assertEqual(payload["minExperience"], 5)
         self.assertIsInstance(payload["maxExperience"], int)
         self.assertEqual(payload["maxExperience"], 8)
-        self.assertEqual(payload["locations"][0]["city"], "Hyderabad")
-        self.assertEqual(payload["locations"][0]["state"], "Telangana")
+        self.assertIsInstance(payload["minSalary"], int)
+        self.assertEqual(payload["minSalary"], 500000)
+        self.assertIsInstance(payload["maxSalary"], int)
+        self.assertEqual(payload["maxSalary"], 1000000)
+        self.assertIsInstance(payload["currencyId"], int)
+        self.assertEqual(payload["currencyId"], 1)
+        self.assertEqual(payload["salaryConfidential"], "1")
+
+        # 5. Master Data Lists
+        self.assertEqual(payload["locationList"], [{"locationId": 1, "locationName": "Hyderabad"}])
+        self.assertEqual(payload["industryList"], [{"industryId": 140, "industryName": "Consumer Software"}])
+        self.assertEqual(payload["roleList"], [{"roleId": 734, "roleName": "Software Engineer", "functionName": "IT"}])
+        self.assertEqual(
+            payload["skillList"],
+            [
+                {"skillId": 0, "skillName": "Python"},
+                {"skillId": 0, "skillName": "Django"},
+                {"skillId": 0, "skillName": "Celery"},
+            ]
+        )
+
+        # 6. Priority Filter Routing Object
+        self.assertIn("job_priority", payload)
+        job_pri = payload["job_priority"]
+        self.assertEqual(job_pri["locationFilter"], "1")
+        self.assertEqual(job_pri["experienceFilter"], "1")
+        self.assertEqual(job_pri["industryFilter"], "1")
+        self.assertEqual(job_pri["skillFilter"], "1")
+        self.assertEqual(job_pri["location_list_priority"], [{"locationId": 1, "locationName": "Hyderabad"}])
+        self.assertEqual(job_pri["industry_list_priority"], [{"industryId": 140, "industryName": "Consumer Software"}])
+        self.assertEqual(len(job_pri["prioritySkills"]), 3)
+        self.assertEqual(job_pri["prioritySkills"][0]["skillName"], "Python")
+
+        # 7. Verify Obsolete Non-contract fields are removed
+        self.assertNotIn("jobTitle", payload)
+        self.assertNotIn("jobDescription", payload)
+        self.assertNotIn("skills", payload)
+        self.assertNotIn("locations", payload)
+        self.assertNotIn("clientName", payload)
 
     def test_1b_missing_username_raises_validation_error(self):
         """Test 1b: Verify missing Foundit username configuration raises FounditValidationError safely."""
-        self.mock_creds.return_value = {"username": "", "password": "test_password"}
+        creds = dict(self.mock_creds.return_value)
+        creds["username"] = ""
+        self.mock_creds.return_value = creds
         with self.assertRaises(FounditValidationError) as ctx:
             FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
-        self.assertIn("Missing required Foundit username", str(ctx.exception))
+        self.assertIn("username", str(ctx.exception).lower())
 
     def test_1c_missing_password_raises_validation_error(self):
         """Test 1c: Verify missing Foundit password configuration raises FounditValidationError safely."""
-        self.mock_creds.return_value = {"username": "test_username", "password": ""}
+        creds = dict(self.mock_creds.return_value)
+        creds["password"] = ""
+        self.mock_creds.return_value = creds
         with self.assertRaises(FounditValidationError) as ctx:
             FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
-        self.assertIn("Missing required Foundit password", str(ctx.exception))
+        self.assertIn("password", str(ctx.exception).lower())
+
+    def test_1d_missing_corp_id_raises_validation_error(self):
+        """Test 1d: Verify missing Foundit corp_id raises FounditValidationError safely."""
+        creds = dict(self.mock_creds.return_value)
+        creds["corp_id"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("corp_id", str(ctx.exception).lower())
+
+    def test_1e_missing_recruiter_id_raises_validation_error(self):
+        """Test 1e: Verify missing Foundit recruiter_id raises FounditValidationError safely."""
+        creds = dict(self.mock_creds.return_value)
+        creds["recruiter_id"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("recruiter_id", str(ctx.exception).lower())
+
+    def test_1f_missing_company_name_raises_validation_error(self):
+        """Test 1f: Verify missing company_name raises FounditValidationError safely."""
+        creds = dict(self.mock_creds.return_value)
+        creds["company_name"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("company_name", str(ctx.exception).lower())
+
+    def test_1g_missing_owner_details_raises_validation_error(self):
+        """Test 1g: Verify missing owner_name or owner_email raises FounditValidationError safely."""
+        creds = dict(self.mock_creds.return_value)
+        creds["owner_email"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("owner_email", str(ctx.exception).lower())
+
+    def test_1h_missing_location_id_raises_validation_error(self):
+        """Test 1h: Verify unconfirmed location_id raises FounditValidationError without inventing dummy IDs."""
+        creds = dict(self.mock_creds.return_value)
+        creds["location_id"] = ""
+        creds["default_location_id"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("locationid", str(ctx.exception).lower())
+
+    def test_1i_missing_industry_id_raises_validation_error(self):
+        """Test 1i: Verify unconfirmed industry_id raises FounditValidationError without inventing dummy IDs."""
+        creds = dict(self.mock_creds.return_value)
+        creds["industry_id"] = ""
+        creds["default_industry_id"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("industryid", str(ctx.exception).lower())
+
+    def test_1j_missing_role_id_raises_validation_error(self):
+        """Test 1j: Verify unconfirmed role_id raises FounditValidationError without inventing dummy IDs."""
+        creds = dict(self.mock_creds.return_value)
+        creds["role_id"] = ""
+        creds["default_role_id"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("roleid", str(ctx.exception).lower())
+
+    def test_1k_missing_salary_raises_validation_error(self):
+        """Test 1k: Verify missing salary configuration raises FounditValidationError without assuming 0."""
+        creds = dict(self.mock_creds.return_value)
+        creds["min_salary"] = ""
+        creds["default_min_salary"] = ""
+        creds["max_salary"] = ""
+        creds["default_max_salary"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("salary", str(ctx.exception).lower())
     def test_2_successful_job_posting_response(self):
         """Test 2: Mock folderId=12345678 response and verify JobBoardPosting is saved with status=PUBLISHED."""
         mock_transport = MockTransport({"folderId": 12345678, "status": "save"}, status_code=200)

@@ -71,7 +71,15 @@ class FounditJobPostingService:
             client = FounditClient()
 
         existing_folder_id = posting.external_job_id or 0
-        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_application, existing_folder_id=existing_folder_id)
+        try:
+            payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_application, existing_folder_id=existing_folder_id)
+        except FounditValidationError as ve:
+            posting.status = 'FAILED'
+            posting.error_message = str(ve)
+            posting.last_synced_at = timezone.now()
+            posting.save()
+            logger.error(f"[FounditJobPostingService] Data validation failed for job {job_application.id}: {ve}")
+            return posting
 
         try:
             response = client.post_job(payload)

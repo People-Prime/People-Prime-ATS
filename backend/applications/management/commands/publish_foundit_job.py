@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from applications.models import Application
 from applications.integrations.foundit.job_posting import FounditJobPostingService
 from applications.integrations.foundit.mappers import FounditJobMapper
+from applications.integrations.foundit.client import FounditValidationError
 from applications.integrations.foundit.constants import get_foundit_credentials
 
 class Command(BaseCommand):
@@ -40,7 +41,13 @@ class Command(BaseCommand):
         self.stdout.write(f"  City/State: {job.city}, {job.state}")
         self.stdout.write(f"  Client Name: {job.client_name}")
 
-        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        try:
+            payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        except FounditValidationError as e:
+            self.stdout.write(self.style.ERROR(f"\nPayload Validation Blocked: {e}"))
+            self.stdout.write(self.style.WARNING("To resolve, configure the missing required account or master-data settings in backend/.env."))
+            return
+
         display_payload = {
             k: ("***" if k.lower() in ("password", "token", "secret", "api_key") else v)
             for k, v in payload.items()
