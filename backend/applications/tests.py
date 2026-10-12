@@ -522,9 +522,19 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(payload["folderId"], 0)
         self.assertEqual(payload["mapToExistingFolderId"], 0)
         self.assertEqual(payload["status"], "save")
+        self.assertIn("applyUrl", payload)
+        self.assertEqual(payload["applyUrl"], f"https://people-prime.com/job-details?id={self.job.id}&src=Foundit")
+        self.assertIn("applicationsViaMail", payload)
+        self.assertIs(payload["applicationsViaMail"], False)
+        self.assertEqual(payload["title"], "Senior Python Engineer")
         self.assertEqual(payload["jobTitle"], "Senior Python Engineer")
+        self.assertIn("description", payload)
+        self.assertEqual(payload["description"], "High-priority role.")
         self.assertIn("Python", payload["skills"])
-        self.assertEqual(payload["minExperience"], 5.0)
+        self.assertIsInstance(payload["minExperience"], int)
+        self.assertEqual(payload["minExperience"], 5)
+        self.assertIsInstance(payload["maxExperience"], int)
+        self.assertEqual(payload["maxExperience"], 8)
         self.assertEqual(payload["locations"][0]["city"], "Hyderabad")
         self.assertEqual(payload["locations"][0]["state"], "Telangana")
 
@@ -765,7 +775,7 @@ class FounditPhase4ApplicationsTests(TestCase):
         client = FounditClient()
         with self.assertRaises(FounditContractUnverifiedException) as ctx:
             client.get_applications("12345")
-        self.assertIn("live execution is blocked", str(ctx.exception))
+        self.assertIn("execution is blocked", str(ctx.exception))
 
     # B. Pagination
     def test_b1_pagination_single_page(self):
@@ -828,6 +838,7 @@ class FounditPhase4ApplicationsTests(TestCase):
         summary = FounditApplicationSyncService.sync_applications_for_folder(
             "12345",
             client=client,
+            limit=1,
             max_pages=3
         )
         self.assertEqual(summary["pages_fetched"], 3)

@@ -3,18 +3,52 @@ Data Mappers for Foundit Integration.
 Maps ATS Application models to official Foundit Job Posting API payload structure,
 and Foundit candidate application records to CareerPortalApplicant models using documented fields.
 """
+import os
+import re
 import logging
 from applications.integrations.foundit.constants import get_foundit_credentials
 from applications.integrations.foundit.client import FounditValidationError
 
 logger = logging.getLogger(__name__)
 
+def extract_clean_job_description(remarks):
+    if not remarks:
+        return ""
+    desc = ""
+    if "[Skills & Assignment]" in remarks:
+        parts = remarks.split("[Skills & Assignment]", 1)
+        after = parts[1]
+        if "[Notice Period]" in after:
+            desc = after.split("[Notice Period]", 1)[0]
+        elif "[" in after:
+            desc = after.split("[", 1)[0]
+        else:
+            desc = after
+    elif "Description:" in remarks:
+        desc = remarks.split("Description:", 1)[1]
+    else:
+        desc = remarks
+
+    sensitive_key_pattern = re.compile(
+        r"^\s*(Client Bill Rate|Pay Rate|Job Code|Start Date|End Date|Location|Job Status|Job Type|Client Job ID|Required Documents|Address|Work Mode|Employee Type|Zip Code|Source Option|FileName):\s*",
+        re.IGNORECASE
+    )
+
+    cleaned_lines = []
+    for line in desc.split("\n"):
+        if sensitive_key_pattern.match(line) or re.match(r"^\s*(Degree|Description|Primary Skills):\s*", line, re.IGNORECASE) or line.strip() in ("[Job Details]", "[Skills & Assignment]", "[Notice Period]", "[Document Attachment]"):
+            continue
+        cleaned_lines.append(line)
+
+    result = "\n".join(cleaned_lines).strip()
+    return result if result else remarks.strip()
+
 class FounditJobMapper:
     @staticmethod
     def map_ats_job_to_foundit_payload(job_application, existing_folder_id=0):
         """
         Maps ATS Application model to official Foundit job posting payload.
-        Uses documented fields: folderId (0 for new), mapToExistingFolderId (0), status ("save"), userName.
+        Uses documented fields: folderId (0 for new), mapToExistingFolderId (0), status ("save"), userName, applyUrl.
         """
         creds = get_foundit_credentials()
         username = (creds.get("username") or "").strip()
@@ -26,6 +60,10 @@ class FounditJobMapper:
             raise FounditValidationError("Validation Error: Missing required Foundit password configuration.")
 
         folder_id = int(existing_folder_id) if existing_folder_id else 0
+        base_url = (os.getenv("PUBLIC_CAREER_PORTAL_URL") or "https://people-prime.com").rstrip("/")
+        apply_url = f"{base_url}/job-details?id={job_application.id}&src=Foundit"
+
+        clean_desc = extract_clean_job_description(job_application.remarks or "")
 
         return {
             "userName": username,
@@ -33,11 +71,15 @@ class FounditJobMapper:
             "folderId": folder_id,
             "mapToExistingFolderId": 0,
             "status": "save",
+            "applyUrl": apply_url,
+            "applicationsViaMail": False,
+            "title": job_application.position or "",
             "jobTitle": job_application.position or "",
-            "jobDescription": job_application.remarks or "",
+            "description": clean_desc,
+            "jobDescription": clean_desc,
             "skills": [s.strip() for s in (job_application.technology or "").split(",") if s.strip()],
-            "minExperience": float(job_application.experience or 0),
-            "maxExperience": float(job_application.experience or 0) + 3.0,
+            "minExperience": int(float(job_application.experience or 0)),
+            "maxExperience": int(float(job_application.experience or 0)) + 3,
             "locations": [{
                 "city": job_application.city or "",
                 "state": job_application.state or "",

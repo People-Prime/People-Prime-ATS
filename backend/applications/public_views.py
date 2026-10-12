@@ -150,6 +150,8 @@ class PublicJobApplyAPIView(APIView):
         req_source = request.data.get('source') or request.query_params.get('source') or request.query_params.get('src') or 'Company Career Portal'
         if req_source and 'linkedin' in str(req_source).lower():
             resolved_source = 'LinkedIn'
+        elif req_source and 'foundit' in str(req_source).lower():
+            resolved_source = 'Foundit'
         else:
             resolved_source = 'Company Career Portal'
 
