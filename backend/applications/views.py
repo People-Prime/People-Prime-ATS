@@ -1250,6 +1250,35 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             'fileName': file_obj.name
         }, status=status.HTTP_200_OK)
 
+    @staticmethod
+    def extract_job_code_fast(remarks):
+        if not remarks:
+            return 'N/A'
+
+        search_start = 0
+
+        while True:
+            idx = remarks.find('Job Code:', search_start)
+
+            if idx == -1:
+                idx = remarks.lower().find('job code:', search_start)
+
+            if idx == -1:
+                return 'N/A'
+
+            start = idx + 9
+            end = len(remarks)
+            for nl in ('\r', '\n'):
+                pos = remarks.find(nl, start)
+                if pos != -1 and pos < end:
+                    end = pos
+            val = remarks[start:end].strip()
+
+            if val and val.upper().startswith('PPW'):
+                return val
+
+            search_start = start
+
     @action(detail=False, methods=['get'], url_path='hierarchy-stats')
     def hierarchy_stats(self, request):
         from collections import defaultdict
@@ -1279,29 +1308,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             ('placed', 'status updated to placed'),
         )
 
-        def extract_job_code_fast(remarks):
-            if not remarks:
-                return 'N/A'
-
-            search_start = 0
-
-            while True:
-                idx = remarks.find('Job Code:', search_start)
-
-                if idx == -1:
-                    idx = remarks.lower().find('job code:', search_start)
-
-                if idx == -1:
-                    return 'N/A'
-
-                start = idx + 9
-                end = remarks.find('\\n', start)
-                val = remarks[start:end].strip() if end != -1 else remarks[start:].strip()
-
-                if val and val.upper().startswith('PPW'):
-                    return val
-
-                search_start = start
+        extract_job_code_fast = self.extract_job_code_fast
 
         apps_tuples = list(Application.objects.values_list(
             'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
@@ -2197,4 +2204,7 @@ Resume Link: {resume_url}"""
             "message": "Candidate imported into ATS successfully.",
             "application_id": ats_app.id
         }, status=status.HTTP_200_OK)
+
+
+extract_job_code_fast = ApplicationViewSet.extract_job_code_fast
 
