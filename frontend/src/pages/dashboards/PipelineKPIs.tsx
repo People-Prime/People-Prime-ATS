@@ -393,6 +393,7 @@ export const PipelineKPIs: React.FC<PipelineKPIsProps> = ({ applications, startD
       });
     } catch (err) {
       console.error('Failed to load drilldown records:', err);
+      alert('Failed to load drilldown records. Please try again.');
     } finally {
       setLoadingMetric(null);
     }

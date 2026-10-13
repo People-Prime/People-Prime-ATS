@@ -266,6 +266,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
       });
     } catch (err) {
       console.error('Failed to load drilldown data:', err);
+      alert('Failed to load drilldown data. Please try again.');
     } finally {
       setDrilldownLoadingKey(null);
     }
