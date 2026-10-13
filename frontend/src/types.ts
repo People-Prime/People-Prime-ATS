@@ -98,6 +98,7 @@ export interface Application {
   modified_by?: string;
   publish_to_career_page?: boolean;
   publish_to_linkedin?: boolean;
+  publish_to_foundit?: boolean;
   published_at?: string | null;
 }
 

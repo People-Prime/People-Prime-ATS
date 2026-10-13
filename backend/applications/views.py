@@ -2025,6 +2025,123 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         return Response({"error": "Stats not resolved for role."}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['get', 'post'], url_path='validate-foundit')
+    def validate_foundit(self, request, pk=None):
+        from users.models import Role
+        if request.user.role not in [Role.ADMIN, Role.TEAM_LEAD] and not request.user.is_superuser:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only Administrators and Team Leads are authorized to validate jobs for Foundit.")
+
+        job = self.get_object()
+        if job.candidate_name:
+            return Response(
+                {"success": False, "valid": False, "error": "Foundit publishing is only valid for job requirements (candidate_name must be empty)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        from applications.integrations.foundit.mappers import FounditJobMapper
+        from applications.integrations.foundit.client import FounditValidationError
+        try:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+            return Response({
+                "success": True,
+                "valid": True,
+                "message": "Job posting passed all Foundit validation checks and is ready for publication.",
+                "job_id": job.id,
+                "title": job.position
+            }, status=status.HTTP_200_OK)
+        except FounditValidationError as e:
+            return Response({
+                "success": False,
+                "valid": False,
+                "error": str(e),
+                "job_id": job.id
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                "success": False,
+                "valid": False,
+                "error": f"Validation failed: {str(e)}",
+                "job_id": job.id
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='publish-foundit')
+    def publish_foundit(self, request, pk=None):
+        from users.models import Role
+        if request.user.role not in [Role.ADMIN, Role.TEAM_LEAD] and not request.user.is_superuser:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only Administrators and Team Leads are authorized to publish jobs to external boards.")
+
+        job = self.get_object()
+        if job.candidate_name:
+            return Response(
+                {"success": False, "error": "Only job postings can be published to Foundit."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 1. Parse and validate dry_run parameter strictly (Fix 1)
+        # Default to True when omitted (safe by default)
+        if 'dry_run' in request.data:
+            raw_dry_run = request.data['dry_run']
+            if type(raw_dry_run) is not bool:
+                return Response(
+                    {"success": False, "error": "Invalid dry_run parameter. Must be an explicit JSON boolean (true or false)."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            dry_run = raw_dry_run
+        else:
+            dry_run = True
+
+        # 2. Strict authorization requirements for live publishing (Fix 1)
+        if dry_run is False:
+            if 'confirm_live' not in request.data:
+                return Response(
+                    {"success": False, "error": "Live publication requires explicit 'confirm_live': true parameter."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            raw_confirm = request.data['confirm_live']
+            if type(raw_confirm) is not bool or raw_confirm is not True:
+                return Response(
+                    {"success": False, "error": "Invalid confirm_live parameter. Must be boolean true to authorize live publication."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        from applications.integrations.foundit.mappers import FounditJobMapper
+        from applications.integrations.foundit.client import FounditValidationError
+        from applications.integrations.foundit.job_posting import FounditJobPostingService
+
+        # Validate first
+        try:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        except FounditValidationError as e:
+            return Response({
+                "success": False,
+                "status": "FAILED",
+                "error": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if dry_run:
+            return Response({
+                "success": True,
+                "dry_run": True,
+                "status": "VALIDATED",
+                "message": f"Job {job.id} passed validation for Foundit publication. Dry run completed without live API calls."
+            }, status=status.HTTP_200_OK)
+
+        posting = FounditJobPostingService.publish_job(job)
+        if posting.status == 'PUBLISHED':
+            return Response({
+                "success": True,
+                "status": posting.status,
+                "folder_id": posting.external_job_id,
+                "message": f"Job {job.id} successfully published to Foundit (folderId: {posting.external_job_id})."
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "success": False,
+                "status": posting.status,
+                "error": posting.error_message or "Failed to publish job to Foundit."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CareerPortalApplicantPagination(PageNumberPagination):
     """Pagination for career portal applicants — prevents unbounded list responses."""

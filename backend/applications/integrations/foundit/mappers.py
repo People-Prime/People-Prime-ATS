@@ -47,6 +47,541 @@ def extract_clean_job_description(remarks):
     result = "\n".join(cleaned_lines).strip()
     return result if result else remarks.strip()
 
+VERIFIED_FOUNDIT_LOCATIONS = {
+    # Top Metros & ATS Hiring Hubs (Official Foundit Master Data)
+    "hyderabad": {"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"},
+    "secunderabad": {"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"},
+    "bangalore": {"locationId": 2, "locationName": "Bengaluru / Bangalore"},
+    "bengaluru": {"locationId": 2, "locationName": "Bengaluru / Bangalore"},
+    "pune": {"locationId": 10, "locationName": "Pune"},
+    "chennai": {"locationId": 3, "locationName": "Chennai"},
+    "mumbai": {"locationId": 8, "locationName": "Mumbai"},
+    "mumbai city": {"locationId": 491, "locationName": "Mumbai City"},
+    "navi mumbai": {"locationId": 492, "locationName": "Navi Mumbai"},
+    "thane": {"locationId": 493, "locationName": "Thane"},
+    "noida": {"locationId": 9, "locationName": "Noida"},
+    "gurgaon": {"locationId": 5, "locationName": "Gurgaon / Gurugram"},
+    "gurugram": {"locationId": 5, "locationName": "Gurgaon / Gurugram"},
+    "delhi": {"locationId": 4, "locationName": "Delhi"},
+    "delhi ncr": {"locationId": 199, "locationName": "Delhi NCR"},
+    "ncr": {"locationId": 199, "locationName": "Delhi NCR"},
+    "ahmedabad": {"locationId": 1, "locationName": "Ahmedabad"},
+    "kolkata": {"locationId": 7, "locationName": "Kolkata"},
+    "chandigarh": {"locationId": 40, "locationName": "Chandigarh"},
+    "mohali": {"locationId": 103, "locationName": "Mohali"},
+    "coimbatore": {"locationId": 41, "locationName": "Coimbatore"},
+    "kochi": {"locationId": 87, "locationName": "Cochin / Kochi / Ernakulam"},
+    "cochin": {"locationId": 87, "locationName": "Cochin / Kochi / Ernakulam"},
+    "ernakulam": {"locationId": 51, "locationName": "Ernakulam"},
+    "indore": {"locationId": 69, "locationName": "Indore"},
+    "jaipur": {"locationId": 72, "locationName": "Jaipur"},
+    "visakhapatnam": {"locationId": 154, "locationName": "Visakhapatnam"},
+    "vizag": {"locationId": 154, "locationName": "Visakhapatnam"},
+    "vijayawada": {"locationId": 153, "locationName": "Vijayawada"},
+    "trivandrum": {"locationId": 143, "locationName": "Thiruvananthapuram / Trivandrum"},
+    "thiruvananthapuram": {"locationId": 143, "locationName": "Thiruvananthapuram / Trivandrum"},
+    "nagpur": {"locationId": 107, "locationName": "Nagpur"},
+    "bhopal": {"locationId": 33, "locationName": "Bhopal"},
+    "lucknow": {"locationId": 97, "locationName": "Lucknow"},
+    "surat": {"locationId": 138, "locationName": "Surat"},
+    "vadodara": {"locationId": 26, "locationName": "Vadodara"},
+    "baroda": {"locationId": 26, "locationName": "Vadodara"},
+    "mysore": {"locationId": 105, "locationName": "Mysore"},
+    "mysuru": {"locationId": 105, "locationName": "Mysore"},
+}
+
+# Canonical skill dictionary mapping normalized lower-case keys to clean display names
+CANONICAL_SKILL_NAMES = {
+    "c#": "C#",
+    ".net": ".NET",
+    "dotnet": ".NET",
+    "oracle": "Oracle",
+    "pl/sql": "PL/SQL",
+    "plsql": "PL/SQL",
+    "angular": "Angular",
+    "react": "React",
+    "python": "Python",
+    "java": "Java",
+    "spring": "Spring",
+    "node.js": "Node.js",
+    "nodejs": "Node.js",
+    "sql": "SQL",
+    "postgresql": "PostgreSQL",
+    "apis": "APIs",
+    "api": "APIs",
+    "restful apis": "RESTful APIs",
+    "integration": "Integration",
+    "fortigate": "FortiGate",
+    "forticonverter": "FortiConverter",
+    "fortimanager": "FortiManager",
+    "fortianalyzer": "FortiAnalyzer",
+    "fortinet": "Fortinet",
+    "ansible": "Ansible",
+    "cisco": "Cisco",
+    "palo alto": "Palo Alto",
+    "check point": "Check Point",
+    "firewall": "Firewall",
+    "docker": "Docker",
+    "kubernetes": "Kubernetes",
+    "aws": "AWS",
+    "azure": "Azure",
+    "gcp": "GCP",
+    "linux": "Linux",
+    "terraform": "Terraform",
+    "kafka": "Kafka",
+    "redis": "Redis",
+    "snowflake": "Snowflake",
+    "spark": "Spark",
+    "hadoop": "Hadoop",
+    "django": "Django",
+    "fastapi": "FastAPI",
+    "selenium": "Selenium",
+    "jmeter": "JMeter",
+    "go": "Go",
+    "postgres": "PostgreSQL",
+    "celery": "Celery",
+}
+
+def extract_job_skills(job_application):
+    """
+    Extracts, normalizes, and deduplicates relevant skills for an ATS job application:
+    1. Identifies optional/preferred skills in remarks (e.g. 'Python is a plus') to avoid
+       marking them as mandatory in Foundit's skillList.
+    2. Combines skills from structured job_application.technology and matched technical terms in remarks.
+    3. Normalizes and deduplicates skills case-insensitively using canonical taxonomy names.
+    4. Rejects generic words or job title fallback; raises FounditValidationError if no skills exist.
+    """
+    remarks = job_application.remarks or ""
+    pos = (job_application.position or "").strip()
+    tech = (job_application.technology or "").strip()
+
+    skills = []
+    seen = set()
+
+    # 1. Identify optional/preferred skills in remarks (e.g. 'Python is a plus', 'optional', 'preferred')
+    optional_skills = set()
+    for k in CANONICAL_SKILL_NAMES:
+        esc = re.escape(k) if not k.startswith('.') else re.escape(k)
+        patterns = [
+            rf'\b{esc}\b\s+is\s+(?:a\s+)?plus\b',
+            rf'\b{esc}\b\s+is\s+(?:preferred|optional|an\s+advantage)\b',
+            rf'\b{esc}\b\s*\((?:plus|preferred|optional)\)',
+            rf'\b(?:preferred|optional|plus|nice\s+to\s+have|good\s+to\s+have)\s*:\s*.*?\b{esc}\b',
+            rf'\b(?:knowledge|experience)\s+(?:of|with|in)\s+{esc}\s+is\s+(?:a\s+)?(?:plus|preferred|optional|advantage)\b',
+            rf'\b{esc}\s+(?:knowledge|experience)\s+is\s+(?:a\s+)?(?:plus|preferred|optional|advantage)\b',
+            rf'\bplus\s+{esc}\b',
+        ]
+        if re.search('|'.join(patterns), remarks, re.IGNORECASE):
+            optional_skills.add(k)
+
+    def add_skill(s):
+        s_clean = s.strip().strip("-*•●\t ")
+        if not s_clean or len(s_clean) < 2:
+            return
+        s_lower = s_clean.lower()
+        if s_lower in optional_skills:
+            logger.info(f"[FounditJobMapper] Skill '{s_clean}' identified as optional/preferred; excluded from mandatory skillList.")
+            return
+        canonical_name = CANONICAL_SKILL_NAMES.get(s_lower, s_clean)
+        canonical_lower = canonical_name.lower()
+        if canonical_lower not in seen and canonical_lower != pos.lower():
+            seen.add(canonical_lower)
+            skills.append(canonical_name)
+
+    # 2. Extract from explicit skill sections in remarks
+    header_patterns = [
+        r'Technical Proficiency:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+        r'Primary Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+        r'Mandatory Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+        r'Key Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+        r'Technical Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+        r'Required Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+        r'Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
+    ]
+    for pat in header_patterns:
+        m = re.search(pat, remarks, re.DOTALL | re.IGNORECASE)
+        if m:
+            content = m.group(1).strip()
+            for part in re.split(r'[,;|\u2022\u25cf/\n]+', content):
+                part = part.strip()
+                if part and not re.match(r'^(Degree|Location|Client|Job|Start|End|Work|Pay|Notice|Required|Experience)', part, re.IGNORECASE):
+                    add_skill(part)
+
+    # 3. Combine with structured job.technology
+    if tech and tech.lower() != pos.lower():
+        for s in re.split(r'[,;/|\n]+', tech):
+            add_skill(s)
+
+    # 4. Scan description for recognized technical tools/technologies (combining with technology)
+    if remarks:
+        for term, canonical_name in CANONICAL_SKILL_NAMES.items():
+            if term == 'sql':
+                pattern = r'(?<!pl/)(?<![A-Za-z0-9])sql(?![A-Za-z0-9])'
+            elif term.startswith('.'):
+                pattern = re.escape(term) + r'(?![A-Za-z0-9])'
+            else:
+                pattern = r'(?<![A-Za-z0-9])' + re.escape(term) + r'(?![A-Za-z0-9])'
+            if re.search(pattern, remarks, re.IGNORECASE):
+                add_skill(canonical_name)
+
+    # 5. Strict rejection: Do not fall back to job title
+    if not skills:
+        raise FounditValidationError(
+            f"Validation Error: No valid technical skills identified for job {job_application.id}. "
+            "Foundit requires at least one verified required technical skill."
+        )
+
+    return skills
+
+def extract_job_experience(job_application):
+    """
+    Extracts minExperience and maxExperience without arbitrary '+ 3' offsets:
+    1. Uses structured job_application.experience as baseline minimum if present.
+    2. Parses explicit range from remarks/description (e.g. 'Experience: 7-12' or '5 to 8 years').
+    3. Handles hyphens (-), en dashes (–), em dashes (—), and 'to'.
+    4. Validates that maxExperience >= minExperience.
+    5. If only a minimum is provided (e.g. '5+ years') and no upper bound exists,
+       raises FounditValidationError because Foundit mandates both minExperience and maxExperience.
+    """
+    remarks = job_application.remarks or ""
+    structured_raw = job_application.experience
+    structured_min = None
+    if structured_raw is not None and str(structured_raw).strip() != "":
+        try:
+            structured_min = int(float(str(structured_raw).strip()))
+        except (ValueError, TypeError):
+            pass
+
+    # Look for explicit range in remarks/description
+    range_patterns = [
+        r'(?:Total\s+)?Experience\s*(?:Required)?\s*:\s*(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)',
+        r'\b(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b(?:\s*(?:of\s*)?experience)?',
+    ]
+    parsed_min = None
+    parsed_max = None
+    for pat in range_patterns:
+        m = re.search(pat, remarks, re.IGNORECASE)
+        if m:
+            try:
+                parsed_min = int(float(m.group(1)))
+                parsed_max = int(float(m.group(2)))
+                break
+            except (ValueError, TypeError):
+                continue
+
+    if parsed_min is not None and parsed_max is not None:
+        if parsed_max < parsed_min:
+            raise FounditValidationError(
+                f"Validation Error: Invalid experience range for job {job_application.id} "
+                f"(maximum experience {parsed_max} is less than minimum experience {parsed_min})."
+            )
+        min_exp = parsed_min if parsed_min is not None else structured_min
+        max_exp = parsed_max
+        if max_exp < min_exp:
+            raise FounditValidationError(
+                f"Validation Error: Invalid experience range for job {job_application.id} "
+                f"(maximum experience {max_exp} is less than minimum experience {min_exp})."
+            )
+        return min_exp, max_exp
+
+    # Single minimum without established upper bound
+    min_candidate = structured_min
+    if min_candidate is None:
+        m_single = re.search(r'\b(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\b(?:\s*(?:of\s*)?experience)?', remarks, re.IGNORECASE)
+        if m_single:
+            try:
+                min_candidate = int(float(m_single.group(1)))
+            except (ValueError, TypeError):
+                pass
+
+    if min_candidate is not None:
+        raise FounditValidationError(
+            f"Validation Error: Foundit requires both minExperience and maxExperience. "
+            f"ATS job {job_application.id} defines minimum experience ({min_candidate} years) "
+            "but lacks an established maximum experience range (e.g. '5-8 years'). "
+            "An explicit maximum experience must be provided to post to Foundit without arbitrary assumptions."
+        )
+
+    raise FounditValidationError(
+        f"Validation Error: Missing experience requirements for job {job_application.id}. "
+        "Foundit requires valid minExperience and maxExperience."
+    )
+
+def extract_job_salary(job_application, creds):
+    """
+    Extracts minSalary and maxSalary in accordance with strict salary safety:
+    1. NEVER uses Client Bill Rate as candidate salary.
+    2. Inspects remarks for explicitly labeled annual CTC / Salary ranges (e.g. 'CTC: 2000000-3000000' or 'CTC: 20-30 LPA').
+    3. If Pay Rate exists without an explicit annual unit, or if rate unit is ambiguous,
+       raises FounditValidationError rather than posting fabricated or monthly values as annual compensation.
+    4. If no salary exists in the ATS record, falls back to environment defaults (with salaryConfidential: "1")
+       only if explicitly configured in settings.
+    """
+    remarks = job_application.remarks or ""
+
+    # 1. Check for explicit annual CTC / Salary ranges in remarks
+    # A. Explicit LPA range (e.g. 'CTC: 20-30 LPA' or '20 - 30 Lacs per annum')
+    lpa_range_match = re.search(
+        r'(?:CTC|Annual\s*(?:Salary|Pay|CTC)|Salary)\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*(?:LPA|Lakhs?|Lacs?)',
+        remarks,
+        re.IGNORECASE
+    )
+    if lpa_range_match:
+        try:
+            s_min = int(float(lpa_range_match.group(1)) * 100000)
+            s_max = int(float(lpa_range_match.group(2)) * 100000)
+            if s_min > s_max:
+                s_min, s_max = s_max, s_min
+            return s_min, s_max
+        except (ValueError, TypeError):
+            pass
+
+    # B. Explicit integer or comma range (e.g. 'CTC: 2000000-3000000' or 'CTC: 20,00,000 - 30,00,000')
+    ctc_range_match = re.search(
+        r'(?:CTC|Annual\s*(?:Salary|Pay|CTC)|Salary)\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:-|–|—|to)\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)(?!\s*(?:LPA|Lakhs?|Lacs?))',
+        remarks,
+        re.IGNORECASE
+    )
+    if ctc_range_match:
+        try:
+            s_min = int(ctc_range_match.group(1).replace(",", ""))
+            s_max = int(ctc_range_match.group(2).replace(",", ""))
+            if s_min > s_max:
+                s_min, s_max = s_max, s_min
+            return s_min, s_max
+        except (ValueError, TypeError):
+            pass
+
+    # C. Single annual CTC
+    single_ctc_match = re.search(
+        r'(?:CTC|Annual\s*(?:Salary|Pay|CTC))\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)',
+        remarks,
+        re.IGNORECASE
+    )
+    if single_ctc_match:
+        try:
+            s_val = int(single_ctc_match.group(1).replace(",", ""))
+            return s_val, s_val
+        except (ValueError, TypeError):
+            pass
+
+    # 2. Check for explicit Pay Rate with annual unit
+    pay_annual_match = re.search(
+        r'Pay Rate:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:per annum|PA|p\.a\.|annual|year)',
+        remarks,
+        re.IGNORECASE
+    )
+    if pay_annual_match:
+        try:
+            p_val = int(pay_annual_match.group(1).replace(",", ""))
+            return p_val, p_val
+        except (ValueError, TypeError):
+            pass
+
+    # 3. Check for Pay Rate without verified annual unit or presence of Client Bill Rate
+    has_pay_rate = bool(re.search(r'Pay Rate:\s*(\d+)', remarks, re.IGNORECASE))
+    has_bill_rate = bool(re.search(r'Client Bill Rate:\s*(\d+)', remarks, re.IGNORECASE))
+
+    if has_pay_rate or has_bill_rate:
+        raise FounditValidationError(
+            f"Validation Error: Ambiguous salary unit for job {job_application.id}. "
+            "Client Bill Rate cannot be used as candidate salary, and Pay Rate without verified annual unit "
+            "cannot be posted as annual compensation to Foundit. Confirmed candidate annual CTC is required."
+        )
+
+    # 4. Fallback to configured environment defaults (only if record has no salary specified at all)
+    min_sal_raw = creds.get("min_salary") or creds.get("default_min_salary")
+    max_sal_raw = creds.get("max_salary") or creds.get("default_max_salary")
+    if min_sal_raw and max_sal_raw and str(min_sal_raw).strip() and str(max_sal_raw).strip():
+        try:
+            min_sal = int(str(min_sal_raw).strip())
+            max_sal = int(str(max_sal_raw).strip())
+            if min_sal > max_sal:
+                min_sal, max_sal = max_sal, min_sal
+
+            # Prevent missing compensation on experienced positions from silently posting misleading salary defaults (e.g. 1.0 - 2.5 LPA)
+            structured_exp = job_application.experience
+            if structured_exp is not None:
+                try:
+                    exp_val = float(str(structured_exp).strip())
+                    if exp_val >= 2.0 and max_sal <= 300000:
+                        raise FounditValidationError(
+                            f"Validation Error: ATS job {job_application.id} has no candidate compensation in remarks. "
+                            f"Configured fallback salary defaults ({min_sal}-{max_sal}) cannot be silently substituted because "
+                            f"they would misrepresent compensation for an experienced role ({exp_val} years experience). "
+                            "Explicit candidate CTC must be provided in the ATS job record before posting."
+                        )
+                except (ValueError, TypeError) as e:
+                    if isinstance(e, FounditValidationError):
+                        raise e
+
+            return min_sal, max_sal
+        except (ValueError, TypeError):
+            raise FounditValidationError("Validation Error: Invalid Foundit salary configuration. Must be integers.")
+
+    raise FounditValidationError(
+        f"Validation Error: Missing Foundit salary configuration for job {job_application.id}. "
+        "Neither ATS job record provides explicit annual CTC nor do environment settings provide valid salary bounds."
+    )
+
+def resolve_job_location(job_application, creds):
+    """
+    Resolves locationId and locationName for a job application:
+    1. Checks verified official locations (Bangalore -> 2, Ahmedabad -> 1).
+    2. Checks if configured default_location_name matches job_application.city.
+    3. Raises FounditValidationError if location is unconfirmed, avoiding silent misrouting.
+    """
+    city_clean = (job_application.city or "").strip().lower()
+
+    # 1. Verified official locations from 01-ATS-EDGE-JobPosting.pdf
+    if city_clean in VERIFIED_FOUNDIT_LOCATIONS:
+        loc = VERIFIED_FOUNDIT_LOCATIONS[city_clean]
+        return [{"locationId": loc["locationId"], "locationName": loc["locationName"]}]
+
+    # 2. Check if environment configuration matches this specific city
+    configured_loc_name = (creds.get("location_name") or creds.get("default_location_name") or "").strip()
+    configured_loc_id = creds.get("location_id") or creds.get("default_location_id")
+
+    if configured_loc_name and configured_loc_id:
+        if city_clean == configured_loc_name.lower() or configured_loc_name.lower() in city_clean or city_clean in configured_loc_name.lower():
+            try:
+                loc_id = int(str(configured_loc_id).strip())
+                return [{"locationId": loc_id, "locationName": configured_loc_name}]
+            except (ValueError, TypeError):
+                raise FounditValidationError(f"Validation Error: Invalid Foundit locationId '{configured_loc_id}'. Must be an integer.")
+
+    # 3. Unresolved location
+    raise FounditValidationError(
+        f"Validation Error: Missing or unconfirmed Foundit locationId for city '{job_application.city}'. "
+        "Foundit master data locationId must be confirmed and configured."
+    )
+
+def resolve_job_role_and_industry(job_application, creds):
+    """
+    Resolves roleList and industryList per job category:
+    - Software development roles -> roleId: 734 ("Software Engineer/Programmer", function: "IT"), industryId: 140 ("Consumer Software").
+    - Trainee roles -> roleId: 733 ("Trainee", function: "IT"), industryId: 140.
+    - Network/Firewall/Security roles -> requires network_role_id or explicit role_id configuration. Refuses to silently assign 734.
+    - Other roles -> requires confirmed role_id and industry_id. Refuses to silently misclassify.
+    """
+    pos = (job_application.position or "").strip()
+    pos_lower = pos.lower()
+
+    # Network / Security / Firewall roles
+    is_network_security = bool(re.search(r'\b(network|firewall|fortinet|cisco|security|cybersecurity)\b', pos_lower))
+    if is_network_security:
+        net_role_id = creds.get("network_role_id") or creds.get("role_id")
+        net_role_name = creds.get("network_role_name") or creds.get("role_name")
+        net_func_name = creds.get("function_name") or "IT"
+        net_ind_id = creds.get("network_industry_id") or creds.get("industry_id")
+        net_ind_name = creds.get("network_industry_name") or creds.get("industry_name")
+
+        if not net_role_id or not net_role_name or str(net_role_id).strip() == "734":
+            raise FounditValidationError(
+                f"Validation Error: Unresolved Foundit roleId for Network/Security role '{pos}'. "
+                "Cannot silently assign Software Engineer/Programmer (roleId 734). "
+                "Official Foundit master-data roleId for Network/Security roles must be confirmed and configured."
+            )
+        try:
+            r_id = int(str(net_role_id).strip())
+            i_id = int(str(net_ind_id).strip()) if net_ind_id else 140
+        except (ValueError, TypeError) as e:
+            raise FounditValidationError(f"Validation Error: Invalid role or industry ID: {e}")
+        return (
+            [{"roleId": r_id, "roleName": str(net_role_name).strip(), "functionName": str(net_func_name).strip()}],
+            [{"industryId": i_id, "industryName": str(net_ind_name or "IT").strip()}]
+        )
+
+    # Trainee roles
+    is_trainee = bool(re.search(r'\b(trainee|intern)\b', pos_lower))
+    if is_trainee:
+        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
+        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        return (
+            [{"roleId": 733, "roleName": "Trainee", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # QA / Testing roles (Official Foundit Master Data: roleId 746)
+    is_qa = bool(re.search(r'\b(qa|quality assurance|tester|testing|sdet|test engineer)\b', pos_lower))
+    if is_qa:
+        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
+        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        return (
+            [{"roleId": 746, "roleName": "Software Test Engineer", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Systems / DevOps / Infrastructure roles (Official Foundit Master Data: roleId 1077)
+    is_systems = bool(re.search(r'\b(systems engineer|system administrator|sysadmin|devops|sre|infrastructure)\b', pos_lower))
+    if is_systems:
+        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
+        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        return (
+            [{"roleId": 1077, "roleName": "Systems Engineer", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Database / DBA roles (Official Foundit Master Data: roleId 740)
+    is_dba = bool(re.search(r'\b(dba|database administrator|database architect)\b', pos_lower))
+    if is_dba:
+        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
+        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        return (
+            [{"roleId": 740, "roleName": "Database Administrator (DBA)", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Software Engineering roles
+    is_software = bool(re.search(r'\b(software|developer|programmer|full\s*stack|backend|frontend|web|python|java|\.net|node|react|angular|ai\s*engineer|ml\s*engineer|ai/ml|machine\s*learning|data\s*engineer)\b', pos_lower))
+    if is_software or not pos:
+        role_id_raw = creds.get("role_id") or creds.get("default_role_id")
+        role_name = creds.get("role_name") or creds.get("default_role_name")
+        func_name = creds.get("function_name") or creds.get("default_function_name") or "IT"
+        ind_id_raw = creds.get("industry_id") or creds.get("default_industry_id")
+        ind_name = creds.get("industry_name") or creds.get("default_industry_name")
+
+        if not role_id_raw or not role_name or not str(role_id_raw).strip():
+            raise FounditValidationError(
+                "Validation Error: Missing Foundit roleId / roleName configuration. "
+                "Foundit master data role values must be confirmed and configured."
+            )
+        if not ind_id_raw or not ind_name or not str(ind_id_raw).strip():
+            raise FounditValidationError(
+                "Validation Error: Missing Foundit industryId / industryName configuration. "
+                "Foundit master data industry values must be confirmed and configured."
+            )
+
+        try:
+            role_id = int(str(role_id_raw).strip())
+            ind_id = int(str(ind_id_raw).strip())
+        except (ValueError, TypeError):
+            raise FounditValidationError("Validation Error: Invalid Foundit roleId or industryId. Must be integers.")
+
+        return (
+            [{"roleId": role_id, "roleName": str(role_name).strip(), "functionName": str(func_name).strip()}],
+            [{"industryId": ind_id, "industryName": str(ind_name).strip()}]
+        )
+
+    # Other non-software roles (e.g. QA, HR, Finance)
+    custom_role_id = creds.get("role_id")
+    custom_role_name = creds.get("role_name")
+    if not custom_role_id or not custom_role_name or str(custom_role_id).strip() == "734":
+        raise FounditValidationError(
+            f"Validation Error: Unresolved Foundit roleId for role '{pos}'. "
+            "Cannot silently assign Software Engineer/Programmer (roleId 734) to unrelated roles. "
+            "Official Foundit master-data roleId for this role category must be confirmed and configured."
+        )
+    try:
+        r_id = int(str(custom_role_id).strip())
+        i_id = int(str(creds.get("industry_id") or 140).strip())
+    except (ValueError, TypeError) as e:
+        raise FounditValidationError(f"Validation Error: Invalid role or industry ID: {e}")
+    return (
+        [{"roleId": r_id, "roleName": str(custom_role_name).strip(), "functionName": str(creds.get("function_name") or "IT").strip()}],
+        [{"industryId": i_id, "industryName": str(creds.get("industry_name") or "Consumer Software").strip()}]
+    )
+
 class FounditJobMapper:
     @staticmethod
     def map_ats_job_to_foundit_payload(job_application, existing_folder_id=0):
@@ -104,61 +639,13 @@ class FounditJobMapper:
             raise FounditValidationError("Validation Error: Missing required Foundit owner_email configuration. Account ownerEmail must be confirmed and configured.")
 
         # 3. Location Master Data Mapping (Mandatory in PDF Pages 3, 12-13)
-        loc_id_raw = creds.get("location_id") or creds.get("default_location_id")
-        loc_name = creds.get("location_name") or creds.get("default_location_name") or job_application.city or ""
-        if not loc_id_raw or not str(loc_id_raw).strip():
-            raise FounditValidationError(
-                f"Validation Error: Missing Foundit locationId configuration for city '{job_application.city}'. "
-                "Foundit master data locationId must be confirmed and configured."
-            )
-        try:
-            location_id = int(str(loc_id_raw).strip())
-        except (ValueError, TypeError):
-            raise FounditValidationError(f"Validation Error: Invalid Foundit locationId '{loc_id_raw}'. Must be an integer.")
-        location_list = [{"locationId": location_id, "locationName": loc_name or "Hyderabad"}]
+        location_list = resolve_job_location(job_application, creds)
 
-        # 4. Industry Master Data Mapping (Mandatory in PDF Pages 3, 9)
-        ind_id_raw = creds.get("industry_id") or creds.get("default_industry_id")
-        ind_name = creds.get("industry_name") or creds.get("default_industry_name")
-        if not ind_id_raw or not ind_name or not str(ind_id_raw).strip():
-            raise FounditValidationError(
-                "Validation Error: Missing Foundit industryId / industryName configuration. "
-                "Foundit master data industry values must be confirmed and configured."
-            )
-        try:
-            industry_id = int(str(ind_id_raw).strip())
-        except (ValueError, TypeError):
-            raise FounditValidationError(f"Validation Error: Invalid Foundit industryId '{ind_id_raw}'. Must be an integer.")
-        industry_list = [{"industryId": industry_id, "industryName": str(ind_name).strip()}]
+        # 4. Industry & Role Master Data Mapping (Mandatory in PDF Pages 3, 4, 9, 13-14)
+        role_list, industry_list = resolve_job_role_and_industry(job_application, creds)
 
-        # 5. Role Master Data Mapping (Mandatory in PDF Pages 4, 13-14)
-        role_id_raw = creds.get("role_id") or creds.get("default_role_id")
-        role_name = creds.get("role_name") or creds.get("default_role_name")
-        func_name = creds.get("function_name") or creds.get("default_function_name") or "IT"
-        if not role_id_raw or not role_name or not str(role_id_raw).strip():
-            raise FounditValidationError(
-                "Validation Error: Missing Foundit roleId / roleName configuration. "
-                "Foundit master data role values must be confirmed and configured."
-            )
-        try:
-            role_id = int(str(role_id_raw).strip())
-        except (ValueError, TypeError):
-            raise FounditValidationError(f"Validation Error: Invalid Foundit roleId '{role_id_raw}'. Must be an integer.")
-        role_list = [{"roleId": role_id, "roleName": str(role_name).strip(), "functionName": str(func_name).strip()}]
-
-        # 6. Salary Configuration (Mandatory in PDF Pages 3-5, 8, 13-14)
-        min_sal_raw = creds.get("min_salary") or creds.get("default_min_salary")
-        max_sal_raw = creds.get("max_salary") or creds.get("default_max_salary")
-        if min_sal_raw is None or max_sal_raw is None or str(min_sal_raw).strip() == "" or str(max_sal_raw).strip() == "":
-            raise FounditValidationError(
-                "Validation Error: Missing Foundit salary configuration (min_salary / max_salary). "
-                "Contractual salary values must be confirmed and configured."
-            )
-        try:
-            min_salary = int(str(min_sal_raw).strip())
-            max_salary = int(str(max_sal_raw).strip())
-        except (ValueError, TypeError):
-            raise FounditValidationError("Validation Error: Invalid Foundit salary configuration. Must be integers.")
+        # 5. Salary Configuration (Mandatory in PDF Pages 3-5, 8, 13-14)
+        min_salary, max_salary = extract_job_salary(job_application, creds)
 
         curr_id_raw = creds.get("currency_id") or creds.get("default_currency_id") or "1"
         try:
@@ -167,10 +654,8 @@ class FounditJobMapper:
             currency_id = 1
         salary_confidential = str(creds.get("salary_confidential") or creds.get("default_salary_confidential") or "1").strip()
 
-        # 7. Skills List & Priority Mapping (PDF Pages 5, 14-15; skillId: 0 for custom skills)
-        skills = [s.strip() for s in (job_application.technology or "").split(",") if s.strip()]
-        if not skills:
-            skills = [job_application.position.strip()] if job_application.position else ["Software Engineering"]
+        # 6. Skills List & Priority Mapping (PDF Pages 5, 14-15; skillId: 0 for custom skills)
+        skills = extract_job_skills(job_application)
         skill_list = [{"skillId": 0, "skillName": s} for s in skills]
 
         priority_skills = [
@@ -195,15 +680,14 @@ class FounditJobMapper:
             "prioritySkills": priority_skills
         }
 
-        # 8. Core Posting Identifiers & Metadata
+        # 7. Core Posting Identifiers & Metadata
         folder_id = int(existing_folder_id) if existing_folder_id else 0
         base_url = (os.getenv("PUBLIC_CAREER_PORTAL_URL") or "https://people-prime.com").rstrip("/")
         apply_url = f"{base_url}/job-details?id={job_application.id}&src=Foundit"
         clean_desc = extract_clean_job_description(job_application.remarks or "")
         start_date = timezone.now().strftime("%Y-%m-%d")
 
-        min_exp = int(float(job_application.experience or 0))
-        max_exp = int(float(job_application.experience or 0)) + 3
+        min_exp, max_exp = extract_job_experience(job_application)
 
         return {
             "userName": username,

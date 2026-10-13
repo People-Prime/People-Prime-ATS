@@ -46,4 +46,8 @@ def get_foundit_credentials():
         "function_name": os.getenv("FOUNDIT_DEFAULT_FUNCTION_NAME", "IT"),
         "location_id": os.getenv("FOUNDIT_DEFAULT_LOCATION_ID", ""),
         "location_name": os.getenv("FOUNDIT_DEFAULT_LOCATION_NAME", ""),
+        "network_role_id": os.getenv("FOUNDIT_NETWORK_ROLE_ID", "1473"),
+        "network_role_name": os.getenv("FOUNDIT_NETWORK_ROLE_NAME", "Network Engineer"),
+        "network_industry_id": os.getenv("FOUNDIT_NETWORK_INDUSTRY_ID", "140"),
+        "network_industry_name": os.getenv("FOUNDIT_NETWORK_INDUSTRY_NAME", "Consumer Software"),
     }

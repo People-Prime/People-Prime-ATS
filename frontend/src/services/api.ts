@@ -42,3 +42,8 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// Unauthenticated client for public candidate portal (no JWT header or 401 redirect)
+export const publicApi = axios.create({
+  baseURL: API_URL,
+});

@@ -23,6 +23,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
     )
     notes = NoteSerializer(many=True, read_only=True)
     transition_dates = serializers.SerializerMethodField()
+    publish_to_foundit = serializers.BooleanField(required=False, default=False)
 
     class Meta:
         model = Application
@@ -31,7 +32,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'client_name', 'city', 'state', 'country', 'position', 'technology', 'experience', 'recruiter',
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
-            'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'published_at',
+            'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'publish_to_foundit', 'published_at',
             'created_at', 'updated_at', 'notes', 'transition_dates'
         ]
         read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'modified_by']
@@ -48,20 +49,57 @@ class ApplicationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        publish_foundit = validated_data.pop('publish_to_foundit', False)
         publish_career = validated_data.get('publish_to_career_page', False)
         publish_linkedin = validated_data.get('publish_to_linkedin', False)
         if (publish_career or publish_linkedin) and not validated_data.get('published_at'):
             from django.utils import timezone
             validated_data['published_at'] = timezone.now()
-        return super().create(validated_data)
+        instance = super().create(validated_data)
+        if publish_foundit:
+            from applications.models import JobBoardPosting
+            JobBoardPosting.objects.get_or_create(
+                job=instance,
+                job_board='Foundit',
+                defaults={'status': 'UNPUBLISHED'}
+            )
+        return instance
 
     def update(self, instance, validated_data):
+        publish_foundit = validated_data.pop('publish_to_foundit', None)
         publish_career = validated_data.get('publish_to_career_page', instance.publish_to_career_page)
         publish_linkedin = validated_data.get('publish_to_linkedin', instance.publish_to_linkedin)
         if (publish_career or publish_linkedin) and not instance.published_at:
             from django.utils import timezone
             validated_data['published_at'] = timezone.now()
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+        if publish_foundit is not None:
+            from applications.models import JobBoardPosting
+            if publish_foundit:
+                JobBoardPosting.objects.get_or_create(
+                    job=instance,
+                    job_board='Foundit',
+                    defaults={'status': 'UNPUBLISHED'}
+                )
+            else:
+                JobBoardPosting.objects.filter(
+                    job=instance,
+                    job_board='Foundit',
+                    status='UNPUBLISHED'
+                ).delete()
+        return instance
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        try:
+            from applications.models import JobBoardPosting
+            ret['publish_to_foundit'] = JobBoardPosting.objects.filter(
+                job=instance,
+                job_board='Foundit'
+            ).exists()
+        except Exception:
+            ret['publish_to_foundit'] = False
+        return ret
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

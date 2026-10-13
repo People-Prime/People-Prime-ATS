@@ -4,6 +4,7 @@ Manages single job publishing using JobBoardPosting (job_board="Foundit", extern
 Includes idempotency checks, data validation, folderId verification, and safe error/timeout handling.
 """
 import logging
+from django.db import transaction
 from django.utils import timezone
 from applications.models import JobBoardPosting
 from applications.integrations.foundit.client import (
@@ -45,27 +46,43 @@ class FounditJobPostingService:
         """
         Publishes a single selected ATS job Application to Foundit via official Job Posting API.
         Enforces idempotency, data validation, folderId verification, and safe error/timeout handling.
+        Uses row-level locking (select_for_update) to prevent duplicate concurrent submissions.
         """
-        posting = cls.get_or_create_posting(job_application)
+        with transaction.atomic():
+            posting, _ = JobBoardPosting.objects.select_for_update().get_or_create(
+                job=job_application,
+                job_board=FOUNDIT_JOB_BOARD_NAME
+            )
 
-        # Idempotency check (Requirement 8)
-        if posting.external_job_id and posting.status == 'PUBLISHED':
-            logger.info(f"[FounditJobPostingService] Job {job_application.id} is already published on Foundit (folderId={posting.external_job_id}). Skipping.")
-            return posting
+            # Idempotency check: Skip if already successfully published
+            if posting.external_job_id and posting.status == 'PUBLISHED':
+                logger.info(f"[FounditJobPostingService] Job {job_application.id} is already published on Foundit (folderId={posting.external_job_id}). Skipping.")
+                return posting
 
-        # Step 6: Validate mandatory job data before calling Foundit
-        try:
-            cls.validate_job_application(job_application)
-        except FounditValidationError as ve:
-            posting.status = 'FAILED'
-            posting.error_message = str(ve)
+            # Concurrency guard: Prevent duplicate submission while already PENDING / in-flight
+            if posting.status == 'PENDING':
+                logger.warning(
+                    f"[FounditJobPostingService] Job {job_application.id} has an in-flight or pending Foundit posting. "
+                    f"Blocking duplicate submission to prevent duplicate job creation."
+                )
+                if not posting.error_message:
+                    posting.error_message = "Job publication is currently in progress or awaiting reconciliation. Duplicate submission blocked."
+                return posting
+
+            # Validate mandatory job data before transitioning to PENDING
+            try:
+                cls.validate_job_application(job_application)
+            except FounditValidationError as ve:
+                posting.status = 'FAILED'
+                posting.error_message = str(ve)
+                posting.save()
+                logger.error(f"[FounditJobPostingService] Data validation failed for job {job_application.id}: {ve}")
+                return posting
+
+            # Atomically mark as PENDING prior to external HTTP call
+            posting.status = 'PENDING'
+            posting.error_message = ""
             posting.save()
-            logger.error(f"[FounditJobPostingService] Data validation failed for job {job_application.id}: {ve}")
-            return posting
-
-        # Set status to PENDING before posting
-        posting.status = 'PENDING'
-        posting.save()
 
         if client is None:
             client = FounditClient()

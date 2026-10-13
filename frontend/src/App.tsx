@@ -21,6 +21,7 @@ import { JobDetails } from './pages/JobDetails';
 import { JobPostings } from './pages/JobPostings';
 import { Placements } from './pages/Placements';
 import { DrillDownPage } from './pages/dashboards/DrillDownPage';
+import { PublicJobDetails } from './pages/PublicJobDetails';
 
 // Helper component for Route Protection
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
@@ -77,6 +78,9 @@ export const App: React.FC = () => {
         <Routes>
           {/* Public Portal */}
           <Route path="/login" element={<Login themeMode={themeMode} toggleTheme={toggleTheme} />} />
+          {/* Public Candidate Portal (Foundit & job boards apply flow) */}
+          <Route path="/job-details" element={<PublicJobDetails themeMode={themeMode} toggleTheme={toggleTheme} />} />
+          <Route path="/job-details/:jobId" element={<PublicJobDetails themeMode={themeMode} toggleTheme={toggleTheme} />} />
 
           {/* Secure Platform Console */}
           <Route 

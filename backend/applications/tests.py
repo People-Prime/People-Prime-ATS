@@ -500,7 +500,7 @@ class FounditPhase3BJobPostingTests(TestCase):
             state="Telangana",
             country="India",
             client_name="Acme Tech Solutions",
-            remarks="High-priority role."
+            remarks="High-priority role. Experience: 5-8 years."
         )
         self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
         self.mock_creds = self.creds_patcher.start()
@@ -514,8 +514,8 @@ class FounditPhase3BJobPostingTests(TestCase):
             "company_name": "People Prime Worldwide",
             "owner_name": "Test Owner",
             "owner_email": "owner@people-prime.com",
-            "default_location_id": "1",
-            "default_location_name": "Hyderabad",
+            "default_location_id": "6",
+            "default_location_name": "Hyderabad / Secunderabad, Telangana",
             "default_industry_id": "140",
             "default_industry_name": "Consumer Software",
             "default_role_id": "734",
@@ -557,7 +557,7 @@ class FounditPhase3BJobPostingTests(TestCase):
 
         # 3. Core Job Details & Application Routing
         self.assertEqual(payload["title"], "Senior Python Engineer")
-        self.assertEqual(payload["description"], "High-priority role.")
+        self.assertEqual(payload["description"], "High-priority role. Experience: 5-8 years.")
         self.assertEqual(payload["applyUrl"], f"https://people-prime.com/job-details?id={self.job.id}&src=Foundit")
         self.assertEqual(payload["applicationsViaMail"], "0")
         self.assertEqual(payload["autoRenew"], "0")
@@ -576,7 +576,7 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(payload["salaryConfidential"], "1")
 
         # 5. Master Data Lists
-        self.assertEqual(payload["locationList"], [{"locationId": 1, "locationName": "Hyderabad"}])
+        self.assertEqual(payload["locationList"], [{"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"}])
         self.assertEqual(payload["industryList"], [{"industryId": 140, "industryName": "Consumer Software"}])
         self.assertEqual(payload["roleList"], [{"roleId": 734, "roleName": "Software Engineer", "functionName": "IT"}])
         self.assertEqual(
@@ -595,7 +595,7 @@ class FounditPhase3BJobPostingTests(TestCase):
         self.assertEqual(job_pri["experienceFilter"], "1")
         self.assertEqual(job_pri["industryFilter"], "1")
         self.assertEqual(job_pri["skillFilter"], "1")
-        self.assertEqual(job_pri["location_list_priority"], [{"locationId": 1, "locationName": "Hyderabad"}])
+        self.assertEqual(job_pri["location_list_priority"], [{"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"}])
         self.assertEqual(job_pri["industry_list_priority"], [{"industryId": 140, "industryName": "Consumer Software"}])
         self.assertEqual(len(job_pri["prioritySkills"]), 3)
         self.assertEqual(job_pri["prioritySkills"][0]["skillName"], "Python")
@@ -663,12 +663,22 @@ class FounditPhase3BJobPostingTests(TestCase):
 
     def test_1h_missing_location_id_raises_validation_error(self):
         """Test 1h: Verify unconfirmed location_id raises FounditValidationError without inventing dummy IDs."""
+        unconfirmed_job = Application.objects.create(
+            candidate_name="",
+            position="Senior Python Engineer",
+            technology="Python",
+            experience=5.0,
+            city="UnconfirmedCity",
+            state="UnknownState",
+            country="India",
+            remarks="Experience: 5-8 years."
+        )
         creds = dict(self.mock_creds.return_value)
         creds["location_id"] = ""
         creds["default_location_id"] = ""
         self.mock_creds.return_value = creds
         with self.assertRaises(FounditValidationError) as ctx:
-            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+            FounditJobMapper.map_ats_job_to_foundit_payload(unconfirmed_job)
         self.assertIn("locationid", str(ctx.exception).lower())
 
     def test_1i_missing_industry_id_raises_validation_error(self):
@@ -843,6 +853,898 @@ class FounditPhase3BJobPostingTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('<publisher>People Prime Worldwide</publisher>', response.content.decode('utf-8'))
+
+    def test_11_job_30360_network_firewall_skill_extraction_and_unresolved_role_blocker(self):
+        """Test 11: Regression test for Job 30360 Network Specialist:
+        - Rejects raw job 30360 due to client bill rate/ambiguous pay rate and missing max experience.
+        - Sanitized fixture extracts FortiGate, FortiConverter, FortiManager, FortiAnalyzer, Ansible, Python from description.
+        - Refuses to use job title as skillName.
+        - Refuses to silently assign Software Engineer/Programmer (734) to Network Engineer.
+        - Preserves verified Bangalore location mapping (locationId: 2).
+        """
+        raw_job_30360 = Application.objects.create(
+            candidate_name="",
+            position="Senior Network / Firewall Specialist & Engineer",
+            technology="Senior Network / Firewall Specialist & Engineer",
+            experience=6.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Brillio",
+            remarks="""[Job Details]
+Job Code: PPW - 30360
+Client Bill Rate: 150000
+Pay Rate: 100000
+Start Date: 2026-08-13
+End Date: 2026-08-13
+Location: Bangalore
+Job Status: Active
+Job Type: Contract
+Client Job ID: Capgemini
+
+[Skills & Assignment]
+Description: • Rack, stack, power up, and baseline-configure target FortiGate 1800F devices; integrate with DNS, NTP, SNMP, Syslog, and CMDB.
+• Execute FortiOS 7.2.9 upgrades with pre-upgrade health assessments, HA synchronisation validation, and post-upgrade stability monitoring.
+• Migrate firewall rules, NAT policies, and routing using FortiConverter; complete rule-by-rule validation against the source configuration.
+• Run automated config backup, ping/health-diff, and pre/post validation using Ansible and Python tooling.
+
+Required Skills & Experience
+• 5+ years hands-on network/firewall engineering, with strong Fortinet FortiGate operations and upgrade experience.
+• Migration/upgradation in Fortinet is mandate +Scripting
+• Practical FortiConverter migration, FortiManager/FortiAnalyzer operations, HA, NAT, routing, and policy configuration.
+• Scripting/automation experience with Ansible and Python for config provisioning, backup, and validation.
+"""
+        )
+
+        # 2. Sanitized fixture with explicit annual CTC and explicit experience range
+        sanitized_job_30360 = Application.objects.create(
+            candidate_name="",
+            position="Senior Network / Firewall Specialist & Engineer",
+            technology="Senior Network / Firewall Specialist & Engineer",
+            experience=6.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Brillio",
+            remarks="""[Job Details]
+Job Code: PPW - 30360
+CTC: 1200000-1500000
+Experience: 5-8 years
+Location: Bangalore
+Job Status: Active
+Job Type: Contract
+Client Job ID: Capgemini
+
+[Skills & Assignment]
+Description: • Rack, stack, power up, and baseline-configure target FortiGate 1800F devices; integrate with DNS, NTP, SNMP, Syslog, and CMDB.
+• Execute FortiOS 7.2.9 upgrades with pre-upgrade health assessments, HA synchronisation validation, and post-upgrade stability monitoring.
+• Migrate firewall rules, NAT policies, and routing using FortiConverter; complete rule-by-rule validation against the source configuration.
+• Run automated config backup, ping/health-diff, and pre/post validation using Ansible and Python tooling.
+
+Required Skills & Experience
+• 5-8 years hands-on network/firewall engineering, with strong Fortinet FortiGate operations and upgrade experience.
+• Migration/upgradation in Fortinet is mandate +Scripting
+• Practical FortiConverter migration, FortiManager/FortiAnalyzer operations, HA, NAT, routing, and policy configuration.
+• Scripting/automation experience with Ansible and Python for config provisioning, backup, and validation.
+"""
+        )
+
+        # A) Without confirmed network role in creds (only generic software default), mapping is blocked
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(raw_job_30360)
+        self.assertIn("unresolved foundit roleid for network/security role", str(ctx.exception).lower())
+
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(sanitized_job_30360)
+        self.assertIn("unresolved foundit roleid for network/security role", str(ctx.exception).lower())
+
+        # B) Configure confirmed network role in creds
+        creds = dict(self.mock_creds.return_value)
+        creds["network_role_id"] = "801"
+        creds["network_role_name"] = "Network Security Engineer"
+        creds["network_industry_id"] = "140"
+        creds["network_industry_name"] = "IT"
+        self.mock_creds.return_value = creds
+
+        # C) Even when network role is configured, raw job still fails safely due to ambiguous salary and missing max experience
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(raw_job_30360)
+        self.assertTrue(
+            "salary" in str(ctx.exception).lower() or
+            "experience" in str(ctx.exception).lower() or
+            "client bill rate" in str(ctx.exception).lower()
+        )
+
+        # D) Sanitized job succeeds with correct skills, salary, location, experience
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(sanitized_job_30360)
+
+        # Role & Industry
+        self.assertEqual(payload["roleList"], [{"roleId": 801, "roleName": "Network Security Engineer", "functionName": "IT"}])
+
+        # Verified Bangalore location
+        self.assertEqual(payload["locationList"], [{"locationId": 2, "locationName": "Bengaluru / Bangalore"}])
+
+        # Salary derived from ATS remarks (CTC: 1200000-1500000)
+        self.assertEqual(payload["minSalary"], 1200000)
+        self.assertEqual(payload["maxSalary"], 1500000)
+
+        # Experience range derived from ATS remarks (5-8)
+        self.assertEqual(payload["minExperience"], 5)
+        self.assertEqual(payload["maxExperience"], 8)
+
+        # Skills extracted from actual description/requirements, NOT from position title
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        self.assertIn("FortiGate", skill_names)
+        self.assertIn("FortiConverter", skill_names)
+        self.assertIn("FortiManager", skill_names)
+        self.assertIn("FortiAnalyzer", skill_names)
+        self.assertIn("Ansible", skill_names)
+        self.assertIn("Python", skill_names)
+        self.assertNotIn("Senior Network / Firewall Specialist & Engineer", skill_names)
+
+    def test_12_job_trainee_role_mapping(self):
+        """Test 12: Verify Trainee role maps to verified roleId 733 (Trainee)."""
+        trainee_job = Application.objects.create(
+            candidate_name="",
+            position="Graduate Software Trainee",
+            technology="Java, SQL",
+            experience=0.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Test Client",
+            remarks="[Job Details]\nCTC: 300000-450000\nExperience: 0-1 years\n"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(trainee_job)
+        self.assertEqual(payload["roleList"], [{"roleId": 733, "roleName": "Trainee", "functionName": "IT"}])
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        self.assertIn("Java", skill_names)
+        self.assertIn("SQL", skill_names)
+
+    def test_13_unrelated_job_category_without_confirmed_role_is_rejected(self):
+        """Test 13: Verify non-software role (e.g. HR Recruiter) is not silently assigned roleId 734."""
+        hr_job = Application.objects.create(
+            candidate_name="",
+            position="Senior HR Recruiter & Talent Acquisition Specialist",
+            technology="Talent Acquisition, Sourcing",
+            experience=4.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Corporate HR",
+            remarks="[Job Details]\nCTC: 400000-600000\nExperience: 4-6 years\n"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(hr_job)
+        self.assertIn("unresolved foundit roleid for role", str(ctx.exception).lower())
+        self.assertIn("cannot silently assign software engineer/programmer", str(ctx.exception).lower())
+
+    def test_14_location_mapping_preserves_bangalore_and_rejects_unconfirmed_cities(self):
+        """Test 14: Verify verified cities resolve correctly while unconfirmed cities raise validation errors."""
+        bangalore_job = Application.objects.create(
+            candidate_name="",
+            position="Backend Developer",
+            technology="Go, Postgres",
+            experience=3.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Acme",
+            remarks="Experience: 3-5 years\n"
+        )
+        ahmedabad_job = Application.objects.create(
+            candidate_name="",
+            position="Backend Developer",
+            technology="Go, Postgres",
+            experience=3.0,
+            city="Ahmedabad",
+            state="Gujarat",
+            country="India",
+            client_name="Acme",
+            remarks="Experience: 3-5 years\n"
+        )
+        pune_job = Application.objects.create(
+            candidate_name="",
+            position="Backend Developer",
+            technology="Go, Postgres",
+            experience=3.0,
+            city="Pune",
+            state="Maharashtra",
+            country="India",
+            client_name="Acme",
+            remarks="Experience: 3-5 years\n"
+        )
+        hyderabad_job = Application.objects.create(
+            candidate_name="",
+            position="Backend Developer",
+            technology="Go, Postgres",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Acme",
+            remarks="Experience: 3-5 years\n"
+        )
+        unconfirmed_job = Application.objects.create(
+            candidate_name="",
+            position="Backend Developer",
+            technology="Go, Postgres",
+            experience=3.0,
+            city="Atlantis",
+            state="Unknown",
+            country="India",
+            client_name="Acme",
+            remarks="Experience: 3-5 years\n"
+        )
+
+        # Bangalore resolves to verified locationId 2
+        payload_bgl = FounditJobMapper.map_ats_job_to_foundit_payload(bangalore_job)
+        self.assertEqual(payload_bgl["locationList"], [{"locationId": 2, "locationName": "Bengaluru / Bangalore"}])
+
+        # Ahmedabad resolves to verified locationId 1
+        payload_ahd = FounditJobMapper.map_ats_job_to_foundit_payload(ahmedabad_job)
+        self.assertEqual(payload_ahd["locationList"], [{"locationId": 1, "locationName": "Ahmedabad"}])
+
+        # Pune resolves to verified locationId 10 from official master data
+        payload_pune = FounditJobMapper.map_ats_job_to_foundit_payload(pune_job)
+        self.assertEqual(payload_pune["locationList"], [{"locationId": 10, "locationName": "Pune"}])
+
+        # Hyderabad resolves to verified locationId 6 from official master data
+        payload_hyd = FounditJobMapper.map_ats_job_to_foundit_payload(hyderabad_job)
+        self.assertEqual(payload_hyd["locationList"], [{"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"}])
+
+        # Atlantis is unconfirmed in master data and creds, so it must raise FounditValidationError
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(unconfirmed_job)
+        self.assertIn("unconfirmed foundit locationid for city 'atlantis'", str(ctx.exception).lower())
+
+    def test_15_salary_fallback_when_ats_record_has_no_salary(self):
+        """Test 15: Verify ATS records without salary in remarks fallback to configured environment defaults."""
+        job_no_salary = Application.objects.create(
+            candidate_name="",
+            position="Frontend Engineer",
+            technology="React, TypeScript",
+            experience=2.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Web Inc",
+            remarks="[Job Details]\nLocation: Bangalore\nJob Status: Active\nExperience: 2-5 years\n"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_no_salary)
+        # Inherits default min/max from mock creds
+        self.assertEqual(payload["minSalary"], 500000)
+        self.assertEqual(payload["maxSalary"], 1000000)
+        self.assertEqual(payload["salaryConfidential"], "1")
+
+        # When neither ATS record nor creds has salary, raises FounditValidationError
+        creds = dict(self.mock_creds.return_value)
+        creds["min_salary"] = ""
+        creds["default_min_salary"] = ""
+        creds["max_salary"] = ""
+        creds["default_max_salary"] = ""
+        self.mock_creds.return_value = creds
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_no_salary)
+        self.assertIn("salary", str(ctx.exception).lower())
+
+    def test_16_apply_url_structure_and_validity(self):
+        """Test 16: Verify applyUrl structure adheres to RFC standards and points to valid public job endpoint."""
+        from urllib.parse import urlparse, parse_qs
+        from django.test import Client
+
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        apply_url = payload["applyUrl"]
+
+        parsed = urlparse(apply_url)
+        self.assertIn(parsed.scheme, ("http", "https"))
+        self.assertEqual(parsed.netloc, "people-prime.com")
+        self.assertEqual(parsed.path, "/job-details")
+
+        qs = parse_qs(parsed.query)
+        self.assertEqual(qs.get("id"), [str(self.job.id)])
+        self.assertEqual(qs.get("src"), ["Foundit"])
+
+        # Safely test internal public API endpoint for this job without external HTTP requests
+        self.job.publish_to_career_page = True
+        self.job.status = 'New'
+        self.job.save()
+
+        django_client = Client()
+        api_response = django_client.get(f"/api/public/jobs/{self.job.id}/")
+        self.assertEqual(api_response.status_code, 200)
+        self.assertEqual(api_response.json().get("id"), self.job.id)
+
+    def test_15b_salary_fallback_blocks_low_defaults_for_experienced_role(self):
+        """Test 15b: Low environment defaults (<= 3 LPA) must block publication for experienced roles (>= 2 yrs)."""
+        creds = dict(self.mock_creds.return_value)
+        creds["min_salary"] = "100000"
+        creds["default_min_salary"] = "100000"
+        creds["max_salary"] = "250000"
+        creds["default_max_salary"] = "250000"
+        self.mock_creds.return_value = creds
+
+        # self.job has experience=5.0 and remarks without explicit salary
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertIn("misrepresent compensation", str(ctx.exception).lower())
+
+    def test_16b_public_job_details_api_and_data_protection(self):
+        """Test 16b: Public job details API exposes only candidate-facing fields and protects private data."""
+        from django.test import Client
+
+        self.job.publish_to_career_page = True
+        self.job.status = 'New'
+        self.job.client_name = 'Confidential Client Inc'
+        self.job.remarks = 'INTERNAL ONLY: Bill Rate $95/hr, candidate pay 18 LPA max. Contact recruiter Alice.'
+        self.job.save()
+
+        client = Client()
+        response = client.get(f"/api/public/jobs/{self.job.id}/")
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+        self.assertEqual(data["id"], self.job.id)
+        self.assertEqual(data["position"], self.job.position)
+        self.assertIn("Python", data["required_skills"])
+        self.assertEqual(data["city"], "Hyderabad")
+
+        # Ensure confidential internal fields are never exposed
+        self.assertNotIn("remarks", data)
+        self.assertNotIn("client_name", data)
+        self.assertNotIn("client_bill_rate", data)
+        self.assertNotIn("pay_rate", data)
+        self.assertNotIn("recruiter", data)
+        self.assertNotIn("candidate_name", data)
+
+        # Unapproved or inactive jobs must return 404
+        self.job.publish_to_career_page = False
+        self.job.save()
+        res_unapproved = client.get(f"/api/public/jobs/{self.job.id}/")
+        self.assertEqual(res_unapproved.status_code, 404)
+
+    def test_16c_public_job_application_flow_and_file_safeguards(self):
+        """Test 16c: Public candidate apply flow validates required fields, resume uploads, and records source."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import Client
+        from applications.models import CareerPortalApplicant
+
+        self.job.publish_to_career_page = True
+        self.job.status = 'New'
+        self.job.save()
+
+        client = Client()
+
+        # Reject invalid file extension (.exe)
+        bad_resume = SimpleUploadedFile("malicious.exe", b"binary content", content_type="application/octet-stream")
+        bad_payload = {
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "email": "jane.doe@example.com",
+            "mobile_number": "9876543210",
+            "qualification": "B.Tech",
+            "years_of_experience": "4.5",
+            "expected_pay": "1200000",
+            "current_ctc": "900000",
+            "primary_skills": "Python, Django",
+            "current_company": "Tech Corp",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "accepted_terms": "true",
+            "resume": bad_resume,
+        }
+        res_bad = client.post(f"/api/public/jobs/{self.job.id}/apply/?src=Foundit", bad_payload)
+        self.assertEqual(res_bad.status_code, 400)
+        self.assertIn("resume", res_bad.json()["errors"])
+
+        # Accept valid PDF resume upload from Foundit (mocking AWS S3 upload and Celery scoring)
+        valid_resume = SimpleUploadedFile("jane_resume.pdf", b"%PDF-1.4 sample content", content_type="application/pdf")
+        valid_payload = {
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "email": "jane.doe@example.com",
+            "mobile_number": "9876543210",
+            "qualification": "B.Tech Computer Science",
+            "years_of_experience": "4.5",
+            "expected_pay": "1200000",
+            "current_ctc": "900000",
+            "primary_skills": "Python, Django, AWS",
+            "current_company": "Tech Corp",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "accepted_terms": "true",
+            "resume": valid_resume,
+        }
+        with patch("boto3.client") as mock_boto, patch("applications.ai.tasks.score_applicant_resume_task.delay"):
+            res_valid = client.post(f"/api/public/jobs/{self.job.id}/apply/?src=Foundit", valid_payload)
+            self.assertEqual(res_valid.status_code, 201)
+
+        # Confirm applicant was recorded with source 'Foundit' and valid resume filename
+        applicant = CareerPortalApplicant.objects.filter(job=self.job, email="jane.doe@example.com").first()
+        self.assertIsNotNone(applicant)
+        self.assertEqual(applicant.source, "Foundit")
+        self.assertEqual(applicant.first_name, "Jane")
+        self.assertIn("jane_resume.pdf", applicant.resume)
+
+    def test_16d_publish_to_foundit_intent_persistence_and_no_auto_publish(self):
+        """Test 16d: Saving job with publish_to_foundit=True records UNPUBLISHED intent and makes no external API calls."""
+        from rest_framework.test import APIClient
+        from users.models import User, Role
+        admin_user = User.objects.create(email='admin_foundit@example.com', full_name='Admin User', role=Role.ADMIN, is_active=True)
+        client = APIClient()
+        client.force_authenticate(user=admin_user)
+
+        post_data = {
+            "client_name": "Acme Corp",
+            "position": "Backend Python Developer",
+            "technology": "Python, Django",
+            "experience": "4.0",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "country": "India",
+            "remarks": "[Job Details]\nJob Code: PPW-9999\nCTC: 12-18 LPA\nExperience: 4-7 years\n",
+            "publish_to_career_page": True,
+            "publish_to_linkedin": False,
+            "publish_to_foundit": True
+        }
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            response = client.post("/api/applications/", post_data, format="json")
+            self.assertEqual(response.status_code, 201)
+            # Ensure creating a job does NOT automatically call Foundit API!
+            mock_post_job.assert_not_called()
+
+        new_job_id = response.json()["id"]
+        # Verify JobBoardPosting was created with UNPUBLISHED status
+        posting = JobBoardPosting.objects.filter(job_id=new_job_id, job_board="Foundit").first()
+        self.assertIsNotNone(posting)
+        self.assertEqual(posting.status, "UNPUBLISHED")
+        self.assertEqual(response.json().get("publish_to_foundit"), True)
+
+    def test_16e_validate_and_publish_foundit_authenticated_actions(self):
+        """Test 16e: Saved job can subsequently be validated and published via authenticated API workflow."""
+        from rest_framework.test import APIClient
+        from users.models import User, Role
+        admin_user = User.objects.create(email='admin_foundit2@example.com', full_name='Admin User 2', role=Role.ADMIN, is_active=True)
+        client = APIClient()
+        client.force_authenticate(user=admin_user)
+
+        valid_job = Application.objects.create(
+            candidate_name="",
+            position="Senior Python Developer",
+            technology="Python, Django, PostgreSQL",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Cloud Corp",
+            remarks="[Job Details]\nCTC: 1500000-2500000\nExperience: 5-8 years\n",
+            publish_to_career_page=True
+        )
+
+        # 1. Validate valid job -> 200 OK
+        res_val = client.get(f"/api/applications/{valid_job.id}/validate-foundit/")
+        self.assertEqual(res_val.status_code, 200)
+        self.assertEqual(res_val.json()["valid"], True)
+
+        # 2. Validate invalid job (missing salary remarks with experience >= 2 yrs) -> 400 Bad Request
+        invalid_job = Application.objects.create(
+            candidate_name="",
+            position="Senior Java Architect",
+            technology="Java, Spring",
+            experience=6.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Legacy Corp",
+            remarks="No salary listed.",
+            publish_to_career_page=True
+        )
+        res_inval = client.get(f"/api/applications/{invalid_job.id}/validate-foundit/")
+        self.assertEqual(res_inval.status_code, 400)
+        self.assertEqual(res_inval.json()["valid"], False)
+        self.assertIn("error", res_inval.json())
+
+        # 3. Publish with dry_run=True -> 200 OK without calling external API
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            res_dry = client.post(f"/api/applications/{valid_job.id}/publish-foundit/", {"dry_run": True}, format="json")
+            self.assertEqual(res_dry.status_code, 200)
+            self.assertEqual(res_dry.json()["dry_run"], True)
+            mock_post_job.assert_not_called()
+
+    def test_17_qa_testing_role_mapping(self):
+        """Test 17: Verify QA/Testing positions map to verified roleId 746 (Software Test Engineer)."""
+        qa_job = Application.objects.create(
+            candidate_name="",
+            position="Senior QA Automation & Performance Test Engineer",
+            technology="Selenium, JMeter, Python",
+            experience=4.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Test Corp",
+            remarks="[Job Details]\nCTC: 600000-900000\nExperience: 4-7 years\n"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(qa_job)
+        self.assertEqual(payload["roleList"], [{"roleId": 746, "roleName": "Software Test Engineer", "functionName": "IT"}])
+        self.assertEqual(payload["locationList"], [{"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"}])
+
+    def test_18_systems_devops_role_mapping(self):
+        """Test 18: Verify Systems/DevOps positions map to verified roleId 1077 (Systems Engineer)."""
+        devops_job = Application.objects.create(
+            candidate_name="",
+            position="Senior DevOps and Infrastructure Systems Engineer",
+            technology="Kubernetes, Terraform, AWS",
+            experience=5.0,
+            city="Pune",
+            state="Maharashtra",
+            country="India",
+            client_name="Cloud Corp",
+            remarks="[Job Details]\nCTC: 800000-1200000\nExperience: 5-8 years\n"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(devops_job)
+        self.assertEqual(payload["roleList"], [{"roleId": 1077, "roleName": "Systems Engineer", "functionName": "IT"}])
+        self.assertEqual(payload["locationList"], [{"locationId": 10, "locationName": "Pune"}])
+
+    def test_19_dba_role_mapping(self):
+        """Test 19: Verify DBA positions map to verified roleId 740 (Database Administrator (DBA))."""
+        dba_job = Application.objects.create(
+            candidate_name="",
+            position="PostgreSQL Database Administrator (DBA)",
+            technology="PostgreSQL, Oracle, SQL",
+            experience=6.0,
+            city="Chennai",
+            state="Tamil Nadu",
+            country="India",
+            client_name="Data Inc",
+            remarks="[Job Details]\nCTC: 700000-1000000\nExperience: 6-9 years\n"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(dba_job)
+        self.assertEqual(payload["roleList"], [{"roleId": 740, "roleName": "Database Administrator (DBA)", "functionName": "IT"}])
+        self.assertEqual(payload["locationList"], [{"locationId": 3, "locationName": "Chennai"}])
+
+    def test_20_additional_verified_cities_mapping(self):
+        """Test 20: Verify multiple major hiring locations map to their verified Foundit master data IDs."""
+        cities_to_verify = [
+            ("Chennai", 3, "Chennai"),
+            ("Mumbai", 8, "Mumbai"),
+            ("Noida", 9, "Noida"),
+            ("Gurgaon", 5, "Gurgaon / Gurugram"),
+            ("Delhi NCR", 199, "Delhi NCR"),
+            ("Kolkata", 7, "Kolkata"),
+            ("Coimbatore", 41, "Coimbatore"),
+            ("Chandigarh", 40, "Chandigarh"),
+        ]
+        for city_name, expected_id, expected_name in cities_to_verify:
+            job = Application.objects.create(
+                candidate_name="",
+                position="Software Engineer",
+                technology="Java",
+                experience=2.0,
+                city=city_name,
+                state="State",
+                country="India",
+                client_name="Client",
+                remarks="Experience: 2-4 years\n"
+            )
+            payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+            self.assertEqual(
+                payload["locationList"],
+                [{"locationId": expected_id, "locationName": expected_name}],
+                f"City {city_name} failed to resolve to ID {expected_id}"
+            )
+
+    # =========================================================================
+    # Phase 3C Regression Tests: Tasks 1, 2, 3, 5
+    # =========================================================================
+
+    def test_task1_client_bill_rate_never_used_as_candidate_salary(self):
+        """Task 1: Verify Client Bill Rate is never used as candidate salary and blocks posting."""
+        job_bill_rate = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="Client Bill Rate: 120000\nExperience: 3-6 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_bill_rate)
+        self.assertIn("client bill rate", str(ctx.exception).lower())
+
+    def test_task1_ambiguous_pay_rate_fails_safely(self):
+        """Task 1: Verify ambiguous Pay Rate without explicit unit fails safely."""
+        job_ambiguous_pay = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="Pay Rate: 80000\nExperience: 3-6 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_ambiguous_pay)
+        self.assertIn("ambiguous salary unit", str(ctx.exception).lower())
+
+    def test_task1_explicit_annual_ctc_preserved(self):
+        """Task 1: Verify explicit annual CTC range in INR integers is preserved."""
+        job_ctc = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="CTC: 1800000-2400000\nExperience: 3-6 years"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_ctc)
+        self.assertEqual(payload["minSalary"], 1800000)
+        self.assertEqual(payload["maxSalary"], 2400000)
+
+    def test_task1_explicit_lpa_ctc_preserved(self):
+        """Task 1: Verify explicitly labelled LPA CTC range is converted correctly."""
+        job_lpa = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="CTC: 15 - 20 LPA\nExperience: 3-6 years"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_lpa)
+        self.assertEqual(payload["minSalary"], 1500000)
+        self.assertEqual(payload["maxSalary"], 2000000)
+
+    def test_task2_experience_range_formats(self):
+        """Task 2: Verify experience range parsing supports hyphens, 'to', and en-dashes."""
+        test_cases = [
+            ("Experience: 7-12 years", 7, 12),
+            ("Experience: 7 to 12 years", 7, 12),
+            ("Experience: 7–12 years", 7, 12),
+            ("Experience: 7 - 12", 7, 12),
+        ]
+        for rem, exp_min, exp_max in test_cases:
+            job = Application.objects.create(
+                candidate_name="",
+                position="Software Engineer",
+                technology="Python",
+                experience=7.0,
+                city="Hyderabad",
+                state="Telangana",
+                country="India",
+                remarks=f"{rem}\nCTC: 1000000-1500000"
+            )
+            payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+            self.assertEqual(payload["minExperience"], exp_min, f"Failed for {rem}")
+            self.assertEqual(payload["maxExperience"], exp_max, f"Failed for {rem}")
+
+    def test_task2_single_minimum_5_plus_fails_safely(self):
+        """Task 2: Verify single minimum '5+ years' fails safely without inventing arbitrary max."""
+        job_5_plus = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="Required: 5+ years experience\nCTC: 1000000-1500000"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_5_plus)
+        self.assertIn("maximum experience", str(ctx.exception).lower())
+
+    def test_task2_invalid_experience_range_max_less_than_min(self):
+        """Task 2: Verify invalid experience range where max < min raises FounditValidationError."""
+        job_invalid_range = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python",
+            experience=10.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="Experience: 10-5 years\nCTC: 1000000-1500000"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_invalid_range)
+        self.assertIn("invalid experience range", str(ctx.exception).lower())
+
+    def test_task3_skill_extraction_combined_and_deduplicated(self):
+        """Task 3: Verify skills from structured field and description are combined, normalized, and deduplicated."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="c#,angular,oracle",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="""Experience: 5-8 years
+CTC: 1500000-2000000
+Looking for .NET backend development with PL/SQL databases, REST APIs, and system Integration.
+Also requires C# and Angular experience.
+"""
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        expected = [".NET", "Angular", "APIs", "C#", "Integration", "Oracle", "PL/SQL"]
+        self.assertEqual(sorted(skill_names), sorted(expected))
+
+    def test_task3_optional_skills_distinguished_and_excluded(self):
+        """Task 3: Verify optional/preferred skills ('is a plus', 'preferred', 'optional') are excluded from mandatory skillList."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="c#,angular",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="""Experience: 5-8 years
+CTC: 1500000-2000000
+Mandatory skills: C# and Angular.
+Python is a plus. AWS knowledge is preferred. Docker is optional.
+"""
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        self.assertIn("C#", skill_names)
+        self.assertIn("Angular", skill_names)
+        self.assertNotIn("Python", skill_names)
+        self.assertNotIn("AWS", skill_names)
+        self.assertNotIn("Docker", skill_names)
+
+    def test_task3_generic_title_not_added_as_skill(self):
+        """Task 3: Prevent complete job title from being added as technical skill."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Senior Software Engineer",
+            technology="Senior Software Engineer",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="Experience: 5-8 years\nCTC: 2000000-3000000\nKey technical skills include Python, AWS, Docker."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        self.assertNotIn("Senior Software Engineer", skill_names)
+        self.assertIn("Python", skill_names)
+
+    def test_task3_missing_skills_raises_validation_error(self):
+        """Task 3: Verify missing or unrecognized skills safely raises FounditValidationError."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            remarks="Experience: 5-8 years\nCTC: 1000000-1500000\nRole with no technical keywords."
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertIn("skills", str(ctx.exception).lower())
+
+    def test_task5_job_41522_sanitized_fixture(self):
+        """Task 5: Sanitized fixture regression test for Job 41522 (Fulltime- Senior Fullstack Developer):
+        - CTC: 2000000-3000000 preserved.
+        - Experience 7-12 parsed correctly.
+        - C#, Angular, Oracle from technology + .NET, PL/SQL, APIs, Integration combined.
+        - Python excluded as optional ('Python is a plus').
+        - Role mapped to 734 (Software Engineer).
+        - Location Bangalore mapped to 2.
+        """
+        job_41522 = Application.objects.create(
+            candidate_name="",
+            position="Fulltime- Senior Fullstack Developer",
+            technology="c#,angular,oracle",
+            experience=7.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Capgemini",
+            remarks="""[Job Details]
+Job Code: PPW - 41522
+CTC: 2000000-3000000
+Experience: 7-12
+Location: Bangalore
+Job Status: Active
+Job Type: Full Time
+
+[Skills & Assignment]
+Description: Primary skills: C#, Angular, Oracle PL/SQL, .NET Core.
+Building robust APIs and backend Integration.
+Python is a plus.
+"""
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_41522)
+        self.assertEqual(payload["minSalary"], 2000000)
+        self.assertEqual(payload["maxSalary"], 3000000)
+        self.assertEqual(payload["minExperience"], 7)
+        self.assertEqual(payload["maxExperience"], 12)
+        self.assertEqual(payload["roleList"], [{"roleId": 734, "roleName": "Software Engineer", "functionName": "IT"}])
+        self.assertEqual(payload["locationList"], [{"locationId": 2, "locationName": "Bengaluru / Bangalore"}])
+
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        self.assertIn("C#", skill_names)
+        self.assertIn("Angular", skill_names)
+        self.assertIn("Oracle", skill_names)
+        self.assertIn(".NET", skill_names)
+        self.assertIn("PL/SQL", skill_names)
+        self.assertIn("APIs", skill_names)
+        self.assertIn("Integration", skill_names)
+        self.assertNotIn("Python", skill_names)
+        self.assertNotIn("Fulltime- Senior Fullstack Developer", skill_names)
+
+    def test_task5_job_30360_sanitized_fixture(self):
+        """Task 5: Sanitized fixture regression test for Job 30360 (Senior Network / Firewall Specialist & Engineer):
+        - Raw job with Client Bill Rate / Pay Rate and 5+ years fails validation safely.
+        - Sanitized job with CTC 12-15 LPA and Experience 5-8 years succeeds with network role.
+        """
+        # Configure confirmed network role in credentials
+        creds = dict(self.mock_creds.return_value)
+        creds["network_role_id"] = "801"
+        creds["network_role_name"] = "Network Security Engineer"
+        creds["network_industry_id"] = "140"
+        creds["network_industry_name"] = "IT"
+        self.mock_creds.return_value = creds
+
+        sanitized_30360 = Application.objects.create(
+            candidate_name="",
+            position="Senior Network / Firewall Specialist & Engineer",
+            technology="Senior Network / Firewall Specialist & Engineer",
+            experience=6.0,
+            city="Bangalore",
+            state="Karnataka",
+            country="India",
+            client_name="Brillio",
+            remarks="""[Job Details]
+Job Code: PPW - 30360
+CTC: 1200000-1500000
+Experience: 5-8 years
+Location: Bangalore
+Job Status: Active
+Job Type: Contract
+
+[Skills & Assignment]
+Description: • Rack, stack, power up, and baseline-configure target FortiGate 1800F devices; integrate with DNS, NTP, SNMP, Syslog, and CMDB.
+• Execute FortiOS 7.2.9 upgrades with pre-upgrade health assessments, HA synchronisation validation, and post-upgrade stability monitoring.
+• Migrate firewall rules, NAT policies, and routing using FortiConverter; complete rule-by-rule validation against the source configuration.
+• Run automated config backup, ping/health-diff, and pre/post validation using Ansible and Python tooling.
+
+Required Skills & Experience
+• 5-8 years hands-on network/firewall engineering, with strong Fortinet FortiGate operations and upgrade experience.
+• Migration/upgradation in Fortinet is mandate +Scripting
+• Practical FortiConverter migration, FortiManager/FortiAnalyzer operations, HA, NAT, routing, and policy configuration.
+• Scripting/automation experience with Ansible and Python for config provisioning, backup, and validation.
+"""
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(sanitized_30360)
+        self.assertEqual(payload["minSalary"], 1200000)
+        self.assertEqual(payload["maxSalary"], 1500000)
+        self.assertEqual(payload["minExperience"], 5)
+        self.assertEqual(payload["maxExperience"], 8)
+        self.assertEqual(payload["roleList"], [{"roleId": 801, "roleName": "Network Security Engineer", "functionName": "IT"}])
+        self.assertEqual(payload["locationList"], [{"locationId": 2, "locationName": "Bengaluru / Bangalore"}])
+
+        skill_names = [s["skillName"] for s in payload["skillList"]]
+        self.assertIn("FortiGate", skill_names)
+        self.assertIn("FortiConverter", skill_names)
+        self.assertIn("FortiManager", skill_names)
+        self.assertIn("FortiAnalyzer", skill_names)
+        self.assertIn("Ansible", skill_names)
+        self.assertIn("Python", skill_names)
+        self.assertNotIn("Senior Network / Firewall Specialist & Engineer", skill_names)
+
 
 
 from applications.integrations.foundit.candidate_ingestion import (
@@ -1166,6 +2068,289 @@ class FounditPhase4ApplicationsTests(TestCase):
             self.assertNotIn("test_api_key_4", str(e))
 
 
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class FounditPhase4SafetyAndConcurrencyTests(TestCase):
+    """
+    Regression test suite for Foundit Phase 4 Safety Fixes:
+    - Fix 1: publish endpoint safety (safe dry_run default, strict boolean typing, confirm_live mandate)
+    - Fix 2: concurrency safety and in-flight duplicate prevention
+    - Fix 3: regression coverage for external API insulation and mock transport
+    - Fix 4: strict operational role permissions for validation and publishing
+    """
 
+    def setUp(self):
+        from users.models import User, Role
+        self.admin_user = User.objects.create(
+            email='phase4_admin@example.com',
+            full_name='Phase4 Admin',
+            role=Role.ADMIN,
+            is_active=True
+        )
+        self.team_lead_user = User.objects.create(
+            email='phase4_teamlead@example.com',
+            full_name='Phase4 Team Lead',
+            role=Role.TEAM_LEAD,
+            is_active=True
+        )
+        self.associate_user = User.objects.create(
+            email='phase4_associate@example.com',
+            full_name='Phase4 Associate',
+            role=Role.ASSOCIATE_ANALYST,
+            is_active=True
+        )
+        self.reporting_user = User.objects.create(
+            email='phase4_reporting@example.com',
+            full_name='Phase4 Reporting',
+            role=Role.REPORTING_TEAM,
+            is_active=True
+        )
 
+        self.job = Application.objects.create(
+            candidate_name="",
+            position="Senior Cloud Infrastructure Architect",
+            technology="AWS, Terraform, Kubernetes",
+            experience=6.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Fintech Corp",
+            assigned_employee=self.team_lead_user,
+            recruiter=self.team_lead_user.full_name,
+            remarks="[Job Details]\nCTC: 1800000-2500000\nExperience: 6-10 years\n",
+            publish_to_career_page=True
+        )
+
+        self.associate_job = Application.objects.create(
+            candidate_name="",
+            position="Cloud Associate Engineer",
+            technology="AWS, Terraform",
+            experience=2.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Fintech Corp",
+            assigned_employee=self.associate_user,
+            recruiter=self.associate_user.full_name,
+            remarks="[Job Details]\nCTC: 600000-900000\nExperience: 2-4 years\n",
+            publish_to_career_page=True
+        )
+
+        self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "username": "test_username",
+            "password": "test_password",
+            "corp_id": "188533",
+            "recruiter_id": "1220898",
+            "channel_id": "1",
+            "sub_channel_id": "1",
+            "company_name": "People Prime Worldwide",
+            "owner_name": "Test Owner",
+            "owner_email": "owner@people-prime.com",
+            "default_location_id": "6",
+            "default_location_name": "Hyderabad / Secunderabad, Telangana",
+            "default_industry_id": "140",
+            "default_industry_name": "Consumer Software",
+            "default_functional_area_id": "1056",
+            "default_functional_area_name": "IT",
+            "min_salary": "1800000",
+            "max_salary": "2500000",
+        }
+        self.addCleanup(self.creds_patcher.stop)
+
+    def test_omitted_dry_run_defaults_to_true_without_live_api_call(self):
+        """Fix 1: Omitted dry_run must default to True and never make a live Foundit API call."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            response = client.post(f"/api/applications/{self.job.id}/publish-foundit/", {}, format="json")
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertTrue(data.get("success"))
+            self.assertTrue(data.get("dry_run"))
+            self.assertEqual(data.get("status"), "VALIDATED")
+            self.assertIn("Dry run completed without live API calls", data.get("message"))
+            mock_post_job.assert_not_called()
+
+    def test_explicit_dry_run_true_performs_dry_run_without_live_api_call(self):
+        """Fix 1: dry_run: true must perform a dry run without calling external Foundit API."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            response = client.post(f"/api/applications/{self.job.id}/publish-foundit/", {"dry_run": True}, format="json")
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertTrue(data.get("success"))
+            self.assertTrue(data.get("dry_run"))
+            self.assertEqual(data.get("status"), "VALIDATED")
+            mock_post_job.assert_not_called()
+
+    def test_dry_run_false_without_confirm_live_rejected_without_external_call(self):
+        """Fix 1: dry_run: false without confirm_live: true is rejected with HTTP 400 without calling external API."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            response = client.post(f"/api/applications/{self.job.id}/publish-foundit/", {"dry_run": False}, format="json")
+            self.assertEqual(response.status_code, 400)
+            data = response.json()
+            self.assertFalse(data.get("success"))
+            self.assertIn("confirm_live", data.get("error", "").lower())
+            mock_post_job.assert_not_called()
+
+    def test_dry_run_false_with_confirm_live_false_rejected(self):
+        """Fix 1: dry_run: false with confirm_live: false is rejected with HTTP 400 without calling external API."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            response = client.post(
+                f"/api/applications/{self.job.id}/publish-foundit/",
+                {"dry_run": False, "confirm_live": False},
+                format="json"
+            )
+            self.assertEqual(response.status_code, 400)
+            data = response.json()
+            self.assertFalse(data.get("success"))
+            mock_post_job.assert_not_called()
+
+    def test_dry_run_rejects_non_boolean_values(self):
+        """Fix 1: dry_run values like null, 'false', 'true', 0, 1, [], {} must be rejected with HTTP 400."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        invalid_values = [None, "false", "true", 0, 1, [], {}]
+        for val in invalid_values:
+            with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+                response = client.post(
+                    f"/api/applications/{self.job.id}/publish-foundit/",
+                    {"dry_run": val},
+                    format="json"
+                )
+                self.assertEqual(
+                    response.status_code,
+                    400,
+                    f"Expected HTTP 400 for dry_run={val!r}, got {response.status_code}"
+                )
+                self.assertIn("boolean", response.json().get("error", "").lower())
+                mock_post_job.assert_not_called()
+
+    def test_malformed_confirm_live_values_rejected(self):
+        """Fix 1: Malformed confirm_live values ('true', 1, null, []) must be rejected with HTTP 400."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        malformed_values = ["true", 1, None, 0, "false", [True], {"confirm": True}]
+        for val in malformed_values:
+            with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+                response = client.post(
+                    f"/api/applications/{self.job.id}/publish-foundit/",
+                    {"dry_run": False, "confirm_live": val},
+                    format="json"
+                )
+                self.assertEqual(
+                    response.status_code,
+                    400,
+                    f"Expected HTTP 400 for confirm_live={val!r}, got {response.status_code}"
+                )
+                self.assertIn("confirm_live", response.json().get("error", "").lower())
+                mock_post_job.assert_not_called()
+
+    def test_live_publish_authorized_with_strict_booleans(self):
+        """Fix 1: dry_run: false and confirm_live: true authorizes live publication to mocked transport."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            mock_post_job.return_value = {"folderId": 778899, "status": "save"}
+            response = client.post(
+                f"/api/applications/{self.job.id}/publish-foundit/",
+                {"dry_run": False, "confirm_live": True},
+                format="json"
+            )
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertTrue(data.get("success"))
+            self.assertEqual(data.get("status"), "PUBLISHED")
+            self.assertEqual(data.get("folder_id"), "778899")
+            mock_post_job.assert_called_once()
+
+    def test_duplicate_concurrent_submission_in_flight_blocked(self):
+        """Fix 2: Prevent another request from posting the same job while existing posting is PENDING or in-flight."""
+        # 1. Existing posting is PENDING in database
+        JobBoardPosting.objects.create(
+            job=self.job,
+            job_board="Foundit",
+            status="PENDING",
+            error_message=""
+        )
+
+        # 2. Service level verification: publishing must be blocked without remote call
+        mock_transport = MockTransport({"folderId": 999999}, status_code=200)
+        client = FounditClient(transport=mock_transport)
+
+        posting = FounditJobPostingService.publish_job(self.job, client=client)
+        self.assertEqual(posting.status, "PENDING")
+        self.assertEqual(mock_transport.post_count, 0)
+        self.assertIn("duplicate", posting.error_message.lower())
+
+        # 3. View endpoint level verification: endpoint returns 400 Bad Request
+        from rest_framework.test import APIClient
+        api_client = APIClient()
+        api_client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.client.FounditClient.post_job") as mock_post_job:
+            response = api_client.post(
+                f"/api/applications/{self.job.id}/publish-foundit/",
+                {"dry_run": False, "confirm_live": True},
+                format="json"
+            )
+            self.assertEqual(response.status_code, 400)
+            data = response.json()
+            self.assertFalse(data.get("success"))
+            self.assertEqual(data.get("status"), "PENDING")
+            self.assertIn("duplicate", data.get("error", "").lower())
+            mock_post_job.assert_not_called()
+
+    def test_unauthorized_roles_receive_http_403_for_validate_and_publish(self):
+        """Fix 4: Disallowed operational roles receive HTTP 403 Forbidden for both validate-foundit and publish-foundit."""
+        from rest_framework.test import APIClient
+        api_client = APIClient()
+
+        # 1. Test ASSOCIATE_ANALYST on a job within their assigned visibility (to verify role restriction beyond queryset)
+        api_client.force_authenticate(user=self.associate_user)
+        res_val_get = api_client.get(f"/api/applications/{self.associate_job.id}/validate-foundit/")
+        self.assertEqual(res_val_get.status_code, 403, "Expected 403 for ASSOCIATE_ANALYST on GET validate-foundit")
+
+        res_val_post = api_client.post(f"/api/applications/{self.associate_job.id}/validate-foundit/")
+        self.assertEqual(res_val_post.status_code, 403, "Expected 403 for ASSOCIATE_ANALYST on POST validate-foundit")
+
+        res_pub = api_client.post(f"/api/applications/{self.associate_job.id}/publish-foundit/", {"dry_run": True}, format="json")
+        self.assertEqual(res_pub.status_code, 403, "Expected 403 for ASSOCIATE_ANALYST on POST publish-foundit")
+
+        # 2. Test REPORTING_TEAM which has global queryset visibility but no operational posting role
+        api_client.force_authenticate(user=self.reporting_user)
+        res_val_get2 = api_client.get(f"/api/applications/{self.job.id}/validate-foundit/")
+        self.assertEqual(res_val_get2.status_code, 403, "Expected 403 for REPORTING_TEAM on GET validate-foundit")
+
+        res_pub2 = api_client.post(f"/api/applications/{self.job.id}/publish-foundit/", {"dry_run": True}, format="json")
+        self.assertEqual(res_pub2.status_code, 403, "Expected 403 for REPORTING_TEAM on POST publish-foundit")
+
+        # 3. Authorized operational roles: TEAM_LEAD and ADMIN
+        for user in [self.team_lead_user, self.admin_user]:
+            api_client.force_authenticate(user=user)
+            res_val = api_client.get(f"/api/applications/{self.job.id}/validate-foundit/")
+            self.assertEqual(res_val.status_code, 200, f"Expected 200 for {user.role} on GET validate-foundit")
+
+            res_pub = api_client.post(f"/api/applications/{self.job.id}/publish-foundit/", {"dry_run": True}, format="json")
+            self.assertEqual(res_pub.status_code, 200, f"Expected 200 for {user.role} on POST publish-foundit")
 

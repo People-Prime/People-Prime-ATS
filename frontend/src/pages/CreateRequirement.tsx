@@ -18,7 +18,13 @@ import {
   Stack,
   Checkbox,
   ListItemText,
-  FormControlLabel
+  FormControlLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
+  Paper
 } from '@mui/material';
 import { Upload } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
@@ -75,12 +81,28 @@ export const CreateRequirement: React.FC = () => {
 
     // Publishing Options
     publishToCareerPage: false,
-    publishToLinkedin: false
+    publishToLinkedin: false,
+    publishToFoundit: false
   });
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Foundit post-save validation & publication workflow states
+  const [postSaveActionJobId, setPostSaveActionJobId] = useState<number | null>(null);
+  const [validatingFoundit, setValidatingFoundit] = useState(false);
+  const [founditValidationResult, setFounditValidationResult] = useState<{
+    valid?: boolean;
+    message?: string;
+    error?: string;
+  } | null>(null);
+  const [publishingFoundit, setPublishingFoundit] = useState(false);
+  const [founditPublishResult, setFounditPublishResult] = useState<{
+    success?: boolean;
+    message?: string;
+    error?: string;
+  } | null>(null);
 
   // Resolve team members (Associate Analysts / Senior Analysts)
   const teamMembers = users.filter(u => {
@@ -168,11 +190,54 @@ export const CreateRequirement: React.FC = () => {
           docSource: extractField('Source Option') || 'PC',
           fileName: extractField('FileName') === 'No document uploaded' ? '' : extractField('FileName'),
           publishToCareerPage: Boolean(app.publish_to_career_page),
-          publishToLinkedin: Boolean(app.publish_to_linkedin)
+          publishToLinkedin: Boolean(app.publish_to_linkedin),
+          publishToFoundit: Boolean(app.publish_to_foundit)
         });
       }
     }
   }, [applicationId, applications]);
+
+  const handleValidateFoundit = async (jobIdToValidate: number) => {
+    setValidatingFoundit(true);
+    setFounditValidationResult(null);
+    try {
+      const res = await api.get(`applications/${jobIdToValidate}/validate-foundit/`);
+      setFounditValidationResult({
+        valid: true,
+        message: res.data.message || 'Job passed all Foundit validation checks and is ready for publication.'
+      });
+    } catch (err: any) {
+      const errData = err.response?.data;
+      const msg = errData?.error || 'Validation failed. Please verify job criteria.';
+      setFounditValidationResult({
+        valid: false,
+        error: msg
+      });
+    } finally {
+      setValidatingFoundit(false);
+    }
+  };
+
+  const handlePublishFoundit = async (jobIdToPublish: number, dryRun: boolean = false) => {
+    setPublishingFoundit(true);
+    setFounditPublishResult(null);
+    try {
+      const res = await api.post(`applications/${jobIdToPublish}/publish-foundit/`, { dry_run: dryRun });
+      setFounditPublishResult({
+        success: true,
+        message: res.data.message || 'Successfully processed Foundit publication.'
+      });
+    } catch (err: any) {
+      const errData = err.response?.data;
+      const msg = errData?.error || errData?.message || 'Failed to publish to Foundit.';
+      setFounditPublishResult({
+        success: false,
+        error: msg
+      });
+    } finally {
+      setPublishingFoundit(false);
+    }
+  };
 
   const handleSaveRequirement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,7 +343,8 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             assigned_employee_id: email,
             remarks: formattedRemarks,
             publish_to_career_page: formData.publishToCareerPage,
-            publish_to_linkedin: formData.publishToLinkedin
+            publish_to_linkedin: formData.publishToLinkedin,
+            publish_to_foundit: formData.publishToFoundit
           };
 
           if (existing) {
@@ -298,8 +364,13 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           dispatch(deleteApplication(String(desApp.id)));
         }));
 
-        setSuccess(`✅ Job requirement for "${formData.jobTitle}" updated successfully!`);
-        setTimeout(() => navigate('/job-postings'), 400);
+        if (formData.publishToFoundit && applicationId) {
+          setPostSaveActionJobId(Number(applicationId));
+          setSuccess(`✅ Job requirement for "${formData.jobTitle}" updated successfully!`);
+        } else {
+          setSuccess(`✅ Job requirement for "${formData.jobTitle}" updated successfully!`);
+          setTimeout(() => navigate('/job-postings'), 400);
+        }
 
       } else {
         // Create mode!
@@ -345,7 +416,8 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           assigned_employee_id: firstUser ? firstUser.email : null,
           remarks: buildRemarks(formData.jobCode),
           publish_to_career_page: formData.publishToCareerPage,
-          publish_to_linkedin: formData.publishToLinkedin
+          publish_to_linkedin: formData.publishToLinkedin,
+          publish_to_foundit: formData.publishToFoundit
         };
 
         const firstResponse = await api.post('applications/', firstPayload);
@@ -370,7 +442,8 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               assigned_employee_id: assignedUser ? assignedUser.email : null,
               remarks: buildRemarks(generatedJobCode),
               publish_to_career_page: formData.publishToCareerPage,
-              publish_to_linkedin: formData.publishToLinkedin
+              publish_to_linkedin: formData.publishToLinkedin,
+              publish_to_foundit: formData.publishToFoundit
             };
             const res = await api.post('applications/', payload);
             dispatch(addApplication(res.data));
@@ -378,8 +451,13 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           await Promise.all(remainingPromises);
         }
 
-        setSuccess(`✅ Job requirement for "${formData.jobTitle}" created and assigned successfully!`);
-        setTimeout(() => navigate('/'), 400);
+        if (formData.publishToFoundit) {
+          setPostSaveActionJobId(firstResponse.data.id);
+          setSuccess(`✅ Job requirement for "${formData.jobTitle}" created and assigned successfully! (Job ID: ${firstResponse.data.id})`);
+        } else {
+          setSuccess(`✅ Job requirement for "${formData.jobTitle}" created and assigned successfully!`);
+          setTimeout(() => navigate('/'), 400);
+        }
       }
     } catch (err: any) {
       const data = err.response?.data;
@@ -823,20 +901,56 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.publishToLinkedin}
-                        onChange={(e) => setFormData(prev => ({ ...prev, publishToLinkedin: e.target.checked }))}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Typography variant="body2" fontWeight={600}>
-                        Publish to LinkedIn
-                      </Typography>
-                    }
-                  />
+                  <Box>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.publishToLinkedin}
+                          onChange={(e) => setFormData(prev => ({ ...prev, publishToLinkedin: e.target.checked }))}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" fontWeight={600}>
+                          Publish to LinkedIn
+                        </Typography>
+                      }
+                    />
+                  </Box>
+                  <Box sx={{ mt: 1.5 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.publishToFoundit}
+                          onChange={(e) => setFormData(prev => ({ ...prev, publishToFoundit: e.target.checked }))}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" fontWeight={600}>
+                          Publish to Foundit
+                        </Typography>
+                      }
+                    />
+                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', ml: 4, mt: -0.5 }}>
+                      Select this option to enable publishing this job to Foundit.
+                    </Typography>
+                    {formData.publishToFoundit && applicationId && (
+                      <Box sx={{ ml: 4, mt: 1 }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                          disabled={validatingFoundit}
+                          onClick={() => handleValidateFoundit(Number(applicationId))}
+                          startIcon={validatingFoundit ? <CircularProgress size={14} /> : null}
+                          sx={{ textTransform: 'none', fontSize: '0.8rem', py: 0.2, px: 1.5 }}
+                        >
+                          {validatingFoundit ? 'Validating...' : 'Validate Foundit Requirements'}
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
                 </Grid>
               </Grid>
             </Box>
@@ -865,6 +979,109 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           </form>
         </CardContent>
       </Card>
+
+      {/* Post-Save Foundit Validation & Publishing Action Dialog */}
+      <Dialog
+        open={Boolean(postSaveActionJobId)}
+        onClose={() => {
+          setPostSaveActionJobId(null);
+          navigate('/job-postings');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
+          🎉 Job Requirement Saved
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Job requirement for <strong>{formData.jobTitle}</strong> has been saved with persistent ATS Job ID <strong>#{postSaveActionJobId}</strong>.
+          </Typography>
+
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2 }}>
+            <Typography variant="subtitle2" fontWeight={700} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              🌐 Foundit Job Board Publishing Workflow
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Publishing to Foundit is enabled. You can now validate this saved job against Foundit's mandatory requirements (salary, experience, location, role) before proceeding.
+            </Typography>
+
+            {founditValidationResult?.error && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700}>Foundit Validation Blocked</Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{founditValidationResult.error}</Typography>
+              </Alert>
+            )}
+
+            {founditValidationResult?.valid && (
+              <Alert severity="success" sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700}>Validation Passed</Typography>
+                <Typography variant="body2">{founditValidationResult.message || 'Job passed all Foundit criteria and is ready for publishing.'}</Typography>
+              </Alert>
+            )}
+
+            {founditPublishResult?.error && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700}>Publishing Error</Typography>
+                <Typography variant="body2">{founditPublishResult.error}</Typography>
+              </Alert>
+            )}
+
+            {founditPublishResult?.success && (
+              <Alert severity="success" sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700}>Publication Status</Typography>
+                <Typography variant="body2">{founditPublishResult.message}</Typography>
+              </Alert>
+            )}
+          </Paper>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          {founditValidationResult?.valid === false ? (
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={() => {
+                setPostSaveActionJobId(null);
+                // Dismiss modal and keep recruiter on form to fix errors
+              }}
+            >
+              Edit Job Details to Fix Error
+            </Button>
+          ) : null}
+
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setPostSaveActionJobId(null);
+              navigate('/job-postings');
+            }}
+          >
+            Done / View Job Postings
+          </Button>
+
+          <Button
+            variant="contained"
+            color="primary"
+            disabled={validatingFoundit || !postSaveActionJobId}
+            onClick={() => postSaveActionJobId && handleValidateFoundit(postSaveActionJobId)}
+            startIcon={validatingFoundit ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {validatingFoundit ? 'Validating...' : 'Validate Foundit Requirements'}
+          </Button>
+
+          {founditValidationResult?.valid && (
+            <Button
+              variant="contained"
+              color="success"
+              disabled={publishingFoundit || !postSaveActionJobId}
+              onClick={() => postSaveActionJobId && handlePublishFoundit(postSaveActionJobId, true)}
+              startIcon={publishingFoundit ? <CircularProgress size={16} color="inherit" /> : null}
+            >
+              {publishingFoundit ? 'Publishing...' : 'Publish to Foundit (Dry Run)'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
