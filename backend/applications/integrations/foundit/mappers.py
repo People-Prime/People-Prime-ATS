@@ -329,7 +329,28 @@ def extract_job_salary(job_application, creds):
         r'(?:Client\s*Budget|Pay\s*Rate(?:\s*/\s*Salary)?|Budget|Annual\s*(?:Salary|Pay|CTC)|\bCTC\b|\bSalary\b)'
     )
 
-    # Check 1: Foreign or unsupported currency on budget/rate fields
+    # Check 0: Explicit Metadata from remarks (Salary Currency, Salary Period, Budget Confirmation)
+    period_match = re.search(r'(?:Salary\s*Period|Budget\s*Period|Pay\s*Period)\s*:\s*([^\r\n]*)', remarks, re.IGNORECASE)
+    explicit_period = period_match.group(1).strip() if period_match else ""
+
+    currency_match = re.search(r'(?:Salary\s*Currency|Budget\s*Currency|Currency)\s*:\s*([^\r\n]*)', remarks, re.IGNORECASE)
+    explicit_currency = currency_match.group(1).strip() if currency_match else ""
+
+    confirm_match = re.search(r'(?:Client\s*Budget\s*Confirmed|Budget\s*Confirmed)\s*:\s*([^\r\n]*)', remarks, re.IGNORECASE)
+    explicit_confirmation = confirm_match.group(1).strip() if confirm_match else ""
+    is_budget_confirmed = (
+        explicit_confirmation.lower() in ["yes", "true", "confirmed", "1"] or
+        bool(getattr(job_application, 'client_budget_confirmed', False))
+    )
+
+    # Check 1: Foreign or unsupported currency
+    if explicit_currency and explicit_currency.upper() not in ["INR", "RS", "RS.", "₹", ""]:
+        raise FounditValidationError(
+            f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
+            f"specifies an unsupported or foreign currency ({explicit_currency}). Foundit requires compensation in INR (currencyId: 1). "
+            "Confirm the client-approved budget in INR before publishing."
+        )
+
     foreign_curr_match = re.search(
         rf'{BUDGET_KEYWORD}\s*:\s*(?:[\$€£]|[^\r\n]*?\b(?:USD|EUR|GBP)\b)',
         remarks,
@@ -349,12 +370,11 @@ def extract_job_salary(job_application, creds):
         )
 
     # Check 2: Explicit Monthly or Hourly pay period without approved conversion rules
-    monthly_match = re.search(
-        rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:per\s*month|p\.?m\.?|/\s*month|monthly)',
-        remarks,
-        re.IGNORECASE
+    is_monthly = bool(
+        (explicit_period and explicit_period.lower() in ["per month", "monthly", "month", "pm"]) or
+        re.search(rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:per\s*month|p\.?m\.?|/\s*month|monthly)', remarks, re.IGNORECASE)
     )
-    if monthly_match:
+    if is_monthly:
         raise FounditValidationError(
             f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
             "specifies a monthly pay period. Foundit full-time job postings require an approved annual budget. "
@@ -362,18 +382,28 @@ def extract_job_salary(job_application, creds):
             "Client Bill Rate cannot be used as candidate salary."
         )
 
-    hourly_match = re.search(
-        rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:per\s*hour|p\.?h\.?|/\s*hr|/\s*hour|hourly)',
-        remarks,
-        re.IGNORECASE
+    is_hourly = bool(
+        (explicit_period and explicit_period.lower() in ["per hour", "hourly", "hour", "ph", "hr"]) or
+        re.search(rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:per\s*hour|p\.?h\.?|/\s*hr|/\s*hour|hourly)', remarks, re.IGNORECASE)
     )
-    if hourly_match:
+    if is_hourly:
         raise FounditValidationError(
             f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
             "specifies an hourly pay period. Foundit full-time job postings require an approved annual budget. "
             "Confirm the client-approved annual budget range (e.g. annual CTC in LPA or INR) before publishing. "
             "Client Bill Rate cannot be used as candidate salary."
         )
+
+    if explicit_period and explicit_period.lower() in ["unknown", "none", "n/a"]:
+        raise FounditValidationError(
+            f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
+            "specifies an unknown or unconfirmed pay period. Confirm the client-approved budget period (Per Annum) before publishing. "
+            "Client Bill Rate cannot be used as candidate salary."
+        )
+
+    is_confirmed_annual = bool(
+        explicit_period and explicit_period.lower() in ["per annum", "annual", "yearly", "pa", "p.a.", "per year"]
+    )
 
     # Check 3: Explicit Annual Ranges
     # A. Explicit LPA range (e.g. 'CTC: 20-30 LPA', 'Budget: 12-18 LPA', 'Pay Rate: 15-20 Lakhs per annum')
@@ -393,7 +423,6 @@ def extract_job_salary(job_application, creds):
             pass
 
     # B. Explicit integer range with explicit annual unit or standard CTC range
-    # e.g. 'CTC: 2000000-3000000', 'Pay Rate: 1200000-1800000 per annum', 'Budget: 1500000 to 2000000 PA'
     annual_range_match = re.search(
         rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:-|–|—|to)\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:per annum|PA|p\.a\.|annual|year)',
         remarks,
@@ -408,6 +437,29 @@ def extract_job_salary(job_application, creds):
             return s_min, s_max
         except (ValueError, TypeError):
             pass
+
+    # C. Integer range when budget period is explicitly confirmed as Per Annum
+    if is_confirmed_annual:
+        annual_confirmed_range = re.search(
+            rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:-|–|—|to)\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)',
+            remarks,
+            re.IGNORECASE
+        )
+        if annual_confirmed_range:
+            if not is_budget_confirmed:
+                raise FounditValidationError(
+                    f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
+                    "requires explicit recruiter confirmation. The selected period must reflect the actual client-approved budget. "
+                    "Client Bill Rate cannot be used as candidate salary."
+                )
+            try:
+                s_min = int(annual_confirmed_range.group(1).replace(",", ""))
+                s_max = int(annual_confirmed_range.group(2).replace(",", ""))
+                if s_min > s_max:
+                    s_min, s_max = s_max, s_min
+                return s_min, s_max
+            except (ValueError, TypeError):
+                pass
 
     ctc_range_match = re.search(
         r'(?<!\bCurrent\s)(?<!\bExpected\s)(?<!\bCandidate\s)(?<!\bNegotiated\s)(?<!\bOffered\s)(?:CTC|Annual\s*(?:Salary|Pay|CTC))\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:-|–|—|to)\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)(?!\s*(?:LPA|Lakhs?|Lacs?))',
@@ -439,7 +491,6 @@ def extract_job_salary(job_application, creds):
             pass
 
     # B. Single full integer with explicit annual keyword
-    # e.g. 'Pay Rate: 1500000 per annum', 'Pay Rate: 1500000 PA', 'Budget: 2000000 PA'
     single_annual_match = re.search(
         rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)\s*(?:per annum|PA|p\.a\.|annual|year)',
         remarks,
@@ -452,7 +503,27 @@ def extract_job_salary(job_application, creds):
         except (ValueError, TypeError):
             pass
 
-    # C. Single explicit CTC integer
+    # C. Single full integer when budget period is explicitly confirmed as Per Annum
+    if is_confirmed_annual:
+        annual_confirmed_single = re.search(
+            rf'{BUDGET_KEYWORD}\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)',
+            remarks,
+            re.IGNORECASE
+        )
+        if annual_confirmed_single:
+            if not is_budget_confirmed:
+                raise FounditValidationError(
+                    f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
+                    "requires explicit recruiter confirmation. The selected period must reflect the actual client-approved budget. "
+                    "Client Bill Rate cannot be used as candidate salary."
+                )
+            try:
+                s_val = int(annual_confirmed_single.group(1).replace(",", ""))
+                return s_val, s_val
+            except (ValueError, TypeError):
+                pass
+
+    # D. Single explicit CTC integer
     single_ctc_match = re.search(
         r'(?<!\bCurrent\s)(?<!\bExpected\s)(?<!\bCandidate\s)(?<!\bNegotiated\s)(?<!\bOffered\s)(?:CTC|Annual\s*(?:Salary|Pay|CTC))\s*:\s*(?:INR|Rs\.?|₹)?\s*(\d+(?:,\d+)*)',
         remarks,
@@ -474,6 +545,18 @@ def extract_job_salary(job_application, creds):
             f"Validation Error: Foundit publication blocked: the client-approved job budget for job {job_application.id} "
             "could not be interpreted reliably. Ambiguous salary unit: confirm the budget amount or range, currency, and pay period "
             "(e.g., annual CTC in LPA or INR). Client Bill Rate cannot be used as candidate salary."
+        )
+
+    has_candidate_salary = bool(re.search(
+        r'\b(?:Current|Expected|Candidate|Negotiated|Offered)\s*(?:CTC|Salary|Pay)\b',
+        remarks,
+        re.IGNORECASE
+    ))
+    if has_candidate_salary:
+        raise FounditValidationError(
+            f"Validation Error: Foundit publication blocked: ATS job {job_application.id} contains candidate-specific compensation "
+            "details but lacks a confirmed client-approved job budget. "
+            "Candidate-specific salary cannot be used as candidate salary or fallback for the job budget."
         )
 
     # Check 6: Fallback to configured environment defaults (only if record has no salary/budget specified at all)

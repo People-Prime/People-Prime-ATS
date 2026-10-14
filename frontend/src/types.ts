@@ -100,6 +100,11 @@ export interface Application {
   publish_to_linkedin?: boolean;
   publish_to_foundit?: boolean;
   published_at?: string | null;
+  client_bill_rate?: string;
+  pay_rate?: string;
+  salary_currency?: string;
+  salary_period?: string;
+  client_budget_confirmed?: boolean;
 }
 
 export interface ApplicationNote {

@@ -53,6 +53,9 @@ export const CreateRequirement: React.FC = () => {
     jobTitle: '',
     clientBillRate: '',
     payRate: '',
+    salaryCurrency: 'INR',
+    salaryPeriod: 'Unknown',
+    budgetConfirmed: false,
     startDate: '',
     endDate: '',
     location: '',
@@ -88,6 +91,30 @@ export const CreateRequirement: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [clientBillRateError, setClientBillRateError] = useState('');
+  const [payRateError, setPayRateError] = useState('');
+
+  const handleClientBillRateChange = (val: string) => {
+    setFormData(prev => ({ ...prev, clientBillRate: val }));
+    if (!val || !val.trim()) {
+      setClientBillRateError('');
+    } else if (!/^\d+$/.test(val) || val.length < 5) {
+      setClientBillRateError('Enter a numeric amount containing at least 5 digits.');
+    } else {
+      setClientBillRateError('');
+    }
+  };
+
+  const handlePayRateChange = (val: string) => {
+    setFormData(prev => ({ ...prev, payRate: val }));
+    if (!val || !val.trim()) {
+      setPayRateError('');
+    } else if (!/^\d+$/.test(val) || val.length < 5) {
+      setPayRateError('Enter a numeric amount containing at least 5 digits.');
+    } else {
+      setPayRateError('');
+    }
+  };
 
   // Foundit post-save validation & publication workflow states
   const [postSaveActionJobId, setPostSaveActionJobId] = useState<number | null>(null);
@@ -170,6 +197,9 @@ export const CreateRequirement: React.FC = () => {
           jobTitle: app.position || '',
           clientBillRate: extractField('Client Bill Rate') || '',
           payRate: extractField('Pay Rate') || '',
+          salaryCurrency: extractField('Salary Currency') || extractField('Currency') || 'INR',
+          salaryPeriod: extractField('Salary Period') || extractField('Budget Period') || extractField('Pay Period') || 'Unknown',
+          budgetConfirmed: extractField('Client Budget Confirmed') === 'Yes' || extractField('Budget Confirmed') === 'Yes',
           startDate: extractField('Start Date') || new Date().toISOString().split('T')[0],
           endDate: extractField('End Date') === 'N/A' ? '' : extractField('End Date'),
           location: extractField('Location') || '',
@@ -269,19 +299,32 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
-    if (formData.clientBillRate && formData.clientBillRate.replace(/\D/g, '').length <= 4) {
-      setError('Client Bill Rate must be more than 4 digits.');
+    if (formData.clientBillRate && (!/^\d+$/.test(formData.clientBillRate) || formData.clientBillRate.length < 5)) {
+      setClientBillRateError('Enter a numeric amount containing at least 5 digits.');
+      setError('Client Bill Rate: Enter a numeric amount containing at least 5 digits.');
       return;
     }
 
-    if (formData.payRate && formData.payRate.replace(/\D/g, '').length <= 4) {
-      setError('Pay Rate / Salary must be more than 4 digits.');
+    if (formData.payRate && (!/^\d+$/.test(formData.payRate) || formData.payRate.length < 5)) {
+      setPayRateError('Enter a numeric amount containing at least 5 digits.');
+      setError('Pay Rate / Salary: Enter a numeric amount containing at least 5 digits.');
       return;
     }
 
     if (!formData.publishToCareerPage) {
       setError('⚠️ "Publish to Company Career Page" is mandatory. Please check this box before submitting the job requirement.');
       return;
+    }
+
+    if (formData.publishToFoundit) {
+      if (formData.salaryPeriod === 'Unknown') {
+        setError('Foundit publication blocked: Budget Period is Unknown. Please select and confirm the client-approved budget period before publishing to Foundit.');
+        return;
+      }
+      if (formData.salaryPeriod === 'Per Annum' && !formData.budgetConfirmed) {
+        setError('Foundit publication blocked: Recruiter confirmation is required. The selected period must reflect the actual client-approved budget.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -307,6 +350,9 @@ export const CreateRequirement: React.FC = () => {
 Job Code: ${formData.jobCode}
 Client Bill Rate: ${formData.clientBillRate}
 Pay Rate: ${formData.payRate}
+Salary Currency: ${formData.salaryCurrency}
+Salary Period: ${formData.salaryPeriod}
+Client Budget Confirmed: ${formData.budgetConfirmed ? 'Yes' : 'No'}
 Start Date: ${formData.startDate}
 End Date: ${formData.endDate || 'N/A'}
 Location: ${formData.location}
@@ -378,6 +424,9 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
 Job Code: ${jobCodeVal}
 Client Bill Rate: ${formData.clientBillRate}
 Pay Rate: ${formData.payRate}
+Salary Currency: ${formData.salaryCurrency}
+Salary Period: ${formData.salaryPeriod}
+Client Budget Confirmed: ${formData.budgetConfirmed ? 'Yes' : 'No'}
 Start Date: ${formData.startDate}
 End Date: ${formData.endDate || 'N/A'}
 Location: ${formData.location}
@@ -520,26 +569,100 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   size="small"
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12} sm={3}>
                 <TextField
                   label="Client Bill Rate"
                   fullWidth
                   value={formData.clientBillRate}
-                  onChange={(e) => setFormData({ ...formData, clientBillRate: e.target.value.replace(/\D/g, '') })}
-                  placeholder="e.g. 80"
+                  onChange={(e) => handleClientBillRateChange(e.target.value)}
+                  error={Boolean(clientBillRateError)}
+                  helperText={clientBillRateError || 'Digits only (0–9), min 5 digits (e.g. 250000)'}
+                  placeholder="e.g. 250000"
                   size="small"
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid item xs={12} sm={3}>
                 <TextField
                   label="Pay Rate / Salary"
                   fullWidth
                   value={formData.payRate}
-                  onChange={(e) => setFormData({ ...formData, payRate: e.target.value.replace(/\D/g, '') })}
-                  placeholder="e.g. 60"
+                  onChange={(e) => handlePayRateChange(e.target.value)}
+                  error={Boolean(payRateError)}
+                  helperText={payRateError || 'Digits only (0–9), min 5 digits (e.g. 1500000)'}
+                  placeholder="e.g. 1500000"
                   size="small"
                 />
               </Grid>
+              <Grid item xs={12} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="salary-currency-label">Currency</InputLabel>
+                  <Select
+                    labelId="salary-currency-label"
+                    value={formData.salaryCurrency}
+                    label="Currency"
+                    onChange={(e) => setFormData(prev => ({ ...prev, salaryCurrency: e.target.value }))}
+                  >
+                    <MenuItem value="INR">INR (₹)</MenuItem>
+                    <MenuItem value="USD">USD ($)</MenuItem>
+                    <MenuItem value="EUR">EUR (€)</MenuItem>
+                    <MenuItem value="GBP">GBP (£)</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="salary-period-label">Budget Period</InputLabel>
+                  <Select
+                    labelId="salary-period-label"
+                    value={formData.salaryPeriod}
+                    label="Budget Period"
+                    onChange={(e) => setFormData(prev => ({ ...prev, salaryPeriod: e.target.value }))}
+                  >
+                    <MenuItem value="Per Annum">Per Annum</MenuItem>
+                    <MenuItem value="Per Month">Per Month</MenuItem>
+                    <MenuItem value="Per Hour">Per Hour</MenuItem>
+                    <MenuItem value="Unknown">Unknown</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {formData.salaryPeriod === 'Per Annum' && (
+                <Grid item xs={12}>
+                  <Alert severity="info" sx={{ mt: 1, mb: 1, backgroundColor: 'rgba(2, 136, 209, 0.08)' }}>
+                    <Typography variant="body2" fontWeight={700} gutterBottom>
+                      Client-Approved Budget Confirmation
+                    </Typography>
+                    <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
+                      The selected period must reflect the actual client-approved budget for this job opening. Client Bill Rate or candidate-specific salary must never be used as a fallback.
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={Boolean(formData.budgetConfirmed)}
+                          onChange={(e) => setFormData(prev => ({ ...prev, budgetConfirmed: e.target.checked }))}
+                          color="primary"
+                          size="small"
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" fontWeight={600}>
+                          I confirm that this Pay Rate / Salary reflects the actual client-approved annual budget for this opening (not client bill rate or candidate-specific salary).
+                        </Typography>
+                      }
+                    />
+                  </Alert>
+                </Grid>
+              )}
+
+              {formData.salaryPeriod === 'Unknown' && (
+                <Grid item xs={12}>
+                  <Alert severity="warning" sx={{ mt: 1, mb: 1, py: 0.5 }}>
+                    <Typography variant="caption" display="block">
+                      <strong>Budget Period Unknown:</strong> Historical or unconfigured records default to Unknown. The recruiter must explicitly select and confirm the client-approved budget period before this job can become eligible for Foundit.
+                    </Typography>
+                  </Alert>
+                </Grid>
+              )}
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Job Start Date"

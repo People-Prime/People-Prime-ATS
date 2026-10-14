@@ -1961,6 +1961,252 @@ class FounditClientBudgetSalaryTests(TestCase):
         content = response.content.decode('utf-8')
         self.assertIn('<source>', content)
 
+    def test_11_backend_rate_validation_rejects_malformed_values(self):
+        """11. Backend API serializer rejects values < 5 digits, non-digits, and decimals, accepting valid 5+ digit rates."""
+        from applications.serializers import ApplicationSerializer
+
+        base_data = {
+            "client_name": "Test Client",
+            "position": "Software Engineer",
+            "technology": "Python",
+            "experience": 3.0,
+            "country": "India",
+            "city": "Hyderabad",
+        }
+
+        # Submitting rate < 5 digits via write-only field
+        s1 = ApplicationSerializer(data={**base_data, "client_bill_rate": "9999"})
+        self.assertFalse(s1.is_valid())
+        self.assertIn("client_bill_rate", s1.errors)
+        self.assertIn("Enter a numeric amount containing at least 5 digits.", str(s1.errors["client_bill_rate"]))
+
+        # Submitting alphabetic rate
+        s2 = ApplicationSerializer(data={**base_data, "pay_rate": "12ab56"})
+        self.assertFalse(s2.is_valid())
+        self.assertIn("pay_rate", s2.errors)
+        self.assertIn("Enter a numeric amount containing at least 5 digits.", str(s2.errors["pay_rate"]))
+
+        # Submitting decimal rate
+        s3 = ApplicationSerializer(data={**base_data, "pay_rate": "25000.50"})
+        self.assertFalse(s3.is_valid())
+        self.assertIn("pay_rate", s3.errors)
+        self.assertIn("Enter a numeric amount containing at least 5 digits.", str(s3.errors["pay_rate"]))
+
+        # Submitting rate with spaces
+        s4 = ApplicationSerializer(data={**base_data, "client_bill_rate": " 250000"})
+        self.assertFalse(s4.is_valid())
+        self.assertIn("client_bill_rate", s4.errors)
+
+        # Submitting malformed values inside remarks
+        s5 = ApplicationSerializer(data={**base_data, "remarks": "Client Bill Rate: 9999\nPay Rate: 1500000"})
+        self.assertFalse(s5.is_valid())
+        self.assertIn("client_bill_rate", s5.errors)
+
+        s6 = ApplicationSerializer(data={**base_data, "remarks": "Client Bill Rate: 120000\nPay Rate: 12ab56"})
+        self.assertFalse(s6.is_valid())
+        self.assertIn("pay_rate", s6.errors)
+
+        # Valid 5+ digit integer values are accepted
+        s7 = ApplicationSerializer(data={**base_data, "client_bill_rate": "250000", "pay_rate": "1500000"})
+        self.assertTrue(s7.is_valid(), f"Expected valid but got errors: {s7.errors}")
+
+        # Optional empty fields remain optional
+        s8 = ApplicationSerializer(data={**base_data, "client_bill_rate": "", "pay_rate": ""})
+        self.assertTrue(s8.is_valid(), f"Expected valid empty rates but got: {s8.errors}")
+
+    def test_12_budget_metadata_persistence_and_per_annum_mapping(self):
+        """12. Verified Per Annum budget period with explicit client budget confirmation maps numeric Pay Rate to Foundit salary."""
+        # Single 5+ digit budget with confirmed Per Annum period and explicit client confirmation
+        job_annual_single = self._create_job(
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nSalary Currency: INR\nExperience: 3-5 years"
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_annual_single)
+        self.assertEqual(payload["minSalary"], 1500000)
+        self.assertEqual(payload["maxSalary"], 1500000)
+        self.assertEqual(payload["currencyId"], 1)
+
+        # Numeric range budget with confirmed Per Annum period and explicit client confirmation
+        job_annual_range = self._create_job(
+            remarks="Pay Rate: 1200000 - 1800000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nSalary Currency: INR\nExperience: 3-5 years"
+        )
+        payload_range = FounditJobMapper.map_ats_job_to_foundit_payload(job_annual_range)
+        self.assertEqual(payload_range["minSalary"], 1200000)
+        self.assertEqual(payload_range["maxSalary"], 1800000)
+
+    def test_13_budget_metadata_period_blocks_monthly_hourly_unknown(self):
+        """13. Explicit metadata periods for Per Month, Per Hour, and Unknown safely block Foundit posting."""
+        # Monthly metadata blocked
+        job_monthly = self._create_job(
+            remarks="Pay Rate: 80000\nSalary Period: Per Month\nSalary Currency: INR\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_monthly)
+        self.assertIn("monthly", str(ctx.exception).lower())
+
+        # Hourly metadata blocked
+        job_hourly = self._create_job(
+            remarks="Pay Rate: 1000\nSalary Period: Per Hour\nSalary Currency: INR\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_hourly)
+        self.assertIn("hourly", str(ctx.exception).lower())
+
+        # Unknown metadata blocked
+        job_unknown = self._create_job(
+            remarks="Pay Rate: 1500000\nSalary Period: Unknown\nSalary Currency: INR\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_unknown)
+        self.assertIn("unknown or unconfirmed pay period", str(ctx.exception).lower())
+
+        # Missing metadata on bare integer (historical records) blocked
+        job_no_period = self._create_job(
+            remarks="Pay Rate: 1500000\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_no_period)
+        self.assertIn("ambiguous salary unit", str(ctx.exception).lower())
+
+    def test_14_budget_metadata_unsupported_currency_blocked(self):
+        """14. Explicit metadata with foreign currency (USD, EUR) blocks Foundit publication demanding INR."""
+        job_usd = self._create_job(
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nSalary Currency: USD\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_usd)
+        self.assertIn("unsupported or foreign currency", str(ctx.exception).lower())
+        self.assertIn("usd", str(ctx.exception).lower())
+
+        job_eur = self._create_job(
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nSalary Currency: EUR\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_eur)
+        self.assertIn("unsupported or foreign currency", str(ctx.exception).lower())
+        self.assertIn("eur", str(ctx.exception).lower())
+
+    def test_15_create_and_edit_api_flow_enforces_rate_rules(self):
+        """15. Both create and update serializer operations enforce the identical 5-digit rate validation rules."""
+        from applications.serializers import ApplicationSerializer
+
+        base_data = {
+            "client_name": "Test Client Corp",
+            "position": "Lead DevOps",
+            "technology": "AWS, Kubernetes",
+            "experience": 5.0,
+            "country": "India",
+            "city": "Hyderabad",
+            "remarks": "[Job Details]\nJob Code: PPW-1111\nClient Bill Rate: 120000\nPay Rate: 1500000\nSalary Currency: INR\nSalary Period: Per Annum\nClient Budget Confirmed: Yes"
+        }
+
+        # 1. Create mode via serializer
+        s_create = ApplicationSerializer(data=base_data)
+        self.assertTrue(s_create.is_valid(), f"Creation errors: {s_create.errors}")
+        app = s_create.save()
+        self.assertIn("Client Bill Rate: 120000", app.remarks)
+        self.assertIn("Pay Rate: 1500000", app.remarks)
+
+        # 2. Edit mode: attempting to update with invalid rate in remarks fails
+        s_edit_invalid = ApplicationSerializer(
+            instance=app,
+            data={**base_data, "remarks": "[Job Details]\nJob Code: PPW-1111\nClient Bill Rate: 120000\nPay Rate: 9999"}
+        )
+        self.assertFalse(s_edit_invalid.is_valid())
+        self.assertIn("pay_rate", s_edit_invalid.errors)
+
+        # 3. Edit mode: valid update succeeds
+        s_edit_valid = ApplicationSerializer(
+            instance=app,
+            data={**base_data, "remarks": "[Job Details]\nJob Code: PPW-1111\nClient Bill Rate: 150000\nPay Rate: 1800000\nSalary Currency: INR\nSalary Period: Per Annum\nClient Budget Confirmed: Yes"}
+        )
+        self.assertTrue(s_edit_valid.is_valid())
+        updated_app = s_edit_valid.save()
+        self.assertIn("Pay Rate: 1800000", updated_app.remarks)
+
+    def test_16_historical_record_without_budget_metadata_defaults_unknown_and_blocks_foundit(self):
+        """16. Historical records (e.g. job #68777) lacking budget metadata default to Unknown and remain blocked from Foundit."""
+        # Historical record with bare numeric Pay Rate and no metadata
+        historical_job = self._create_job(
+            remarks="[Job Details]\nJob Code: PPW-68777\nClient Bill Rate: 200000\nPay Rate: 1500000\nExperience: 4-7 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(historical_job)
+        self.assertIn("ambiguous salary unit", str(ctx.exception).lower())
+        self.assertIn("client bill rate cannot be used as candidate salary", str(ctx.exception).lower())
+
+        # Historical record loaded into ATS with Unknown budget period
+        historical_unknown = self._create_job(
+            remarks="[Job Details]\nJob Code: PPW-68777\nPay Rate: 1500000\nSalary Period: Unknown\nExperience: 4-7 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(historical_unknown)
+        self.assertIn("unknown or unconfirmed pay period", str(ctx.exception).lower())
+
+    def test_17_unconfirmed_per_annum_period_requires_explicit_recruiter_confirmation(self):
+        """17. Ambiguous historical budget updated to Per Annum without explicit confirmation is blocked."""
+        # Recruiter selects Per Annum but has not explicitly confirmed client budget approval
+        unconfirmed_job = self._create_job(
+            remarks="[Job Details]\nJob Code: PPW-68777\nPay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: No\nExperience: 4-7 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(unconfirmed_job)
+        err = str(ctx.exception)
+        self.assertIn("requires explicit recruiter confirmation", err)
+        self.assertIn("the selected period must reflect the actual client-approved budget", err.lower())
+
+        # Missing confirmation line on bare numeric budget also blocked
+        missing_confirm_job = self._create_job(
+            remarks="[Job Details]\nJob Code: PPW-68777\nPay Rate: 1500000\nSalary Period: Per Annum\nExperience: 4-7 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(missing_confirm_job)
+        err = str(ctx.exception)
+        self.assertIn("requires explicit recruiter confirmation", err)
+        self.assertIn("the selected period must reflect the actual client-approved budget", err.lower())
+
+    def test_18_client_bill_rate_and_candidate_salary_never_fallback_for_job_budget(self):
+        """18. Client Bill Rate and candidate-specific salaries are never used as fallback for job budget."""
+        # Record with only Client Bill Rate
+        job_only_bill_rate = self._create_job(
+            remarks="[Job Details]\nJob Code: PPW-7777\nClient Bill Rate: 250000\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_only_bill_rate)
+        self.assertIn("client bill rate cannot be used as candidate salary", str(ctx.exception).lower())
+
+        # Record with candidate-specific CTCs
+        job_candidate_ctc = self._create_job(
+            remarks="[Job Details]\nJob Code: PPW-7777\nCurrent CTC: 1200000\nExpected CTC: 1800000\nCandidate CTC: 1500000\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_candidate_ctc)
+        self.assertIn("candidate-specific salary cannot be used", str(ctx.exception).lower())
+
+    def test_19_serializer_client_budget_confirmed_field_persistence(self):
+        """19. ApplicationSerializer accepts client_budget_confirmed write-only field and persists it in remarks."""
+        from applications.serializers import ApplicationSerializer
+
+        base_data = {
+            "client_name": "Acme Systems",
+            "position": "Senior Backend Developer",
+            "technology": "Python, Django",
+            "experience": 4.0,
+            "country": "India",
+            "city": "Bengaluru",
+            "client_bill_rate": "250000",
+            "pay_rate": "1600000",
+            "salary_currency": "INR",
+            "salary_period": "Per Annum",
+            "client_budget_confirmed": "Yes",
+            "remarks": "[Job Details]\nJob Code: PPW-9090\nPay Rate: 1600000\nSalary Currency: INR\nSalary Period: Per Annum\nClient Budget Confirmed: Yes"
+        }
+
+        serializer = ApplicationSerializer(data=base_data)
+        self.assertTrue(serializer.is_valid(), f"Serializer errors: {serializer.errors}")
+        app = serializer.save()
+        self.assertIn("Client Budget Confirmed: Yes", app.remarks)
+        self.assertIn("Salary Period: Per Annum", app.remarks)
+
 
 
 from applications.integrations.foundit.candidate_ingestion import (

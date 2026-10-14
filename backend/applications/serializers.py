@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from applications.models import Application, Note, CareerPortalApplicant
 from users.serializers import UserMinimalSerializer
@@ -24,6 +25,11 @@ class ApplicationSerializer(serializers.ModelSerializer):
     notes = NoteSerializer(many=True, read_only=True)
     transition_dates = serializers.SerializerMethodField()
     publish_to_foundit = serializers.BooleanField(required=False, default=False)
+    client_bill_rate = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True, trim_whitespace=False)
+    pay_rate = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True, trim_whitespace=False)
+    salary_currency = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
+    salary_period = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
+    client_budget_confirmed = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Application
@@ -33,9 +39,24 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'assigned_employee', 'assigned_employee_id', 'status', 'remarks',
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
             'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'publish_to_foundit', 'published_at',
-            'created_at', 'updated_at', 'notes', 'transition_dates'
+            'created_at', 'updated_at', 'notes', 'transition_dates',
+            'client_bill_rate', 'pay_rate', 'salary_currency', 'salary_period', 'client_budget_confirmed'
         ]
         read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'modified_by']
+
+    def validate_client_bill_rate(self, value):
+        if value is not None and str(value) != "":
+            val = str(value)
+            if not re.fullmatch(r'\d{5,}', val):
+                raise serializers.ValidationError('Enter a numeric amount containing at least 5 digits.')
+        return value
+
+    def validate_pay_rate(self, value):
+        if value is not None and str(value) != "":
+            val = str(value)
+            if not re.fullmatch(r'\d{5,}', val):
+                raise serializers.ValidationError('Enter a numeric amount containing at least 5 digits.')
+        return value
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -46,9 +67,30 @@ class ApplicationSerializer(serializers.ModelSerializer):
                 country = self.instance.country
             if not country or str(country).strip() not in ['India', 'US']:
                 raise serializers.ValidationError({'country': 'Country is required and must be either India or US.'})
+
+        # Validate rate fields inside remarks if present
+        remarks = attrs.get('remarks')
+        if remarks:
+            bill_match = re.search(r'Client Bill Rate:\s*([^\r\n]*)', remarks)
+            if bill_match:
+                bill_val = bill_match.group(1).strip()
+                if bill_val and not re.fullmatch(r'\d{5,}', bill_val):
+                    raise serializers.ValidationError({'client_bill_rate': 'Enter a numeric amount containing at least 5 digits.'})
+
+            pay_match = re.search(r'Pay\s*Rate(?:\s*/\s*Salary)?:\s*([^\r\n]*)', remarks)
+            if pay_match:
+                pay_val = pay_match.group(1).strip()
+                if pay_val and not re.fullmatch(r'\d{5,}', pay_val):
+                    raise serializers.ValidationError({'pay_rate': 'Enter a numeric amount containing at least 5 digits.'})
+
         return attrs
 
     def create(self, validated_data):
+        validated_data.pop('client_bill_rate', None)
+        validated_data.pop('pay_rate', None)
+        validated_data.pop('salary_currency', None)
+        validated_data.pop('salary_period', None)
+        validated_data.pop('client_budget_confirmed', None)
         publish_foundit = validated_data.pop('publish_to_foundit', False)
         publish_career = validated_data.get('publish_to_career_page', False)
         publish_linkedin = validated_data.get('publish_to_linkedin', False)
@@ -66,6 +108,11 @@ class ApplicationSerializer(serializers.ModelSerializer):
         return instance
 
     def update(self, instance, validated_data):
+        validated_data.pop('client_bill_rate', None)
+        validated_data.pop('pay_rate', None)
+        validated_data.pop('salary_currency', None)
+        validated_data.pop('salary_period', None)
+        validated_data.pop('client_budget_confirmed', None)
         publish_foundit = validated_data.pop('publish_to_foundit', None)
         publish_career = validated_data.get('publish_to_career_page', instance.publish_to_career_page)
         publish_linkedin = validated_data.get('publish_to_linkedin', instance.publish_to_linkedin)
