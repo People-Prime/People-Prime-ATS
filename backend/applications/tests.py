@@ -1747,6 +1747,221 @@ Required Skills & Experience
         self.assertNotIn("Senior Network / Firewall Specialist & Engineer", skill_names)
 
 
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class FounditClientBudgetSalaryTests(TestCase):
+    """
+    Comprehensive regression tests for client-approved job budget salary validation:
+    1. Explicitly annual client-approved budget (ranges and single amounts).
+    2. Valid annual minimum and maximum preservation and inverted range normalization.
+    3. Explicit monthly or hourly budget blocked without approved conversion rule.
+    4. Missing or ambiguous salary period blocked with informative guidance.
+    5. Missing or ambiguous currency (foreign currencies blocked, requiring INR).
+    6. Single-value budgets that lack a valid documented mapping blocked safely.
+    7. Client Bill Rate never used as candidate salary or advertised budget.
+    8. Candidate-specific salary never replacing the advertised job budget.
+    9. Existing experienced-job safeguards against low fallback defaults.
+    10. Unrelated validations (experience, skills) and LinkedIn XML feed regression.
+    """
+
+    def setUp(self):
+        self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "username": "test_username",
+            "password": "test_password",
+            "corp_id": "188533",
+            "recruiter_id": "1220898",
+            "channel_id": "1",
+            "sub_channel_id": "1",
+            "company_name": "People Prime Worldwide",
+            "owner_name": "Test Owner",
+            "owner_email": "owner@people-prime.com",
+            "default_location_id": "6",
+            "default_location_name": "Hyderabad / Secunderabad, Telangana",
+            "default_industry_id": "140",
+            "default_industry_name": "Consumer Software",
+            "default_role_id": "734",
+            "default_role_name": "Software Engineer",
+            "default_function_name": "IT",
+            "default_min_salary": "500000",
+            "default_max_salary": "1000000",
+            "default_currency_id": "1",
+            "default_salary_confidential": "1",
+            "api_key": "test_key",
+        }
+        self.addCleanup(self.creds_patcher.stop)
+
+    def _create_job(self, remarks="", experience=3.0, position="Backend Developer", technology="Python, Django"):
+        return Application.objects.create(
+            candidate_name="",
+            position=position,
+            technology=technology,
+            experience=experience,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Acme Tech Solutions",
+            remarks=remarks
+        )
+
+    def test_1_explicitly_annual_client_approved_budget(self):
+        """1. Explicitly annual client-approved budget maps correctly to Foundit salary fields."""
+        # Range with LPA
+        job_lpa_range = self._create_job(remarks="Pay Rate: 15-20 LPA\nExperience: 3-5 years")
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_lpa_range)
+        self.assertEqual(payload["minSalary"], 1500000)
+        self.assertEqual(payload["maxSalary"], 2000000)
+
+        # Range with explicit per annum
+        job_pa_range = self._create_job(remarks="Pay Rate / Salary: 1800000 - 2400000 per annum\nExperience: 3-5 years")
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_pa_range)
+        self.assertEqual(payload["minSalary"], 1800000)
+        self.assertEqual(payload["maxSalary"], 2400000)
+
+        # Client Budget syntax with Lakhs
+        job_budget = self._create_job(remarks="Client Budget: 12 to 16 Lakhs\nExperience: 3-5 years")
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_budget)
+        self.assertEqual(payload["minSalary"], 1200000)
+        self.assertEqual(payload["maxSalary"], 1600000)
+
+    def test_2_valid_annual_minimum_and_maximum(self):
+        """2. Valid annual min and max are preserved; inverted ranges are normalized; single amounts set min=max."""
+        # Inverted range normalized
+        job_inverted = self._create_job(remarks="Pay Rate: 22-18 LPA\nExperience: 3-5 years")
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_inverted)
+        self.assertEqual(payload["minSalary"], 1800000)
+        self.assertEqual(payload["maxSalary"], 2200000)
+
+        # Single annual LPA amount preserves verified amount without inventing arbitrary maximum
+        job_single_lpa = self._create_job(remarks="Pay Rate: 15 LPA\nExperience: 3-5 years")
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_single_lpa)
+        self.assertEqual(payload["minSalary"], 1500000)
+        self.assertEqual(payload["maxSalary"], 1500000)
+
+        # Single integer with PA keyword
+        job_single_pa = self._create_job(remarks="Pay Rate: 1600000 PA\nExperience: 3-5 years")
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_single_pa)
+        self.assertEqual(payload["minSalary"], 1600000)
+        self.assertEqual(payload["maxSalary"], 1600000)
+
+    def test_3_explicit_monthly_or_hourly_budget_blocked(self):
+        """3. Explicit monthly or hourly budget without approved conversion rules blocks publication."""
+        job_monthly = self._create_job(remarks="Pay Rate: 80,000 per month\nExperience: 3-5 years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_monthly)
+        err = str(ctx.exception)
+        self.assertIn("monthly", err.lower())
+        self.assertIn("client-approved", err.lower())
+        self.assertIn("annual", err.lower())
+
+        job_hourly = self._create_job(remarks="Pay Rate: 750/hr\nExperience: 3-5 years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_hourly)
+        err = str(ctx.exception)
+        self.assertIn("hourly", err.lower())
+        self.assertIn("client-approved", err.lower())
+        self.assertIn("annual", err.lower())
+
+    def test_4_missing_or_ambiguous_salary_period(self):
+        """4. Missing or ambiguous salary period blocks publication and explains missing information."""
+        job_ambiguous = self._create_job(remarks="Pay Rate: 85000\nExperience: 3-5 years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_ambiguous)
+        err = str(ctx.exception)
+        self.assertIn("ambiguous salary unit", err.lower())
+        self.assertIn("client-approved job budget", err.lower())
+        self.assertIn("pay period", err.lower())
+        self.assertIn("client bill rate cannot be used as candidate salary", err.lower())
+
+        job_budget_ambiguous = self._create_job(remarks="Budget: 50000\nExperience: 3-5 years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_budget_ambiguous)
+        self.assertIn("ambiguous salary unit", str(ctx.exception).lower())
+
+    def test_5_missing_or_foreign_currency(self):
+        """5. Unsupported or foreign currency blocks publication, demanding INR confirmation."""
+        currencies = ["Pay Rate: $80/hr", "Budget: 5000 USD", "Pay Rate: €4000/month", "Budget: £60000"]
+        for rem in currencies:
+            job = self._create_job(remarks=f"{rem}\nExperience: 3-5 years")
+            with self.assertRaises(FounditValidationError) as ctx:
+                FounditJobMapper.map_ats_job_to_foundit_payload(job)
+            err = str(ctx.exception)
+            self.assertIn("unsupported or foreign currency", err.lower())
+            self.assertIn("inr", err.lower())
+
+    def test_6_single_value_budget_lacking_valid_documented_mapping(self):
+        """6. Single-value budget lacking a verified annual unit is blocked rather than silently presumed annual."""
+        job_bare_int = self._create_job(remarks="Pay Rate: 1500000\nExperience: 3-5 years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_bare_int)
+        self.assertIn("ambiguous salary unit", str(ctx.exception).lower())
+
+    def test_7_client_bill_rate_never_used_as_salary(self):
+        """7. Client Bill Rate is never used as candidate compensation and blocks publication."""
+        job_bill_only = self._create_job(remarks="Client Bill Rate: 150000\nExperience: 3-5 years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_bill_only)
+        err = str(ctx.exception)
+        self.assertIn("client bill rate cannot be used as candidate salary", err.lower())
+
+        job_bill_and_ambiguous_pay = self._create_job(
+            remarks="Client Bill Rate: 150000\nPay Rate: 75000\nExperience: 3-5 years"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_bill_and_ambiguous_pay)
+        err = str(ctx.exception)
+        self.assertIn("client bill rate cannot be used as candidate salary", err.lower())
+
+    def test_8_candidate_specific_salary_never_replaces_advertised_job_budget(self):
+        """8. Candidate-specific salary never replaces the advertised client-approved job budget."""
+        # Candidate record remarks containing candidate's CTC details but no job budget
+        job_candidate_ctc = self._create_job(
+            remarks="Candidate: John Doe\nCurrent CTC: 12 LPA\nExpected CTC: 18 LPA\nPay Rate: 80000\nExperience: 3-5 years"
+        )
+        # Even though remarks mention '12 LPA' and '18 LPA' for the candidate, the job's Pay Rate is ambiguous (80000)
+        # Publication must be blocked and NOT use candidate's Current/Expected CTC as the job budget
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_candidate_ctc)
+        self.assertIn("ambiguous salary unit", str(ctx.exception).lower())
+
+    def test_9_experienced_job_safeguards_against_unsafe_fallback_values(self):
+        """9. Fallback environment salary defaults cannot be silently applied to experienced roles (>= 2 yrs)."""
+        job_exp_no_sal = self._create_job(
+            remarks="Experience: 5-8 years",
+            experience=5.0
+        )
+        # Override creds with low fallback (e.g. 1.0 - 2.5 LPA)
+        self.mock_creds.return_value["min_salary"] = "100000"
+        self.mock_creds.return_value["max_salary"] = "250000"
+        self.mock_creds.return_value["default_min_salary"] = "100000"
+        self.mock_creds.return_value["default_max_salary"] = "250000"
+
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_exp_no_sal)
+        err = str(ctx.exception)
+        self.assertIn("misrepresent compensation for an experienced role", err.lower())
+        self.assertIn("explicit client-approved job budget must be provided", err.lower())
+
+    def test_10_unrelated_validations_and_linkedin_feed_regression(self):
+        """10. Unrelated validations (experience, skills) and LinkedIn XML feed endpoint remain unaffected."""
+        # Unconfirmed experience range fails safely
+        job_bad_exp = self._create_job(remarks="Pay Rate: 15-20 LPA\nExperience: 5+ years")
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_bad_exp)
+        self.assertIn("lacks an established maximum experience range", str(ctx.exception).lower())
+
+        # LinkedIn XML feed endpoint returns HTTP 200 with valid structure
+        from applications.public_views import PublicLinkedInJobXmlFeedAPIView
+        factory = RequestFactory()
+        request = factory.get('/api/public/jobs/linkedin-feed.xml')
+        view = PublicLinkedInJobXmlFeedAPIView.as_view()
+        response = view(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/xml; charset=utf-8')
+        content = response.content.decode('utf-8')
+        self.assertIn('<source>', content)
+
+
 
 from applications.integrations.foundit.candidate_ingestion import (
     FounditCandidateIngestionService,
