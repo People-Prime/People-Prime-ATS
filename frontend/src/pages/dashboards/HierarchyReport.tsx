@@ -595,9 +595,7 @@ export const HierarchyReport: React.FC<HierarchyReportProps> = ({ rootEmail, sta
         };
 
         const aggregated = {
-          jobsCount: ['TEAM_LEAD', 'SUB_LEAD'].includes(user.role)
-            ? individual.jobsCount
-            : computeUniqueJobsCountForTree([user.email], childrenElements),
+          jobsCount: computeUniqueJobsCountForTree([user.email], childrenElements),
           submissions: computeUniqueSubmissionsCountForTree([user.email], childrenElements),
           interviews: individual.interviews + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.interviews, 0),
           offers: individual.offers + childrenElements.reduce((acc, c) => acc + c.aggregatedMetrics.offers, 0),
