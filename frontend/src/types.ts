@@ -105,6 +105,7 @@ export interface Application {
   salary_currency?: string;
   salary_period?: string;
   client_budget_confirmed?: boolean;
+  max_experience?: string;
 }
 
 export interface ApplicationNote {

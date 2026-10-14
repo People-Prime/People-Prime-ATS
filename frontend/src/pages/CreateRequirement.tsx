@@ -72,6 +72,7 @@ export const CreateRequirement: React.FC = () => {
     // Skills
     degree: '',
     experience: '',
+    maxExperience: '',
     primarySkills: '',
     description: '',
 
@@ -93,6 +94,31 @@ export const CreateRequirement: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [clientBillRateError, setClientBillRateError] = useState('');
   const [payRateError, setPayRateError] = useState('');
+  const [maxExperienceError, setMaxExperienceError] = useState('');
+
+  const handleExperienceChange = (val: string) => {
+    setFormData(prev => ({ ...prev, experience: val }));
+    if (formData.maxExperience && val && /^\d+$/.test(formData.maxExperience)) {
+      if (parseFloat(formData.maxExperience) < parseFloat(val)) {
+        setMaxExperienceError('Maximum Experience must be greater than or equal to Minimum Experience.');
+      } else {
+        setMaxExperienceError('');
+      }
+    }
+  };
+
+  const handleMaxExperienceChange = (val: string) => {
+    setFormData(prev => ({ ...prev, maxExperience: val }));
+    if (!val || !val.trim()) {
+      setMaxExperienceError('');
+    } else if (!/^\d+$/.test(val)) {
+      setMaxExperienceError('Accept non-negative whole numbers only (e.g. 8).');
+    } else if (formData.experience && parseFloat(val) < parseFloat(formData.experience)) {
+      setMaxExperienceError('Maximum Experience must be greater than or equal to Minimum Experience.');
+    } else {
+      setMaxExperienceError('');
+    }
+  };
 
   const handleClientBillRateChange = (val: string) => {
     setFormData(prev => ({ ...prev, clientBillRate: val }));
@@ -189,6 +215,14 @@ export const CreateRequirement: React.FC = () => {
 
         setAssigneeIds(emails);
 
+        let maxExp = extractField('Max Experience') || extractField('Maximum Experience') || '';
+        if (!maxExp) {
+          const rangeMatch = remarks.match(/(?:Total\s+)?Experience\s*(?:Required)?\s*:\s*\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)/i);
+          if (rangeMatch) {
+            maxExp = rangeMatch[1];
+          }
+        }
+
         setFormData({
           country: app.country || extractField('Country') || '',
           state: app.state || extractField('State') || '',
@@ -214,6 +248,7 @@ export const CreateRequirement: React.FC = () => {
           zipCode: extractField('Zip Code') || '',
           degree: extractField('Degree') || 'Bachelors Degree',
           experience: String(app.experience) || '3',
+          maxExperience: maxExp,
           primarySkills: app.technology || '',
           description: extractField('Description') || '',
           noticePeriod: extractField('Notice Period') || 'Immediate',
@@ -316,7 +351,35 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
+    if (formData.maxExperience && formData.maxExperience.trim()) {
+      if (!/^\d+$/.test(formData.maxExperience)) {
+        setMaxExperienceError('Accept non-negative whole numbers only (e.g. 8).');
+        setError('Maximum Experience: Accept non-negative whole numbers only.');
+        return;
+      }
+      if (formData.experience && parseFloat(formData.maxExperience) < parseFloat(formData.experience)) {
+        setMaxExperienceError('Maximum Experience must be greater than or equal to Minimum Experience.');
+        setError('Maximum Experience must be greater than or equal to Minimum Experience.');
+        return;
+      }
+    }
+
     if (formData.publishToFoundit) {
+      if (!formData.maxExperience || !formData.maxExperience.trim()) {
+        setMaxExperienceError('Foundit publication requires Maximum Experience (years).');
+        setError('Foundit publication blocked: Maximum Experience (years) is required. Please specify a maximum experience.');
+        return;
+      }
+      if (!/^\d+$/.test(formData.maxExperience)) {
+        setMaxExperienceError('Accept non-negative whole numbers only (e.g. 8).');
+        setError('Maximum Experience: Accept non-negative whole numbers only.');
+        return;
+      }
+      if (parseFloat(formData.maxExperience) < parseFloat(formData.experience)) {
+        setMaxExperienceError('Maximum Experience must be greater than or equal to Minimum Experience.');
+        setError('Maximum Experience must be greater than or equal to Minimum Experience.');
+        return;
+      }
       if (formData.salaryPeriod === 'Unknown') {
         setError('Foundit publication blocked: Budget Period is Unknown. Please select and confirm the client-approved budget period before publishing to Foundit.');
         return;
@@ -367,6 +430,8 @@ Zip Code: ${formData.zipCode}
 
 [Skills & Assignment]
 Degree: ${formData.degree}
+Experience: ${formData.experience}${formData.maxExperience ? ` - ${formData.maxExperience} years` : ' years'}
+Max Experience: ${formData.maxExperience || ''}
 Description: ${formData.description}
 
 [Notice Period]
@@ -386,6 +451,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             position: formData.jobTitle,
             technology: formData.primarySkills,
             experience: parseFloat(formData.experience) || 0.0,
+            max_experience: formData.maxExperience || '',
             assigned_employee_id: email,
             remarks: formattedRemarks,
             publish_to_career_page: formData.publishToCareerPage,
@@ -441,6 +507,8 @@ Zip Code: ${formData.zipCode}
 
 [Skills & Assignment]
 Degree: ${formData.degree}
+Experience: ${formData.experience}${formData.maxExperience ? ` - ${formData.maxExperience} years` : ' years'}
+Max Experience: ${formData.maxExperience || ''}
 Description: ${formData.description}
 
 [Notice Period]
@@ -462,6 +530,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           position: formData.jobTitle,
           technology: formData.primarySkills,
           experience: parseFloat(formData.experience) || 0.0,
+          max_experience: formData.maxExperience || '',
           assigned_employee_id: firstUser ? firstUser.email : null,
           remarks: buildRemarks(formData.jobCode),
           publish_to_career_page: formData.publishToCareerPage,
@@ -876,7 +945,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   size="small"
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12} sm={3}>
                 <TextField
                   label="Experience Required (Years)"
                   required
@@ -884,11 +953,24 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   type="number"
                   inputProps={{ step: '0.5', min: '0' }}
                   value={formData.experience}
-                  onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                  onChange={(e) => handleExperienceChange(e.target.value)}
                   size="small"
                 />
               </Grid>
-              <Grid item xs={12} sm={8}>
+              <Grid item xs={12} sm={3}>
+                <TextField
+                  label="Maximum Experience (years)"
+                  fullWidth
+                  value={formData.maxExperience}
+                  onChange={(e) => handleMaxExperienceChange(e.target.value)}
+                  error={Boolean(maxExperienceError)}
+                  helperText={maxExperienceError || (formData.publishToFoundit ? 'Required for Foundit (whole number ≥ min)' : 'Optional for ATS, whole number ≥ min')}
+                  placeholder="e.g. 8"
+                  size="small"
+                  inputProps={{ min: '0', step: '1' }}
+                />
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   label="Primary Skills / Technology Stack"
                   required

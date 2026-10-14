@@ -30,6 +30,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
     salary_currency = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
     salary_period = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
     client_budget_confirmed = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
+    max_experience = serializers.CharField(write_only=True, required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Application
@@ -40,7 +41,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'pan_card', 'aadhaar', 'alternate_mobile_number', 'source', 'interest_to_work_for_client',
             'modified_by', 'publish_to_career_page', 'publish_to_linkedin', 'publish_to_foundit', 'published_at',
             'created_at', 'updated_at', 'notes', 'transition_dates',
-            'client_bill_rate', 'pay_rate', 'salary_currency', 'salary_period', 'client_budget_confirmed'
+            'client_bill_rate', 'pay_rate', 'salary_currency', 'salary_period', 'client_budget_confirmed',
+            'max_experience'
         ]
         read_only_fields = ['id', 'published_at', 'created_at', 'updated_at', 'modified_by']
 
@@ -56,6 +58,13 @@ class ApplicationSerializer(serializers.ModelSerializer):
             val = str(value)
             if not re.fullmatch(r'\d{5,}', val):
                 raise serializers.ValidationError('Enter a numeric amount containing at least 5 digits.')
+        return value
+
+    def validate_max_experience(self, value):
+        if value is not None and str(value).strip() != "":
+            val = str(value).strip()
+            if not re.fullmatch(r'\d+', val):
+                raise serializers.ValidationError('Enter a non-negative whole number for Maximum Experience.')
         return value
 
     def validate(self, attrs):
@@ -83,6 +92,45 @@ class ApplicationSerializer(serializers.ModelSerializer):
                 if pay_val and not re.fullmatch(r'\d{5,}', pay_val):
                     raise serializers.ValidationError({'pay_rate': 'Enter a numeric amount containing at least 5 digits.'})
 
+        # Validate max_experience against experience (minimum)
+        max_exp_val = attrs.get('max_experience')
+        min_exp_val = attrs.get('experience', getattr(self.instance, 'experience', None))
+
+        if remarks and not max_exp_val:
+            max_exp_match = re.search(r'Max(?:imum)?\s*Experience\s*:\s*([^\r\n]*)', remarks, re.IGNORECASE)
+            if max_exp_match:
+                raw_max = max_exp_match.group(1).strip()
+                if raw_max:
+                    if not re.fullmatch(r'\d+', raw_max):
+                        raise serializers.ValidationError({'max_experience': 'Enter a non-negative whole number for Maximum Experience.'})
+                    max_exp_val = raw_max
+
+        if max_exp_val is not None and str(max_exp_val).strip() != "":
+            val_str = str(max_exp_val).strip()
+            if not re.fullmatch(r'\d+', val_str):
+                raise serializers.ValidationError({'max_experience': 'Enter a non-negative whole number for Maximum Experience.'})
+            if min_exp_val is not None:
+                try:
+                    if int(val_str) < float(min_exp_val):
+                        raise serializers.ValidationError({'max_experience': 'Maximum Experience must be greater than or equal to Minimum Experience.'})
+                except (ValueError, TypeError):
+                    pass
+
+        # If publish_to_foundit is requested, require valid maximum experience
+        publish_foundit = attrs.get('publish_to_foundit', getattr(self.instance, 'publish_to_foundit', False))
+        if publish_foundit:
+            has_max = False
+            if max_exp_val is not None and str(max_exp_val).strip() != "":
+                has_max = True
+            elif remarks and (
+                re.search(r'(?:Total\s+)?Experience\s*(?:Required)?\s*:\s*\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*\d+', remarks, re.IGNORECASE) or
+                re.search(r'Max(?:imum)?\s*Experience\s*:\s*\d+', remarks, re.IGNORECASE)
+            ):
+                has_max = True
+
+            if not has_max:
+                raise serializers.ValidationError({'max_experience': 'Maximum Experience is required for Foundit publication.'})
+
         return attrs
 
     def create(self, validated_data):
@@ -91,6 +139,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
         validated_data.pop('salary_currency', None)
         validated_data.pop('salary_period', None)
         validated_data.pop('client_budget_confirmed', None)
+        validated_data.pop('max_experience', None)
         publish_foundit = validated_data.pop('publish_to_foundit', False)
         publish_career = validated_data.get('publish_to_career_page', False)
         publish_linkedin = validated_data.get('publish_to_linkedin', False)
@@ -113,6 +162,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
         validated_data.pop('salary_currency', None)
         validated_data.pop('salary_period', None)
         validated_data.pop('client_budget_confirmed', None)
+        validated_data.pop('max_experience', None)
         publish_foundit = validated_data.pop('publish_to_foundit', None)
         publish_career = validated_data.get('publish_to_career_page', instance.publish_to_career_page)
         publish_linkedin = validated_data.get('publish_to_linkedin', instance.publish_to_linkedin)

@@ -237,10 +237,11 @@ def extract_job_experience(job_application):
     """
     Extracts minExperience and maxExperience without arbitrary '+ 3' offsets:
     1. Uses structured job_application.experience as baseline minimum if present.
-    2. Parses explicit range from remarks/description (e.g. 'Experience: 7-12' or '5 to 8 years').
-    3. Handles hyphens (-), en dashes (–), em dashes (—), and 'to'.
-    4. Validates that maxExperience >= minExperience.
-    5. If only a minimum is provided (e.g. '5+ years') and no upper bound exists,
+    2. Parses explicit Max Experience / Maximum Experience from remarks or structured attribute.
+    3. Parses explicit range from remarks/description (e.g. 'Experience: 7-12' or '5 to 8 years').
+    4. Handles hyphens (-), en dashes (–), em dashes (—), and 'to'.
+    5. Validates non-negative whole numbers and that maxExperience >= minExperience.
+    6. If only a minimum is provided (e.g. '5+ years' or single numeric) and no upper bound exists,
        raises FounditValidationError because Foundit mandates both minExperience and maxExperience.
     """
     remarks = job_application.remarks or ""
@@ -248,14 +249,60 @@ def extract_job_experience(job_application):
     structured_min = None
     if structured_raw is not None and str(structured_raw).strip() != "":
         try:
-            structured_min = int(float(str(structured_raw).strip()))
+            val = float(str(structured_raw).strip())
+            structured_min = int(val)
         except (ValueError, TypeError):
             pass
 
-    # Look for explicit range in remarks/description
+    if structured_min is not None and structured_min < 0:
+        raise FounditValidationError(
+            f"Validation Error: Invalid experience range for job {job_application.id} "
+            f"(minimum experience {structured_min} cannot be negative)."
+        )
+
+    # 1. Check for explicit Max Experience in structured attribute or remarks
+    structured_max = getattr(job_application, 'max_experience', None)
+    parsed_max_field = None
+    if structured_max is not None and str(structured_max).strip() != "":
+        raw_val = str(structured_max).strip()
+        try:
+            val = float(raw_val)
+            if val < 0:
+                raise FounditValidationError(
+                    f"Validation Error: Invalid experience range for job {job_application.id} "
+                    f"(maximum experience '{structured_max}' cannot be negative)."
+                )
+            parsed_max_field = int(val)
+        except (ValueError, TypeError):
+            raise FounditValidationError(
+                f"Validation Error: Malformed maximum experience '{structured_max}' for job {job_application.id}."
+            )
+    else:
+        m_max = re.search(r'Max(?:imum)?\s*Experience\s*:\s*([^\r\n]+)', remarks, re.IGNORECASE)
+        if m_max:
+            raw_max = m_max.group(1).strip()
+            if re.match(r'^\s*-\d+', raw_max):
+                raise FounditValidationError(
+                    f"Validation Error: Invalid experience range for job {job_application.id} "
+                    f"(maximum experience '{raw_max}' cannot be negative)."
+                )
+            m_num = re.search(r'^\s*(\d+(?:\.\d+)?)', raw_max)
+            if m_num:
+                try:
+                    parsed_max_field = int(float(m_num.group(1)))
+                except (ValueError, TypeError):
+                    raise FounditValidationError(
+                        f"Validation Error: Malformed maximum experience '{raw_max}' for job {job_application.id}."
+                    )
+            else:
+                raise FounditValidationError(
+                    f"Validation Error: Malformed maximum experience '{raw_max}' for job {job_application.id}."
+                )
+
+    # 2. Look for explicit range in remarks/description
     range_patterns = [
-        r'(?:Total\s+)?Experience\s*(?:Required)?\s*:\s*(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)',
-        r'\b(\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b(?:\s*(?:of\s*)?experience)?',
+        r'(?:Total\s+)?Experience\s*(?:Required)?\s*:\s*(-?\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(-?\d+(?:\.\d+)?)',
+        r'\b(-?\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(-?\d+(?:\.\d+)?)\s*(?:years?|yrs?)\b(?:\s*(?:of\s*)?experience)?',
     ]
     parsed_min = None
     parsed_max = None
@@ -269,14 +316,15 @@ def extract_job_experience(job_application):
             except (ValueError, TypeError):
                 continue
 
-    if parsed_min is not None and parsed_max is not None:
-        if parsed_max < parsed_min:
+    min_exp = parsed_min if parsed_min is not None else structured_min
+    max_exp = parsed_max if parsed_max is not None else parsed_max_field
+
+    if min_exp is not None and max_exp is not None:
+        if min_exp < 0 or max_exp < 0:
             raise FounditValidationError(
                 f"Validation Error: Invalid experience range for job {job_application.id} "
-                f"(maximum experience {parsed_max} is less than minimum experience {parsed_min})."
+                f"(experience values cannot be negative: min={min_exp}, max={max_exp})."
             )
-        min_exp = parsed_min if parsed_min is not None else structured_min
-        max_exp = parsed_max
         if max_exp < min_exp:
             raise FounditValidationError(
                 f"Validation Error: Invalid experience range for job {job_application.id} "
@@ -285,9 +333,9 @@ def extract_job_experience(job_application):
         return min_exp, max_exp
 
     # Single minimum without established upper bound
-    min_candidate = structured_min
+    min_candidate = min_exp
     if min_candidate is None:
-        m_single = re.search(r'\b(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\b(?:\s*(?:of\s*)?experience)?', remarks, re.IGNORECASE)
+        m_single = re.search(r'\b(-?\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\b(?:\s*(?:of\s*)?experience)?', remarks, re.IGNORECASE)
         if m_single:
             try:
                 min_candidate = int(float(m_single.group(1)))
@@ -295,6 +343,11 @@ def extract_job_experience(job_application):
                 pass
 
     if min_candidate is not None:
+        if min_candidate < 0:
+            raise FounditValidationError(
+                f"Validation Error: Invalid experience range for job {job_application.id} "
+                f"(minimum experience {min_candidate} cannot be negative)."
+            )
         raise FounditValidationError(
             f"Validation Error: Foundit requires both minExperience and maxExperience. "
             f"ATS job {job_application.id} defines minimum experience ({min_candidate} years) "

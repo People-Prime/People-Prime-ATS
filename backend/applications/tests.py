@@ -2207,6 +2207,197 @@ class FounditClientBudgetSalaryTests(TestCase):
         self.assertIn("Client Budget Confirmed: Yes", app.remarks)
         self.assertIn("Salary Period: Per Annum", app.remarks)
 
+    def test_20_experience_mapping_valid_range_minimum_and_maximum(self):
+        """20. Confirmed minimum experience and maximum experience map to minExperience and maxExperience."""
+        # 1. Experience specified via Max Experience line in remarks
+        job_with_max_exp = self._create_job(
+            experience=5.0,
+            remarks=(
+                "[Job Details]\nPay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\n"
+                "[Skills & Assignment]\nExperience: 5 - 8 years\nMax Experience: 8\n"
+            )
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_with_max_exp)
+        self.assertEqual(payload["minExperience"], 5)
+        self.assertEqual(payload["maxExperience"], 8)
+
+        # 2. Experience range specified via structured attribute max_experience
+        job_structured = self._create_job(
+            experience=4.0,
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes"
+        )
+        job_structured.max_experience = 7
+        payload_struct = FounditJobMapper.map_ats_job_to_foundit_payload(job_structured)
+        self.assertEqual(payload_struct["minExperience"], 4)
+        self.assertEqual(payload_struct["maxExperience"], 7)
+
+    def test_21_missing_maximum_experience_blocks_foundit(self):
+        """21. Jobs with only minimum experience lack upper bound and remain blocked from Foundit posting."""
+        job_only_min = self._create_job(
+            experience=5.0,
+            remarks="[Job Details]\nPay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\n[Skills & Assignment]\nDegree: B.Tech"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_only_min)
+        err = str(ctx.exception).lower()
+        self.assertIn("foundit requires both minexperience and maxexperience", err)
+        self.assertIn("explicit maximum experience must be provided", err)
+
+    def test_22_maximum_experience_lower_than_minimum_rejected(self):
+        """22. Maximum experience lower than minimum experience is rejected by both mapper and serializer."""
+        # Mapper rejection
+        job_inverted = self._create_job(
+            experience=6.0,
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nMax Experience: 3"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_inverted)
+        self.assertIn("maximum experience 3 is less than minimum experience 6", str(ctx.exception).lower())
+
+        # Serializer rejection
+        from applications.serializers import ApplicationSerializer
+        s = ApplicationSerializer(data={
+            "client_name": "Acme",
+            "position": "Python Dev",
+            "technology": "Python",
+            "country": "India",
+            "city": "Hyderabad",
+            "experience": 5.0,
+            "max_experience": "3"
+        })
+        self.assertFalse(s.is_valid())
+        self.assertIn("max_experience", s.errors)
+        self.assertIn("greater than or equal to minimum experience", str(s.errors["max_experience"]).lower())
+
+    def test_23_negative_and_malformed_experience_rejected(self):
+        """23. Negative and malformed experience values are rejected by serializer and mapper."""
+        from applications.serializers import ApplicationSerializer
+
+        # Serializer rejects negative max_experience
+        s_neg = ApplicationSerializer(data={
+            "client_name": "Acme",
+            "position": "Python Dev",
+            "technology": "Python",
+            "country": "India",
+            "city": "Hyderabad",
+            "experience": 3.0,
+            "max_experience": "-2"
+        })
+        self.assertFalse(s_neg.is_valid())
+        self.assertIn("max_experience", s_neg.errors)
+
+        # Serializer rejects decimal/alphabetic max_experience
+        s_alpha = ApplicationSerializer(data={
+            "client_name": "Acme",
+            "position": "Python Dev",
+            "technology": "Python",
+            "country": "India",
+            "city": "Hyderabad",
+            "experience": 3.0,
+            "max_experience": "eight"
+        })
+        self.assertFalse(s_alpha.is_valid())
+        self.assertIn("max_experience", s_alpha.errors)
+
+        # Mapper rejects negative max in remarks
+        job_neg = self._create_job(
+            experience=3.0,
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nMax Experience: -5"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_neg)
+        self.assertIn("cannot be negative", str(ctx.exception).lower())
+
+        # Mapper rejects malformed max in remarks
+        job_mal = self._create_job(
+            experience=3.0,
+            remarks="Pay Rate: 1500000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\nMax Experience: abc"
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_mal)
+        self.assertIn("malformed maximum experience", str(ctx.exception).lower())
+
+    def test_24_create_and_edit_flows_preserve_both_experience_values(self):
+        """24. Serializer create and edit flows accept and preserve both min and max experience."""
+        from applications.serializers import ApplicationSerializer
+
+        # 1. Create with max_experience
+        create_data = {
+            "client_name": "Tech Corp",
+            "position": "Backend Engineer",
+            "technology": "Django, Postgres",
+            "country": "India",
+            "city": "Hyderabad",
+            "experience": 4.0,
+            "max_experience": "7",
+            "remarks": "[Job Details]\nJob Code: PPW-5001\nPay Rate: 1200000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\n[Skills & Assignment]\nExperience: 4 - 7 years\nMax Experience: 7"
+        }
+        s_create = ApplicationSerializer(data=create_data)
+        self.assertTrue(s_create.is_valid(), f"Create errors: {s_create.errors}")
+        app = s_create.save()
+        self.assertEqual(float(app.experience), 4.0)
+        self.assertIn("Max Experience: 7", app.remarks)
+
+        # 2. Edit to update max_experience
+        edit_data = {
+            **create_data,
+            "experience": 5.0,
+            "max_experience": "9",
+            "remarks": "[Job Details]\nJob Code: PPW-5001\nPay Rate: 1200000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes\n[Skills & Assignment]\nExperience: 5 - 9 years\nMax Experience: 9"
+        }
+        s_edit = ApplicationSerializer(instance=app, data=edit_data)
+        self.assertTrue(s_edit.is_valid(), f"Edit errors: {s_edit.errors}")
+        updated = s_edit.save()
+        self.assertEqual(float(updated.experience), 5.0)
+        self.assertIn("Max Experience: 9", updated.remarks)
+
+    def test_25_historical_job_with_only_minimum_readable_but_not_eligible_for_foundit(self):
+        """25. Historical jobs containing only a minimum experience value load cleanly but are blocked from Foundit."""
+        from applications.serializers import ApplicationSerializer
+
+        # Historical job with experience=5.0 and no max_experience in remarks or fields
+        historical_job = Application.objects.create(
+            candidate_name="",
+            position="Senior Java Developer",
+            technology="Java, Spring Boot",
+            experience=5.0,
+            country="India",
+            city="Bengaluru",
+            client_name="Global Bank",
+            remarks="[Job Details]\nJob Code: PPW-2020\nPay Rate: 1800000\nSalary Period: Per Annum\nClient Budget Confirmed: Yes"
+        )
+
+        # Serializer reads historical record without error
+        serializer = ApplicationSerializer(instance=historical_job)
+        self.assertEqual(float(serializer.data["experience"]), 5.0)
+
+        # But Foundit publication is safely blocked
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(historical_job)
+        self.assertIn("foundit requires both minexperience and maxexperience", str(ctx.exception).lower())
+
+    def test_26_existing_non_foundit_workflows_continue_without_max_experience(self):
+        """26. Existing non-Foundit job creation and updates continue to succeed without max_experience."""
+        from applications.serializers import ApplicationSerializer
+
+        base_data = {
+            "client_name": "Standard Client",
+            "position": "Frontend Developer",
+            "technology": "React, TypeScript",
+            "country": "India",
+            "city": "Bengaluru",
+            "experience": 2.5
+        }
+        s = ApplicationSerializer(data=base_data)
+        self.assertTrue(s.is_valid(), f"Standard creation failed: {s.errors}")
+        app = s.save()
+        self.assertEqual(float(app.experience), 2.5)
+
+        # Foundit publication attempt fails if max_experience is missing
+        s_foundit = ApplicationSerializer(instance=app, data={**base_data, "publish_to_foundit": True})
+        self.assertFalse(s_foundit.is_valid())
+        self.assertIn("max_experience", s_foundit.errors)
+
 
 
 from applications.integrations.foundit.candidate_ingestion import (
