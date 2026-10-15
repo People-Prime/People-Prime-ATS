@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Count, Q, Exists, OuterRef, Prefetch
 from django.utils import timezone
-from applications.models import Application, Note, CareerPortalApplicant
+from applications.models import Application, Note, CareerPortalApplicant, JobBoardPosting
 from applications.serializers import (
     ApplicationSerializer, ApplicationCreateSerializer, NoteSerializer,
     CareerPortalApplicantSerializer
@@ -441,12 +441,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 to_attr='status_notes'
             )
             return qs.select_related('assigned_employee') \
-                     .prefetch_related(status_notes_prefetch) \
+                     .prefetch_related(status_notes_prefetch, 'job_board_postings') \
                      .defer('ai_job_embedding', 'ai_job_embedding_nemotron',
                             'ai_job_embedding_metadata', 'job_embedding') \
                      .order_by('-created_at')
 
-        return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author').order_by('-created_at')
+        return qs.select_related('assigned_employee').prefetch_related('notes', 'notes__author', 'job_board_postings').order_by('-created_at')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -666,16 +666,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if not email or not phone:
             return Response({'exists': False}, status=status.HTTP_200_OK)
 
-        qs = Application.objects.exclude(candidate_name='').filter(
+        matching_apps = list(Application.objects.exclude(candidate_name='').filter(
             candidate_email__iexact=email.strip(),
             candidate_phone=phone.strip()
-        )
-        if not qs.exists():
+        ).defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding'))
+
+        if not matching_apps:
             return Response({'exists': False}, status=status.HTTP_200_OK)
 
-        candidate = qs.first()
+        candidate = matching_apps[0]
         assigned_jobs = []
-        for app in qs:
+        for app in matching_apps:
             if app.position and app.client_name:
                 assigned_jobs.append({
                     'position': app.position.lower().strip(),
@@ -1313,14 +1314,35 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         extract_job_code_fast = self.extract_job_code_fast
 
-        apps_tuples = list(Application.objects.values_list(
+        apps_tuples = []
+        app_job_codes = {}
+        app_created_dates = {}
+        candidate_groups = defaultdict(list)
+        group_has_real_job = defaultdict(bool)
+
+        for row in Application.objects.values_list(
             'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
             'remarks', 'recruiter', 'assigned_employee__email', 'status', 'modified_by', 'created_at'
-        ))
+        ).iterator(chunk_size=4000):
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = row
+            code = extract_job_code_fast(remarks)
+            app_job_codes[app_id] = code
+            c_date = created_at.strftime('%Y-%m-%d') if created_at else ''
+            app_created_dates[app_id] = c_date
 
-        notes_tuples = list(Note.objects.filter(content__istartswith='Status updated to ').values_list('application_id', 'content', 'created_at').order_by('created_at'))
+            item = (app_id, cand_name, cand_email, pos, client, code, rec, emp_email, app_status, mod_by, created_at)
+            apps_tuples.append(item)
+
+            if cand_name:
+                k = (cand_email or '').lower().strip() or cand_name.lower().strip()
+                candidate_groups[k].append(item)
+                if code != 'N/A':
+                    group_has_real_job[k] = True
+
         notes_map = defaultdict(dict)
-        for app_id, content, created_at in notes_tuples:
+        for app_id, content, created_at in Note.objects.filter(
+            content__istartswith='Status updated to '
+        ).values_list('application_id', 'content', 'created_at').order_by('created_at').iterator(chunk_size=4000):
             c_lower = (content or '').strip().lower()
             for st_key, prefix in TARGET_STATUS_PREFIXES:
                 if c_lower.startswith(prefix):
@@ -1328,45 +1350,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     notes_map[app_id][st_key] = (d_str, created_at)
                     break
 
-        # Submission metrics must be based on actual Submitted transitions in the
-
-        # requested date range, not on global candidate/job deduplication.
-
         submitted_app_ids = set()
-
         for app_id, status_map in notes_map.items():
-
             submitted_info = status_map.get('submitted')
-
             if not submitted_info:
-
                 continue
-
             submitted_date = submitted_info[0]
-
             if submitted_date and (not start_date or not end_date or (start_date <= submitted_date <= end_date)):
-
                 submitted_app_ids.add(app_id)
 
         users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']).values_list('email', 'full_name'))
-
-        app_job_codes = {}
-        app_created_dates = {}
-        candidate_groups = defaultdict(list)
-        group_has_real_job = defaultdict(bool)
-
-        for item in apps_tuples:
-            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = item
-            code = extract_job_code_fast(remarks)
-            app_job_codes[app_id] = code
-            c_date = created_at.strftime('%Y-%m-%d') if created_at else ''
-            app_created_dates[app_id] = c_date
-
-            if cand_name:
-                k = (cand_email or '').lower().strip() or cand_name.lower().strip()
-                candidate_groups[k].append(item)
-                if code != 'N/A':
-                    group_has_real_job[k] = True
 
         deduplicated_apps = []
         for item in apps_tuples:
@@ -1702,45 +1695,49 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         users = list(User.objects.filter(is_active=True).exclude(role__in=['ADMIN', 'REPORTING_TEAM']))
         target_names = [u.full_name.lower().strip() for u in users if u.email.lower().strip() in target_emails and u.full_name]
 
-        apps_tuples = list(Application.objects.values_list(
+        extract_job_code_fast = self.extract_job_code_fast
+
+        apps_tuples = []
+        candidate_groups = defaultdict(list)
+        for row in Application.objects.values_list(
             'id', 'candidate_name', 'candidate_email', 'position', 'client_name',
             'remarks', 'recruiter', 'assigned_employee__email', 'status', 'modified_by', 'created_at'
-        ))
+        ).iterator(chunk_size=4000):
+            app_id, cand_name, cand_email, pos, client, remarks, rec, emp_email, app_status, mod_by, created_at = row
+            code = extract_job_code_fast(remarks)
+            item = (app_id, cand_name, cand_email, pos, client, code, rec, emp_email, app_status, mod_by, created_at)
+            apps_tuples.append(item)
+            if cand_name:
+                k = (cand_email or '').lower().strip() or cand_name.lower().strip()
+                candidate_groups[k].append(item)
 
-        notes_qs = Note.objects.filter(content__istartswith='Status updated to ').values('application_id', 'content', 'created_at')
-        notes_dict = defaultdict(list)
-        for n in notes_qs:
-            notes_dict[n['application_id']].append(n)
+        DRILLDOWN_STATUS_PREFIXES = (
+            ('submitted', 'status updated to submitted'),
+            ('interview scheduled', 'status updated to interview scheduled'),
+            ('interview completed', 'status updated to interview completed'),
+            ('offer sent', 'status updated to offer sent'),
+            ('offer accepted', 'status updated to offer accepted'),
+            ('placed', 'status updated to placed'),
+            ('rejected', 'status updated to rejected'),
+        )
 
-        def get_remark_field(remarks, field_name):
-            if not remarks:
+        notes_map = defaultdict(dict)
+        for app_id, content, created_at in Note.objects.filter(
+            content__istartswith='Status updated to '
+        ).values_list('application_id', 'content', 'created_at').order_by('created_at').iterator(chunk_size=4000):
+            c_lower = (content or '').strip().lower()
+            for st_key, prefix in DRILLDOWN_STATUS_PREFIXES:
+                if c_lower.startswith(prefix):
+                    d_str = created_at.strftime('%Y-%m-%d') if created_at else ''
+                    notes_map[app_id][st_key] = (d_str, created_at)
+                    break
+
+        def get_remark_field(remarks_or_code, field_name):
+            if field_name == 'Job Code':
+                if remarks_or_code and str(remarks_or_code) != 'N/A' and str(remarks_or_code).upper().startswith('PPW'):
+                    return str(remarks_or_code)
                 return 'N/A'
-
-            matches = re.finditer(
-                r'^' + re.escape(field_name) + r':[ \\t]*(.*)$',
-                remarks,
-                re.M | re.I
-            )
-
-            for match in matches:
-                val = match.group(1).strip()
-
-                if field_name == 'Job Code':
-                    if val and val.upper().startswith('PPW'):
-                        return val
-                    continue
-
-                if val:
-                    return val
-
             return 'N/A'
-
-        candidate_groups = defaultdict(list)
-        for a in apps_tuples:
-            if not a[1]:
-                continue
-            k = (a[2] or '').lower().strip() or (a[1] or '').lower().strip()
-            candidate_groups[k].append(a)
 
         deduplicated_apps = []
         for a in apps_tuples:
@@ -1802,13 +1799,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             return candidates[0]
 
         def get_status_transition_info(app_tuple, target_status):
-            app_notes = notes_dict.get(app_tuple[0], [])
-            target_prefix = f'status updated to {target_status}'.lower()
-            matching_notes = [n for n in app_notes if (n['content'] or '').strip().lower().startswith(target_prefix)]
-            if matching_notes:
-                matching_notes.sort(key=lambda n: n['created_at'], reverse=True)
-                return (matching_notes[0]['created_at'].strftime('%Y-%m-%d'), True, matching_notes[0]['created_at'])
-            if (app_tuple[8] or '').lower() == target_status.lower():
+            app_n = notes_map.get(app_tuple[0])
+            target_lower = target_status.lower()
+            if app_n and target_lower in app_n:
+                d_str, dt = app_n[target_lower]
+                return (d_str, True, dt)
+            if (app_tuple[8] or '').lower() == target_lower:
                 return (app_tuple[10].strftime('%Y-%m-%d') if app_tuple[10] else '', False, app_tuple[10])
             return ('', False, None)
 
@@ -1871,6 +1867,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
             needed_instances = {
                 app.id: app for app in Application.objects.filter(id__in=all_needed_ids)
+                .annotate(publish_to_foundit_annotated=Exists(JobBoardPosting.objects.filter(job=OuterRef('pk'), job_board='Foundit')))
                 .select_related('assigned_employee')
                 .prefetch_related(status_notes_prefetch)
                 .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')
@@ -1944,6 +1941,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         matched_ids = [a[0] for a in matched]
         needed_instances = {
             app.id: app for app in Application.objects.filter(id__in=matched_ids)
+            .annotate(publish_to_foundit_annotated=Exists(JobBoardPosting.objects.filter(job=OuterRef('pk'), job_board='Foundit')))
             .select_related('assigned_employee')
             .prefetch_related(status_notes_prefetch)
             .defer('ai_job_embedding', 'ai_job_embedding_nemotron', 'ai_job_embedding_metadata', 'job_embedding')

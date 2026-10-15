@@ -189,11 +189,16 @@ class ApplicationSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         try:
-            from applications.models import JobBoardPosting
-            ret['publish_to_foundit'] = JobBoardPosting.objects.filter(
-                job=instance,
-                job_board='Foundit'
-            ).exists()
+            if hasattr(instance, '_prefetched_objects_cache') and 'job_board_postings' in instance._prefetched_objects_cache:
+                ret['publish_to_foundit'] = any(p.job_board == 'Foundit' for p in instance.job_board_postings.all())
+            elif getattr(instance, 'publish_to_foundit_annotated', None) is not None:
+                ret['publish_to_foundit'] = bool(instance.publish_to_foundit_annotated)
+            else:
+                from applications.models import JobBoardPosting
+                ret['publish_to_foundit'] = JobBoardPosting.objects.filter(
+                    job=instance,
+                    job_board='Foundit'
+                ).exists()
         except Exception:
             ret['publish_to_foundit'] = False
         return ret

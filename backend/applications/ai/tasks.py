@@ -1,7 +1,5 @@
 import logging
 from celery import shared_task
-from applications.ai.service import process_applicant_ai_match
-
 from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger(__name__)
@@ -13,6 +11,7 @@ def score_applicant_resume_task(self, applicant_id: int):
     asynchronously to score candidate resumes against job descriptions.
     """
     try:
+        from applications.ai.service import process_applicant_ai_match
         logger.info(f"[AI Task] Triggered background AI scoring for Applicant ID={applicant_id}")
         score = process_applicant_ai_match(applicant_id)
         return score

@@ -216,3 +216,25 @@ MEDIA_URL = '/media/'
 # Local fallback root
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Optional Diagnostic Memory Profiling (Disabled by default in production)
+ENABLE_PROFILING = os.getenv('ATS_ENABLE_PROFILING', 'False') == 'True'
+PROFILING_USE_TRACEMALLOC = os.getenv('ATS_PROFILING_TRACEMALLOC', 'False') == 'True'
+if ENABLE_PROFILING:
+    MIDDLEWARE.insert(0, 'ats_backend.profiling_middleware.MemoryProfilingMiddleware')
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'loggers': {
+            'ats.profiling': {
+                'handlers': ['console'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+        },
+    }
+
