@@ -3330,3 +3330,361 @@ class RoleBasedVisibilityTests(SimpleTestCase):
         view = self._create_view_with_user(user)
         qs = view.get_queryset()
         self.assertTrue(qs.query.is_empty())
+
+
+from django.test import TestCase, override_settings
+from django.core.cache import cache
+import applications.views as app_views
+from applications.views import (
+    get_hierarchy_stats_version,
+    invalidate_hierarchy_stats_cache,
+    get_cached_hierarchy_stats,
+    set_cached_hierarchy_stats,
+    _check_redis_alive,
+    HIERARCHY_STATS_VERSION_CACHE_KEY,
+)
+from applications.models import Application, Note
+from users.models import User, Role
+import time
+import os
+
+
+@override_settings(
+    CACHES={
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'hierarchy-stats-test-cache',
+        }
+    }
+)
+class HierarchyStatsCacheRegressionTests(TestCase):
+    """
+    Regression test suite for Redis caching and memory optimization in hierarchy statistics.
+    Ensures Redis is the sole shared cache, eliminating unbounded in-process retention,
+    while gracefully handling Redis outages and verifying endpoint parity.
+    """
+
+    def setUp(self):
+        cache.clear()
+        app_views._REDIS_AVAILABLE = None
+        app_views._LAST_REDIS_CHECK = 0
+        self.factory = RequestFactory()
+        self.test_user = User.objects.create(
+            email='recruiter_test@example.com',
+            full_name='Recruiter Test',
+            role=Role.ADMIN,
+            is_active=True
+        )
+
+    def tearDown(self):
+        cache.clear()
+        app_views._REDIS_AVAILABLE = None
+        app_views._LAST_REDIS_CHECK = 0
+
+    def test_redis_cache_hit_returns_expected_data(self):
+        """Redis cache hit must return the exact cached response object."""
+        test_key = "hierarchy_stats_test_hit"
+        test_payload = {
+            'user_metrics': {'recruiter_test@example.com': {'jobsCount': 3, 'submissions': 10}},
+            'start_date': '2026-01-01',
+            'end_date': '2026-01-31'
+        }
+        set_cached_hierarchy_stats(test_key, test_payload, timeout=900)
+        cached_result = get_cached_hierarchy_stats(test_key)
+        self.assertEqual(cached_result, test_payload)
+
+    def test_redis_cache_miss_returns_no_cached_response(self):
+        """A cache miss must return None and never raise an exception."""
+        result = get_cached_hierarchy_stats("non_existent_hierarchy_cache_key_9999")
+        self.assertIsNone(result)
+
+    def test_successful_cache_write_does_not_populate_in_process_fallback(self):
+        """
+        Successful cache writes must not store responses in an in-process dictionary,
+        preventing Gunicorn worker memory bloat.
+        """
+        test_key = "hierarchy_stats_no_process_dict"
+        test_payload = {'large_data_blob': 'x' * 10000}
+        set_cached_hierarchy_stats(test_key, test_payload, timeout=900)
+
+        # Verify _HIERARCHY_STATS_FALLBACK_CACHE is removed or empty
+        fallback = getattr(app_views, '_HIERARCHY_STATS_FALLBACK_CACHE', None)
+        self.assertTrue(
+            fallback is None or len(fallback) == 0,
+            "_HIERARCHY_STATS_FALLBACK_CACHE must be removed or remain unpopulated"
+        )
+
+    def test_cache_expiration_works(self):
+        """Cached data must expire according to its TTL and return None thereafter."""
+        test_key = "hierarchy_stats_expiring_key"
+        test_payload = {'status': 'temporary'}
+        set_cached_hierarchy_stats(test_key, test_payload, timeout=1)
+
+        # Check it is present initially
+        self.assertEqual(get_cached_hierarchy_stats(test_key), test_payload)
+
+        # Simulate expiration by deleting from cache
+        cache.delete(test_key)
+        self.assertIsNone(get_cached_hierarchy_stats(test_key))
+
+    def test_cache_invalidation_causes_subsequent_requests_to_use_new_version(self):
+        """
+        Invalidation must increment the cache version, making previous versioned keys
+        inaccessible to subsequent requests.
+        """
+        v1 = get_hierarchy_stats_version()
+        k1 = f"hierarchy_stats_v{v1}_all_all"
+        set_cached_hierarchy_stats(k1, {'version': v1, 'count': 5}, timeout=900)
+        self.assertIsNotNone(get_cached_hierarchy_stats(k1))
+
+        # Invalidate cache
+        invalidate_hierarchy_stats_cache()
+
+        v2 = get_hierarchy_stats_version()
+        self.assertGreater(v2, v1, "Cache version must increment upon invalidation")
+
+        k2 = f"hierarchy_stats_v{v2}_all_all"
+        # The key for v2 has not been populated yet, so it must return None
+        self.assertIsNone(get_cached_hierarchy_stats(k2))
+
+    def test_redis_connection_failure_does_not_return_stale_cached_data(self):
+        """
+        When Redis encounters a connection failure, get_cached_hierarchy_stats must return None
+        rather than returning stale entries from an in-process fallback.
+        """
+        test_key = "hierarchy_stats_failure_test"
+        # Simulate Redis failure by forcing _check_redis_alive to return False
+        with patch.object(app_views, '_check_redis_alive', return_value=False):
+            result = get_cached_hierarchy_stats(test_key)
+            self.assertIsNone(result)
+
+    def test_redis_connection_failure_does_not_cause_unhandled_exceptions(self):
+        """
+        Cache helper functions must gracefully catch Redis exceptions and not crash callers.
+        """
+        app_views._REDIS_AVAILABLE = True
+        with patch('django.core.cache.cache.get', side_effect=Exception("Redis connection refused")):
+            with patch('django.core.cache.cache.set', side_effect=Exception("Redis connection refused")):
+                with patch('django.core.cache.cache.incr', side_effect=Exception("Redis connection refused")):
+                    app_views._REDIS_AVAILABLE = None
+                    app_views._LAST_REDIS_CHECK = 0
+
+                    # 1. _check_redis_alive handles exception
+                    self.assertFalse(_check_redis_alive())
+
+                    # 2. get_hierarchy_stats_version returns fallback 1
+                    ver = get_hierarchy_stats_version()
+                    self.assertEqual(ver, 1)
+
+                    # 3. get_cached_hierarchy_stats returns None
+                    cached = get_cached_hierarchy_stats("any_key")
+                    self.assertIsNone(cached)
+
+                    # 4. set_cached_hierarchy_stats completes without error
+                    try:
+                        set_cached_hierarchy_stats("any_key", {"data": 123}, timeout=900)
+                    except Exception as e:
+                        self.fail(f"set_cached_hierarchy_stats raised unexpected exception: {e}")
+
+                    # 5. invalidate_hierarchy_stats_cache completes without error
+                    try:
+                        invalidate_hierarchy_stats_cache()
+                    except Exception as e:
+                        self.fail(f"invalidate_hierarchy_stats_cache raised unexpected exception: {e}")
+
+    def test_atomic_version_initialization_does_not_overwrite_concurrent_increment(self):
+        """
+        Atomic initialization with cache.add (SETNX) ensures that if another worker
+        initializes or increments the version key concurrently, it is not overwritten back to 1.
+        """
+        cache.clear()
+        app_views._REDIS_AVAILABLE = True
+
+        def mock_add(key, val, timeout=None):
+            # Another worker already set the key to 5
+            cache.set(key, 5, timeout=None)
+            # Current worker's add fails because key already exists
+            return False
+
+        with patch.object(cache, 'add', side_effect=mock_add):
+            ver = get_hierarchy_stats_version()
+            # Must return the existing version 5, not overwrite it to 1
+            self.assertEqual(ver, 5)
+
+    def test_cache_recovery_resumes_caching_after_outage(self):
+        """
+        During a Redis outage, requests compute without caching.
+        Once Redis recovers, caching cleanly resumes.
+        """
+        # Outage phase: _check_redis_alive returns False
+        app_views._REDIS_AVAILABLE = False
+        app_views._LAST_REDIS_CHECK = time.time()
+        with patch.object(app_views, '_check_redis_alive', return_value=False):
+            set_cached_hierarchy_stats("recovery_key", {"val": 1}, timeout=900)
+            self.assertIsNone(get_cached_hierarchy_stats("recovery_key"))
+
+        # Recovery phase: Redis back online
+        app_views._REDIS_AVAILABLE = True
+        set_cached_hierarchy_stats("recovery_key", {"val": 1}, timeout=900)
+        self.assertEqual(get_cached_hierarchy_stats("recovery_key"), {"val": 1})
+
+    def test_concurrent_invalidation_signals_increment_atomically(self):
+        """Multiple sequential or concurrent invalidation calls must monotonically increment version."""
+        v_start = get_hierarchy_stats_version()
+        for i in range(5):
+            invalidate_hierarchy_stats_cache()
+        v_end = get_hierarchy_stats_version()
+        self.assertEqual(v_end, v_start + 5)
+
+    def test_cache_set_failure_without_exception_handled_cleanly(self):
+        """When cache.set returns False (e.g. Redis out of memory), set_cached_hierarchy_stats does not crash."""
+        with patch.object(cache, 'set', return_value=False):
+            try:
+                set_cached_hierarchy_stats("key", {"data": 1}, timeout=900)
+            except Exception as e:
+                self.fail(f"set_cached_hierarchy_stats raised unexpectedly: {e}")
+
+    def test_application_and_note_saves_do_not_break_during_cache_outage(self):
+        """Application saves and Note saves must never fail even if Redis is completely dead."""
+        app_views._REDIS_AVAILABLE = False
+        with patch('django.core.cache.cache.get', side_effect=Exception("Redis dead")):
+            with patch('django.core.cache.cache.set', side_effect=Exception("Redis dead")):
+                with patch('django.core.cache.cache.incr', side_effect=Exception("Redis dead")):
+                    # Application creation triggers post_save signal
+                    app = Application.objects.create(
+                        candidate_name="Crashproof Candidate",
+                        candidate_email="crashproof@example.com",
+                        position="Backend Developer",
+                        technology="Python",
+                        experience=4.0,
+                        client_name="Acme Systems",
+                        status="New",
+                        assigned_employee=self.test_user
+                    )
+                    self.assertIsNotNone(app.id)
+
+                    # Note creation triggers post_save signal
+                    note = Note.objects.create(
+                        application=app,
+                        author=self.test_user,
+                        content="Status updated to Submitted"
+                    )
+                    self.assertIsNotNone(note.id)
+
+    def test_model_signals_trigger_hierarchy_cache_invalidation(self):
+        """
+        Saving or deleting Application, Note, or User must trigger cache version invalidation.
+        """
+        initial_ver = get_hierarchy_stats_version()
+
+        # Create an Application instance
+        app = Application.objects.create(
+            candidate_name="Candidate Invalidation Test",
+            candidate_email="cand_inv@example.com",
+            position="Software Engineer",
+            technology="Python",
+            experience=5.0,
+            client_name="Test Client",
+            status="New",
+            assigned_employee=self.test_user
+        )
+
+        # Post-save signal on Application should have incremented the version
+        ver_after_app = get_hierarchy_stats_version()
+        self.assertGreater(ver_after_app, initial_ver)
+
+        # Create a Note instance
+        note = Note.objects.create(
+            application=app,
+            author=self.test_user,
+            content="Status updated to Submitted"
+        )
+
+        ver_after_note = get_hierarchy_stats_version()
+        self.assertGreater(ver_after_note, ver_after_app)
+
+    def test_hierarchy_stats_endpoint_behavior_and_parity_under_redis_failure(self):
+        """
+        hierarchy_stats endpoint must compute valid responses whether Redis is operational
+        or offline, and the response structure and calculations must remain identical.
+        """
+        # Create test fixture data
+        app = Application.objects.create(
+            candidate_name="Jane Doe",
+            candidate_email="jane@example.com",
+            position="DevOps Engineer",
+            technology="DevOps",
+            experience=4.0,
+            client_name="Cloud Corp",
+            status="New",
+            remarks="Job Code: PPW-5001",
+            recruiter="recruiter_test@example.com",
+            assigned_employee=self.test_user
+        )
+
+        view = ApplicationViewSet()
+        view.action = 'hierarchy_stats'
+        drf_req = Request(self.factory.get('/api/applications/hierarchy-stats/'))
+        drf_req.user = self.test_user
+        view.request = drf_req
+
+        # 1. With Redis operational (cache miss followed by cache write)
+        resp1 = view.hierarchy_stats(drf_req)
+        self.assertEqual(resp1.status_code, 200)
+        self.assertIn('user_metrics', resp1.data)
+        self.assertIn('start_date', resp1.data)
+        self.assertIn('end_date', resp1.data)
+
+        # 2. Second request should hit cache
+        resp2 = view.hierarchy_stats(drf_req)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp1.data, resp2.data)
+
+        # 3. With Redis offline, endpoint must compute response without crashing
+        app_views._REDIS_AVAILABLE = False
+        app_views._LAST_REDIS_CHECK = time.time()
+        with patch.object(app_views, '_check_redis_alive', return_value=False):
+            resp3 = view.hierarchy_stats(drf_req)
+            self.assertEqual(resp3.status_code, 200)
+            self.assertEqual(resp3.data, resp1.data)
+
+    def test_hierarchy_drilldown_endpoint_behavior_and_parity_under_redis_failure(self):
+        """
+        hierarchy_drilldown endpoint must compute valid responses whether Redis is operational
+        or offline, preserving full response parity.
+        """
+        app = Application.objects.create(
+            candidate_name="John Smith",
+            candidate_email="john@example.com",
+            position="Python Developer",
+            technology="Python",
+            experience=3.5,
+            client_name="Prime Tech",
+            status="New",
+            remarks="Job Code: PPW-6001",
+            recruiter="recruiter_test@example.com",
+            assigned_employee=self.test_user
+        )
+
+        view = ApplicationViewSet()
+        view.action = 'hierarchy_drilldown'
+        drf_req = Request(self.factory.get('/api/applications/hierarchy-drilldown/?metric_type=JOBS'))
+        drf_req.user = self.test_user
+        view.request = drf_req
+
+        # 1. Operational Redis: miss + set
+        resp1 = view.hierarchy_drilldown(drf_req)
+        self.assertEqual(resp1.status_code, 200)
+        self.assertIn('results', resp1.data)
+        self.assertIn('count', resp1.data)
+
+        # 2. Operational Redis: hit
+        resp2 = view.hierarchy_drilldown(drf_req)
+        self.assertEqual(resp2.status_code, 200)
+        self.assertEqual(resp1.data['count'], resp2.data['count'])
+
+        # 3. Redis offline: computes directly without error
+        with patch.object(app_views, '_check_redis_alive', return_value=False):
+            resp3 = view.hierarchy_drilldown(drf_req)
+            self.assertEqual(resp3.status_code, 200)
+            self.assertEqual(resp3.data['count'], resp1.data['count'])

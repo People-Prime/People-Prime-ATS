@@ -203,9 +203,9 @@ from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 import time
 
-# Fallback in-process cache for environments where Redis daemon is offline
-_HIERARCHY_STATS_FALLBACK_CACHE = {}
-_HIERARCHY_STATS_FALLBACK_VERSION = 1
+# Shared Redis cache is the sole cache for hierarchy stats.
+# The in-process fallback cache was removed to eliminate duplicate response retention
+# and unbounded memory growth in Gunicorn worker processes.
 HIERARCHY_STATS_VERSION_CACHE_KEY = 'HIERARCHY_STATS_CACHE_VERSION'
 
 _REDIS_AVAILABLE = None
@@ -226,53 +226,56 @@ def _check_redis_alive():
         return False
 
 def get_hierarchy_stats_version():
-    global _HIERARCHY_STATS_FALLBACK_VERSION
+    global _REDIS_AVAILABLE, _LAST_REDIS_CHECK
     if _check_redis_alive():
         try:
             ver = cache.get(HIERARCHY_STATS_VERSION_CACHE_KEY)
             if ver is None:
-                ver = 1
-                cache.set(HIERARCHY_STATS_VERSION_CACHE_KEY, ver, timeout=None)
-            return ver
+                # Atomic initialization using cache.add (SETNX) to avoid overwriting concurrent increments
+                cache.add(HIERARCHY_STATS_VERSION_CACHE_KEY, 1, timeout=None)
+                ver = cache.get(HIERARCHY_STATS_VERSION_CACHE_KEY)
+            return int(ver) if ver is not None else 1
         except Exception:
-            pass
-    return _HIERARCHY_STATS_FALLBACK_VERSION
+            _REDIS_AVAILABLE = False
+            _LAST_REDIS_CHECK = time.time()
+    return 1
 
 def invalidate_hierarchy_stats_cache(sender=None, **kwargs):
-    global _HIERARCHY_STATS_FALLBACK_VERSION, _HIERARCHY_STATS_FALLBACK_CACHE
-    _HIERARCHY_STATS_FALLBACK_VERSION += 1
-    _HIERARCHY_STATS_FALLBACK_CACHE.clear()
+    global _REDIS_AVAILABLE, _LAST_REDIS_CHECK
     if _check_redis_alive():
         try:
             cache.incr(HIERARCHY_STATS_VERSION_CACHE_KEY)
-        except Exception:
+        except ValueError:
+            # Key not found in cache; initialize atomically
             try:
-                cache.set(HIERARCHY_STATS_VERSION_CACHE_KEY, int(time.time()), timeout=None)
+                added = cache.add(HIERARCHY_STATS_VERSION_CACHE_KEY, int(time.time()), timeout=None)
+                if not added:
+                    cache.incr(HIERARCHY_STATS_VERSION_CACHE_KEY)
             except Exception:
-                pass
+                _REDIS_AVAILABLE = False
+                _LAST_REDIS_CHECK = time.time()
+        except Exception:
+            _REDIS_AVAILABLE = False
+            _LAST_REDIS_CHECK = time.time()
 
 def get_cached_hierarchy_stats(cache_key):
+    global _REDIS_AVAILABLE, _LAST_REDIS_CHECK
     if _check_redis_alive():
         try:
             return cache.get(cache_key)
         except Exception:
-            pass
-    entry = _HIERARCHY_STATS_FALLBACK_CACHE.get(cache_key)
-    if entry is not None:
-        val, expiry = entry
-        if time.time() < expiry:
-            return val
-        _HIERARCHY_STATS_FALLBACK_CACHE.pop(cache_key, None)
+            _REDIS_AVAILABLE = False
+            _LAST_REDIS_CHECK = time.time()
     return None
 
 def set_cached_hierarchy_stats(cache_key, data, timeout=900):
+    global _REDIS_AVAILABLE, _LAST_REDIS_CHECK
     if _check_redis_alive():
         try:
             cache.set(cache_key, data, timeout=timeout)
         except Exception:
-            pass
-    expiry = time.time() + timeout if timeout is not None else float('inf')
-    _HIERARCHY_STATS_FALLBACK_CACHE[cache_key] = (data, expiry)
+            _REDIS_AVAILABLE = False
+            _LAST_REDIS_CHECK = time.time()
 
 @receiver(post_save, sender=Application)
 @receiver(post_delete, sender=Application)
