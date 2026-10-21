@@ -3980,43 +3980,52 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         from rest_framework.test import APIClient
         client = APIClient()
 
-        # 1. Admin user can successfully queue sync
+        # 0. Live sync disabled by default: endpoint rejects safely with 400 and LIVE_SYNC_DISABLED
         client.force_authenticate(user=self.admin_user)
         with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
-            mock_delay.return_value = MagicMock(id="celery-task-12345")
-            res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
-            self.assertEqual(res.status_code, 202)
-            self.assertTrue(res.data.get("success"))
-            self.assertEqual(res.data.get("status"), "QUEUED")
-            self.assertEqual(res.data.get("folder_id"), "987654321")
-            mock_delay.assert_called_once_with("987654321")
+            res_disabled = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+            self.assertEqual(res_disabled.status_code, 400)
+            self.assertFalse(res_disabled.data.get("success"))
+            self.assertEqual(res_disabled.data.get("code"), "LIVE_SYNC_DISABLED")
+            mock_delay.assert_not_called()
 
-        # 2. Team Lead can also call it
-        client.force_authenticate(user=self.team_lead_user)
-        with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
-            mock_delay.return_value = MagicMock(id="celery-task-67890")
-            res2 = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
-            self.assertEqual(res2.status_code, 202)
+        # 1. When live sync is enabled, Admin user can successfully queue sync
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"}):
+            with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+                mock_delay.return_value = MagicMock(id="celery-task-12345")
+                res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+                self.assertEqual(res.status_code, 202)
+                self.assertTrue(res.data.get("success"))
+                self.assertEqual(res.data.get("status"), "QUEUED")
+                self.assertEqual(res.data.get("folder_id"), "987654321")
+                mock_delay.assert_called_once_with("987654321")
 
-        # 3. Associate Analyst receives 403 Forbidden
-        client.force_authenticate(user=self.associate_user)
-        res3 = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
-        self.assertEqual(res3.status_code, 403)
+            # 2. Team Lead can also call it when live sync is enabled
+            client.force_authenticate(user=self.team_lead_user)
+            with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+                mock_delay.return_value = MagicMock(id="celery-task-67890")
+                res2 = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+                self.assertEqual(res2.status_code, 202)
 
-        # 4. Job without published Foundit posting receives 400 Bad Request
-        client.force_authenticate(user=self.admin_user)
-        unpub_job = Application.objects.create(
-            candidate_name="",
-            position="Unpublished Job",
-            technology="Go",
-            experience=2.0,
-            city="Hyderabad",
-            state="Telangana",
-            client_name="Test Client"
-        )
-        res4 = client.post(f"/api/applications/{unpub_job.id}/sync-foundit/")
-        self.assertEqual(res4.status_code, 400)
-        self.assertIn("does not have an active published Foundit posting", res4.data.get("error"))
+            # 3. Associate Analyst receives 403 Forbidden even when live sync is enabled
+            client.force_authenticate(user=self.associate_user)
+            res3 = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+            self.assertEqual(res3.status_code, 403)
+
+            # 4. Job without published Foundit posting receives 400 Bad Request
+            client.force_authenticate(user=self.admin_user)
+            unpub_job = Application.objects.create(
+                candidate_name="",
+                position="Unpublished Job",
+                technology="Go",
+                experience=2.0,
+                city="Hyderabad",
+                state="Telangana",
+                client_name="Test Client"
+            )
+            res4 = client.post(f"/api/applications/{unpub_job.id}/sync-foundit/")
+            self.assertEqual(res4.status_code, 400)
+            self.assertIn("does not have an active published Foundit posting", res4.data.get("error"))
 
     def test_serializer_exposes_foundit_identifiers(self):
         """Test CareerPortalApplicantSerializer includes foundit_application_id and foundit_candidate_id."""
@@ -4349,3 +4358,108 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
                 foundit_application_id="APP-TX-TEST-2"
             )
             self.assertIsNotNone(post_check_applicant.id)
+
+    def test_disabled_scheduled_sync_exits_safely_without_checkpoint_or_counter_modification(self):
+        """When live sync is disabled, periodic sync exits safely without altering checkpoints or counters."""
+        from django.core.cache import cache
+        initial_synced_at = timezone.now() - datetime.timedelta(hours=2)
+        self.posting.last_synced_at = initial_synced_at
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        cache.delete(counter_key)
+
+        # Execute scheduled sync (FOUNDIT_LIVE_APPLICATIONS_ENABLED is false by default)
+        result = FounditApplicationSyncService.sync_all_published_jobs()
+
+        self.assertTrue(result.get("skipped"))
+        self.assertIn("Live application retrieval is disabled", result.get("reason", ""))
+        self.assertEqual(result.get("total_jobs_scanned"), 0)
+
+        # Verify posting checkpoint and failure counters are completely unchanged
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_synced_at)
+        self.assertEqual(self.posting.error_message, "")
+        self.assertIsNone(cache.get(counter_key))
+
+    def test_disabled_folder_sync_exits_safely(self):
+        """When live sync is disabled, folder sync returns skipped without network calls, checkpoint drift or error counting."""
+        from django.core.cache import cache
+        from applications.integrations.foundit.client import FounditClient
+
+        initial_synced_at = timezone.now() - datetime.timedelta(hours=5)
+        self.posting.last_synced_at = initial_synced_at
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        cache.delete(counter_key)
+
+        client = FounditClient()  # live_applications_enabled is False, transport is None
+        summary = FounditApplicationSyncService.sync_applications_for_folder(
+            folder_id=self.posting.external_job_id,
+            client=client
+        )
+
+        self.assertTrue(summary.get("skipped"))
+        self.assertIn("Live application retrieval is disabled", summary.get("reason", ""))
+        self.assertFalse(summary.get("quarantined"))
+        self.assertEqual(summary.get("new_ingested"), 0)
+
+        # Database state and cache counter must remain unchanged
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_synced_at)
+        self.assertEqual(self.posting.error_message, "")
+        self.assertIsNone(cache.get(counter_key))
+
+    def test_disabled_manual_sync_endpoint_rejects_safely(self):
+        """When live sync is disabled, manual sync endpoint rejects with 400 LIVE_SYNC_DISABLED and queues nothing."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+            res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+            self.assertEqual(res.status_code, 400)
+            self.assertFalse(res.data.get("success"))
+            self.assertEqual(res.data.get("code"), "LIVE_SYNC_DISABLED")
+            self.assertIn("currently disabled in system configuration", res.data.get("error"))
+            mock_delay.assert_not_called()
+
+    def test_quarantine_recovery_with_reset_checkpoint(self):
+        """Operators can recover quarantined folders by requesting sync with reset_checkpoint=true."""
+        from django.core.cache import cache
+        from rest_framework.test import APIClient
+
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        stale_checkpoint = timezone.now() - datetime.timedelta(days=2)
+        self.posting.last_synced_at = stale_checkpoint
+        self.posting.error_message = "Quarantined 2 failed and 1 unmatched application(s) after 3 retries."
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+        cache.set(counter_key, 3)
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"}):
+            with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+                mock_delay.return_value = MagicMock(id="celery-resync-999")
+                res = client.post(
+                    f"/api/applications/{self.job.id}/sync-foundit/",
+                    data={"reset_checkpoint": True},
+                    format="json"
+                )
+                self.assertEqual(res.status_code, 202)
+                self.assertTrue(res.data.get("success"))
+                self.assertTrue(res.data.get("reset_checkpoint"))
+                self.assertIn("full resync queued", res.data.get("message"))
+
+                # Check that task was queued with NO applications_since argument (initiating full resync)
+                mock_delay.assert_called_once_with(self.posting.external_job_id)
+
+        # Verify operator reset: checkpoint cleared, error message cleared, failure counter deleted
+        self.posting.refresh_from_db()
+        self.assertIsNone(self.posting.last_synced_at)
+        self.assertEqual(self.posting.error_message, "")
+        self.assertIsNone(cache.get(counter_key))

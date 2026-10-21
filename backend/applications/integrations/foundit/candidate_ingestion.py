@@ -293,6 +293,16 @@ class FounditApplicationSyncService:
             summary["error"] = "Invalid or empty folder_id"
             return summary
 
+        # Check if live application synchronization is enabled before attempting retrieval
+        if not getattr(client, "live_applications_enabled", False) and not getattr(client, "transport", None):
+            logger.info(
+                f"[FounditSync] Live Foundit application retrieval is disabled for folder {clean_folder_id}. "
+                "Exiting safely without incrementing failure counters or modifying checkpoints."
+            )
+            summary["skipped"] = True
+            summary["reason"] = "Live application retrieval is disabled (FOUNDIT_LIVE_APPLICATIONS_ENABLED=False)"
+            return summary
+
         # 1. Capture sync_started_at BEFORE the first API call to prevent checkpoint boundary drift
         sync_started_at = timezone.now()
 
@@ -315,6 +325,12 @@ class FounditApplicationSyncService:
                     applications_since=formatted_since
                 )
             except Exception as e:
+                from applications.integrations.foundit.client import FounditContractUnverifiedException
+                if isinstance(e, FounditContractUnverifiedException):
+                    logger.info(f"[FounditSync] Live retrieval blocked by safety guard for folder {clean_folder_id}: {e}")
+                    summary["skipped"] = True
+                    summary["reason"] = str(e)
+                    return summary
                 logger.error(f"[FounditSync] Error fetching page {page_number} for folder {clean_folder_id}: {e}")
                 summary["error"] = str(e)
                 break
@@ -425,6 +441,24 @@ class FounditApplicationSyncService:
         extracts external_job_id (folder_id), and synchronizes applications.
         Uses Redis cache lock with unique worker token to prevent overlapping runs and safe release.
         """
+        if client is None:
+            from applications.integrations.foundit.client import FounditClient
+            client = FounditClient()
+
+        if not getattr(client, "live_applications_enabled", False) and not getattr(client, "transport", None):
+            logger.info(
+                "[FounditSync] Scheduled sync skipped: Live Foundit application retrieval is disabled "
+                "(FOUNDIT_LIVE_APPLICATIONS_ENABLED=False). Exiting safely."
+            )
+            return {
+                "total_jobs_scanned": 0,
+                "job_results": [],
+                "total_new_ingested": 0,
+                "total_duplicates_skipped": 0,
+                "skipped": True,
+                "reason": "Live application retrieval is disabled (FOUNDIT_LIVE_APPLICATIONS_ENABLED=False)"
+            }
+
         import uuid
         from django.core.cache import cache
 

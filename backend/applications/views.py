@@ -2179,9 +2179,51 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Check if live application synchronization is enabled in environment configuration
+        import os
+        live_enabled = os.getenv("FOUNDIT_LIVE_APPLICATIONS_ENABLED", "False").lower() in ("true", "1")
+        if not live_enabled:
+            return Response(
+                {
+                    "success": False,
+                    "error": (
+                        "Foundit live application retrieval is currently disabled in system configuration "
+                        "(FOUNDIT_LIVE_APPLICATIONS_ENABLED=False). Enable live synchronization before "
+                        "requesting on-demand retrieval."
+                    ),
+                    "code": "LIVE_SYNC_DISABLED",
+                    "folder_id": posting.external_job_id,
+                    "job_id": job.id,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Operator recovery support: allow explicit reset of checkpoint and consecutive failure counter
+        reset_checkpoint = (
+            request.data.get("reset_checkpoint") is True
+            or str(request.query_params.get("reset_checkpoint", "")).lower() in ("true", "1")
+        )
+
+        app_since = None
+        if reset_checkpoint:
+            posting.last_synced_at = None
+            posting.error_message = ""
+            posting.save(update_fields=["last_synced_at", "error_message"])
+            from django.core.cache import cache
+            cache.delete(f"foundit_folder_consecutive_errors_{posting.external_job_id}")
+        else:
+            if posting.last_synced_at:
+                import datetime
+                from applications.integrations.foundit.candidate_ingestion import FounditApplicationSyncService
+                overlap_time = posting.last_synced_at - datetime.timedelta(minutes=FounditApplicationSyncService.OVERLAP_WINDOW_MINUTES)
+                app_since = FounditApplicationSyncService.format_applications_since(overlap_time)
+
         # Queue background task to fetch applications asynchronously
         from applications.integrations.foundit.tasks import sync_foundit_applications_task
-        task = sync_foundit_applications_task.delay(posting.external_job_id)
+        if app_since is not None:
+            task = sync_foundit_applications_task.delay(posting.external_job_id, applications_since=app_since)
+        else:
+            task = sync_foundit_applications_task.delay(posting.external_job_id)
         task_id_str = getattr(task, 'id', None) or str(task)
 
         return Response(
@@ -2191,7 +2233,12 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 "task_id": task_id_str,
                 "folder_id": posting.external_job_id,
                 "job_id": job.id,
-                "message": f"Foundit application synchronization queued for job {job.id} (folderId: {posting.external_job_id})."
+                "reset_checkpoint": reset_checkpoint,
+                "message": (
+                    f"Foundit full resync queued for job {job.id} (folderId: {posting.external_job_id})."
+                    if reset_checkpoint else
+                    f"Foundit application synchronization queued for job {job.id} (folderId: {posting.external_job_id})."
+                )
             },
             status=status.HTTP_202_ACCEPTED
         )
