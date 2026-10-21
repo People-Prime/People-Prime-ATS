@@ -4463,3 +4463,43 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         self.assertIsNone(self.posting.last_synced_at)
         self.assertEqual(self.posting.error_message, "")
         self.assertIsNone(cache.get(counter_key))
+
+    def test_client_get_applications_since_date_only_normalized_to_midnight_utc(self):
+        """FounditClient.get_applications normalizes datetime.date to midnight UTC string."""
+        mock_transport = MockTransport({"success": True, "data": {"folder_id": "987654321", "total_job_applications": 0, "applications": []}})
+        client = FounditClient(transport=mock_transport)
+        date_val = datetime.date(2026, 4, 15)
+        client.get_applications("987654321", applications_since=date_val)
+        self.assertEqual(mock_transport.last_params.get("applications_since"), "2026-04-15T00:00:00Z")
+
+    def test_client_get_applications_since_naive_datetime_assigned_utc(self):
+        """FounditClient.get_applications interprets naive datetime as UTC and formats as %Y-%m-%dT%H:%M:%SZ."""
+        mock_transport = MockTransport({"success": True, "data": {"folder_id": "987654321", "total_job_applications": 0, "applications": []}})
+        client = FounditClient(transport=mock_transport)
+        dt_naive = datetime.datetime(2026, 4, 15, 14, 30, 45)
+        client.get_applications("987654321", applications_since=dt_naive)
+        self.assertEqual(mock_transport.last_params.get("applications_since"), "2026-04-15T14:30:45Z")
+
+    def test_client_get_applications_since_aware_datetime_converted_to_utc(self):
+        """FounditClient.get_applications converts non-UTC timezone-aware datetime to UTC ISO string."""
+        mock_transport = MockTransport({"success": True, "data": {"folder_id": "987654321", "total_job_applications": 0, "applications": []}})
+        client = FounditClient(transport=mock_transport)
+        ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+        dt_ist = datetime.datetime(2026, 4, 15, 15, 30, 0, tzinfo=ist)
+        client.get_applications("987654321", applications_since=dt_ist)
+        # 15:30 IST = 10:00 UTC
+        self.assertEqual(mock_transport.last_params.get("applications_since"), "2026-04-15T10:00:00Z")
+
+    def test_client_get_applications_since_string_stripped_and_preserved(self):
+        """FounditClient.get_applications strips leading/trailing whitespace from string applications_since and preserves it."""
+        mock_transport = MockTransport({"success": True, "data": {"folder_id": "987654321", "total_job_applications": 0, "applications": []}})
+        client = FounditClient(transport=mock_transport)
+        client.get_applications("987654321", applications_since="  2026-04-15T08:00:00Z  ")
+        self.assertEqual(mock_transport.last_params.get("applications_since"), "2026-04-15T08:00:00Z")
+
+    def test_client_get_applications_since_none_omitted_from_params(self):
+        """FounditClient.get_applications omits applications_since parameter entirely when None."""
+        mock_transport = MockTransport({"success": True, "data": {"folder_id": "987654321", "total_job_applications": 0, "applications": []}})
+        client = FounditClient(transport=mock_transport)
+        client.get_applications("987654321", applications_since=None)
+        self.assertNotIn("applications_since", mock_transport.last_params)
