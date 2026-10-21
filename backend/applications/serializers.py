@@ -574,6 +574,7 @@ class CareerPortalApplicantSerializer(serializers.ModelSerializer):
             'state', 'city', 'resume', 'accepted_terms', 'source', 'status', 'modified_by',
             'is_imported', 'imported_at', 'imported_by', 'imported_application',
             'ai_match_score', 'ai_scored_at',
+            'foundit_application_id', 'foundit_candidate_id',
             'created_at', 'updated_at'
         ]
 

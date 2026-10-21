@@ -215,6 +215,16 @@ class CareerPortalApplicant(models.Model):
     # Foundit Candidate Tracking Fields
     foundit_application_id = models.CharField(max_length=100, blank=True, default='', db_index=True)
     foundit_candidate_id = models.CharField(max_length=100, blank=True, default='', db_index=True)
+    raw_profile_data = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundit_application_id'],
+                condition=models.Q(source='Foundit') & ~models.Q(foundit_application_id=''),
+                name='unique_foundit_applicant_application_id'
+            )
+        ]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.email}) - Job ID: {self.job_id}"

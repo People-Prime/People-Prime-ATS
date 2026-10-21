@@ -952,30 +952,223 @@ class FounditCandidateMapper:
     def map_foundit_application_to_applicant(application_dict, target_job):
         """
         Maps documented Foundit application response dict to CareerPortalApplicant dict.
-        Documented fields: application_id, candidate_name, application_date, application_type,
-        profile_details, resume_file_download_url.
+        Documented fields in Foundit PDF:
+        - application_id, candidate_name, application_date, application_type, resume_file_download_url
+        - profile_details:
+            - email: list of dicts [{"id": "...", "is_verified": true/false}]
+            - mobile_details: list of dicts [{"country_code": "91", "number": "...", "verified": true/false}]
+            - personal_details: list of dicts [{"first_name": "...", "last_name": "..."}]
+            - profile_id, user_id, uuid, kiwi_user_id
+            - highest_education: dict with degree, college
+            - educations: list of dicts
+            - top_qualification_name: string
+            - skills, it_skills: lists of dicts [{"text": "..."}]
+            - resume_parsed_data: dict with experience, skills_splitted, additional_parsed_data
+            - final_experience: list of dicts [{"value": float}]
+            - current_location: list of dicts [{"text": "City, State"}]
         """
-        candidate_name = application_dict.get("candidate_name") or "Candidate"
-        name_parts = candidate_name.strip().split(" ", 1)
-        first_name = name_parts[0]
-        last_name = name_parts[1] if len(name_parts) > 1 else ""
+        if not isinstance(application_dict, dict):
+            application_dict = {}
 
         profile = application_dict.get("profile_details")
         if not isinstance(profile, dict):
             profile = {}
 
-        email = profile.get("email") or profile.get("email_id") or ""
-        phone = profile.get("phone") or profile.get("mobile_number") or ""
-        qualification = profile.get("qualification") or profile.get("education") or "Not Specified"
-        experience = profile.get("years_of_experience") or profile.get("total_experience") or target_job.experience or 0
+        # 1. Candidate Name (first_name, last_name)
+        candidate_name = application_dict.get("candidate_name") or profile.get("name") or "Candidate"
+        name_parts = str(candidate_name).strip().split(" ", 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        personal_details = profile.get("personal_details")
+        if isinstance(personal_details, list) and personal_details and isinstance(personal_details[0], dict):
+            pd = personal_details[0]
+            if pd.get("first_name") and not first_name:
+                first_name = str(pd.get("first_name")).strip()
+            if pd.get("last_name") and not last_name:
+                last_name = str(pd.get("last_name")).strip()
+
+        # 2. Email Address
+        email = ""
+        raw_email = profile.get("email") or profile.get("email_id") or application_dict.get("email")
+        if isinstance(raw_email, list):
+            for item in raw_email:
+                if isinstance(item, dict):
+                    addr = item.get("id") or item.get("email")
+                    if addr and isinstance(addr, str) and "@" in addr:
+                        email = addr.strip()
+                        if item.get("is_verified"):
+                            break
+                elif isinstance(item, str) and "@" in item:
+                    email = item.strip()
+                    break
+        elif isinstance(raw_email, str) and "@" in raw_email:
+            email = raw_email.strip()
+
+        # 3. Mobile Number
+        phone = ""
+        mobile_details = profile.get("mobile_details")
+        if isinstance(mobile_details, list):
+            for item in mobile_details:
+                if isinstance(item, dict):
+                    cc = str(item.get("country_code") or "").strip().lstrip("+")
+                    num = str(item.get("number") or "").strip()
+                    if num:
+                        phone = f"+{cc}{num}" if cc else num
+                        if item.get("verified"):
+                            break
+                elif isinstance(item, str) and item.strip():
+                    phone = item.strip()
+                    break
+        if not phone:
+            raw_phone = profile.get("phone") or profile.get("mobile_number") or application_dict.get("phone") or ""
+            if isinstance(raw_phone, str):
+                phone = raw_phone.strip()
+
+        # 4. Skills (combine skills, it_skills, resume_parsed_data.skills_splitted)
+        skills_collected = []
+        for skill_key in ("skills", "it_skills"):
+            items = profile.get(skill_key)
+            if isinstance(items, list):
+                for sk in items:
+                    if isinstance(sk, dict) and sk.get("text"):
+                        skills_collected.append(str(sk.get("text")).strip())
+                    elif isinstance(sk, str) and sk.strip():
+                        skills_collected.append(sk.strip())
+
+        parsed_data = profile.get("resume_parsed_data")
+        if isinstance(parsed_data, dict):
+            split_skills = parsed_data.get("skills_splitted")
+            if isinstance(split_skills, list):
+                for sk in split_skills:
+                    if isinstance(sk, dict) and sk.get("text"):
+                        skills_collected.append(str(sk.get("text")).strip())
+                    elif isinstance(sk, str) and sk.strip():
+                        skills_collected.append(sk.strip())
+
+        # Also support legacy or fallback key_skills string
+        legacy_skills = profile.get("key_skills") or profile.get("primary_skills")
+        if isinstance(legacy_skills, str) and legacy_skills.strip():
+            for s in legacy_skills.split(","):
+                if s.strip():
+                    skills_collected.append(s.strip())
+
+        # Deduplicate skills preserving insertion order
+        seen_skills = set()
+        deduped_skills = []
+        for s in skills_collected:
+            s_lower = s.lower()
+            if s_lower not in seen_skills:
+                seen_skills.add(s_lower)
+                deduped_skills.append(s)
+
+        primary_skills = ", ".join(deduped_skills) if deduped_skills else (target_job.technology or "")
+
+        # 5. Qualification / Education
+        qualification = ""
+        top_qual = profile.get("top_qualification_name")
+        if top_qual and isinstance(top_qual, str) and top_qual.strip():
+            qualification = top_qual.strip()
+
+        if not qualification:
+            highest_edu = profile.get("highest_education")
+            if isinstance(highest_edu, dict):
+                qualification = highest_edu.get("degree") or highest_edu.get("qualification") or ""
+
+        if not qualification:
+            educations = profile.get("educations")
+            if isinstance(educations, list) and educations and isinstance(educations[0], dict):
+                qualification = educations[0].get("degree") or educations[0].get("college") or ""
+
+        if not qualification:
+            fallback_qual = profile.get("qualification") or profile.get("education")
+            if fallback_qual and isinstance(fallback_qual, str):
+                qualification = fallback_qual.strip()
+
+        if not qualification:
+            qualification = "Not Specified"
+
+        # 6. Experience (Years)
+        experience = None
+        if isinstance(parsed_data, dict) and parsed_data.get("experience") is not None:
+            experience = parsed_data.get("experience")
+
+        if experience is None:
+            final_exp = profile.get("final_experience")
+            if isinstance(final_exp, list) and final_exp and isinstance(final_exp[0], dict):
+                experience = final_exp[0].get("value")
+
+        if experience is None:
+            raw_exp = profile.get("experience")
+            if isinstance(raw_exp, list) and raw_exp and isinstance(raw_exp[0], dict):
+                experience = raw_exp[0].get("value")
+            elif isinstance(raw_exp, (int, float)):
+                experience = raw_exp
+            elif isinstance(raw_exp, str) and raw_exp.strip().replace(".", "", 1).isdigit():
+                experience = float(raw_exp.strip())
+
+        if experience is None:
+            experience = profile.get("years_of_experience") or profile.get("total_experience")
+
+        try:
+            experience = round(float(experience), 1) if experience is not None else float(target_job.experience or 0)
+        except (ValueError, TypeError):
+            experience = float(target_job.experience or 0)
+
+        # 7. Compensation
         expected_pay = profile.get("expected_salary") or profile.get("expected_pay") or 0
         current_ctc = profile.get("current_salary") or profile.get("current_ctc") or 0
-        primary_skills = profile.get("key_skills") or profile.get("primary_skills") or target_job.technology or ""
-        current_company = profile.get("current_company") or ""
-        city = profile.get("city") or target_job.city or ""
-        state = profile.get("state") or target_job.state or ""
+        try:
+            expected_pay = round(float(expected_pay), 2)
+        except (ValueError, TypeError):
+            expected_pay = 0.0
+        try:
+            current_ctc = round(float(current_ctc), 2)
+        except (ValueError, TypeError):
+            current_ctc = 0.0
 
-        resume_url = application_dict.get("resume_file_download_url") or ""
+        # 8. Current Company
+        current_company = profile.get("current_company") or ""
+        if not current_company and isinstance(parsed_data, dict):
+            add_data = parsed_data.get("additional_parsed_data")
+            if isinstance(add_data, dict):
+                current_company = add_data.get("current_employment_designation") or ""
+        if not current_company:
+            prev_emp = profile.get("previous_employments")
+            if isinstance(prev_emp, list) and prev_emp and isinstance(prev_emp[0], dict):
+                current_company = prev_emp[0].get("company_name") or prev_emp[0].get("employer") or ""
+
+        # 9. Location (City / State)
+        city = profile.get("city") or ""
+        state = profile.get("state") or ""
+        if not city:
+            current_loc = profile.get("current_location")
+            if isinstance(current_loc, list) and current_loc and isinstance(current_loc[0], dict):
+                loc_text = current_loc[0].get("text") or ""
+                if loc_text:
+                    if "," in loc_text:
+                        parts = loc_text.split(",", 1)
+                        city = parts[0].strip()
+                        if not state:
+                            state = parts[1].strip()
+                    else:
+                        city = loc_text.strip()
+        if not city:
+            city = target_job.city or ""
+        if not state:
+            state = target_job.state or ""
+
+        # 10. Foundit Identifiers & Resume
+        resume_url = str(application_dict.get("resume_file_download_url") or application_dict.get("resumeUrl") or "").strip()
+        app_id = str(application_dict.get("application_id") or application_dict.get("applicationId") or "").strip()
+        profile_id = (
+            profile.get("profile_id") or
+            application_dict.get("profile_id") or
+            profile.get("user_id") or
+            profile.get("uuid") or
+            profile.get("candidate_id") or
+            ""
+        )
 
         return {
             "job": target_job,
@@ -983,17 +1176,18 @@ class FounditCandidateMapper:
             "last_name": last_name.strip(),
             "email": email.strip().lower(),
             "mobile_number": phone.strip(),
-            "qualification": str(qualification),
+            "qualification": str(qualification)[:255],
             "years_of_experience": experience,
             "expected_pay": expected_pay,
             "primary_skills": str(primary_skills),
             "current_ctc": current_ctc,
-            "current_company": str(current_company),
-            "state": str(state),
-            "city": str(city),
+            "current_company": str(current_company)[:255],
+            "state": str(state)[:100],
+            "city": str(city)[:100],
             "resume": resume_url,
             "source": "Foundit",
             "status": "New",
-            "foundit_application_id": str(application_dict.get("application_id") or ""),
-            "foundit_candidate_id": str(profile.get("candidate_id") or "")
+            "foundit_application_id": app_id,
+            "foundit_candidate_id": str(profile_id)[:100],
+            "raw_profile_data": application_dict,
         }

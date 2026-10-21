@@ -2150,6 +2150,52 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 "error": posting.error_message or "Failed to publish job to Foundit."
             }, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], url_path='sync-foundit')
+    def sync_foundit(self, request, pk=None):
+        from users.models import Role
+        if request.user.role not in [Role.ADMIN, Role.TEAM_LEAD] and not request.user.is_superuser:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only Administrators and Team Leads are authorized to synchronize job board applications.")
+
+        job = self.get_object()
+        if job.candidate_name:
+            return Response(
+                {"success": False, "error": "Only job postings can be synchronized with Foundit."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        posting = JobBoardPosting.objects.filter(
+            job=job,
+            job_board='Foundit',
+            status='PUBLISHED'
+        ).exclude(external_job_id='').first()
+
+        if not posting:
+            return Response(
+                {
+                    "success": False,
+                    "error": f"Job {job.id} does not have an active published Foundit posting with an external folder ID."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Queue background task to fetch applications asynchronously
+        from applications.integrations.foundit.tasks import sync_foundit_applications_task
+        task = sync_foundit_applications_task.delay(posting.external_job_id)
+        task_id_str = getattr(task, 'id', None) or str(task)
+
+        return Response(
+            {
+                "success": True,
+                "status": "QUEUED",
+                "task_id": task_id_str,
+                "folder_id": posting.external_job_id,
+                "job_id": job.id,
+                "message": f"Foundit application synchronization queued for job {job.id} (folderId: {posting.external_job_id})."
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
+
 
 class CareerPortalApplicantPagination(PageNumberPagination):
     """Pagination for career portal applicants — prevents unbounded list responses."""

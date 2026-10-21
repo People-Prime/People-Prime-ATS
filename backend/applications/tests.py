@@ -3688,3 +3688,664 @@ class HierarchyStatsCacheRegressionTests(TestCase):
             resp3 = view.hierarchy_drilldown(drf_req)
             self.assertEqual(resp3.status_code, 200)
             self.assertEqual(resp3.data['count'], resp1.data['count'])
+
+
+import datetime
+from django.utils import timezone
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class FounditPhase4AApplicationRetrievalTests(TestCase):
+    def setUp(self):
+        from users.models import User, Role
+        self.admin_user = User.objects.create(
+            email='retrieval_admin@example.com',
+            full_name='Retrieval Admin',
+            role=Role.ADMIN,
+            is_active=True
+        )
+        self.team_lead_user = User.objects.create(
+            email='retrieval_tl@example.com',
+            full_name='Retrieval Team Lead',
+            role=Role.TEAM_LEAD,
+            is_active=True
+        )
+        self.associate_user = User.objects.create(
+            email='retrieval_assoc@example.com',
+            full_name='Retrieval Associate',
+            role=Role.ASSOCIATE_ANALYST,
+            is_active=True
+        )
+        self.job = Application.objects.create(
+            candidate_name="",
+            position="Senior Java Full Stack Engineer",
+            technology="Java, Spring Boot, React",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Global Systems Inc",
+            remarks="High priority job.",
+            assigned_employee=self.team_lead_user
+        )
+        self.posting = JobBoardPosting.objects.create(
+            job=self.job,
+            job_board="Foundit",
+            external_job_id="987654321",
+            status="PUBLISHED"
+        )
+        # Mock credentials
+        self.creds_patcher = patch("applications.integrations.foundit.constants.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "api_key": "mock_api_key",
+            "corp_id": "12345",
+            "login_id": "8765432",
+            "username": "testuser",
+            "password": "testpassword",
+            "channel_id": "1",
+            "sub_channel_id": "1",
+            "webhook_secret": "testsecret"
+        }
+        self.addCleanup(self.creds_patcher.stop)
+
+        # Mock AI scoring task
+        self.score_patcher = patch("applications.ai.tasks.score_applicant_resume_task.delay")
+        self.mock_score = self.score_patcher.start()
+        self.addCleanup(self.score_patcher.stop)
+
+    def test_official_nested_response_envelope_unwrapping(self):
+        """Test unwrapping of official Foundit {success: true, data: {applications: [...]}} structure."""
+        nested_payload = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "job_title": "Senior Java Full Stack Engineer",
+                "total_job_applications": 1,
+                "total_fetched_applications": 1,
+                "page_number": 1,
+                "applications": [
+                    {
+                        "application_id": "FND-APP-001",
+                        "candidate_name": "Ravi Kumar",
+                        "current_folder_stage": "Applicant",
+                        "application_date": "2025-08-11T16:33:54Z",
+                        "resume_file_download_url": "https://recruiter.foundit.in/download/resume_ravi.pdf",
+                        "profile_details": {
+                            "email": [{"id": "ravi.kumar@example.com", "is_verified": True}],
+                            "mobile_details": [{"country_code": "91", "number": "9876543210", "verified": True}],
+                            "skills": [{"text": "Java"}, {"text": "Spring Boot"}],
+                            "highest_education": {"degree": "Bachelor of Technology", "college": "JNTU"},
+                            "profile_id": 115478367
+                        }
+                    }
+                ]
+            },
+            "error": None
+        }
+        client = FounditClient(transport=MockTransport(nested_payload))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+
+        self.assertEqual(summary["total_job_applications"], 1)
+        self.assertEqual(summary["new_ingested"], 1)
+        self.assertEqual(summary["duplicates_skipped"], 0)
+        self.assertEqual(summary["failed_errors"], 0)
+
+        applicant = CareerPortalApplicant.objects.get(foundit_application_id="FND-APP-001")
+        self.assertEqual(applicant.first_name, "Ravi")
+        self.assertEqual(applicant.last_name, "Kumar")
+        self.assertEqual(applicant.email, "ravi.kumar@example.com")
+        self.assertEqual(applicant.mobile_number, "+919876543210")
+        self.assertIn("Java", applicant.primary_skills)
+        self.assertEqual(applicant.qualification, "Bachelor of Technology")
+        self.assertEqual(applicant.foundit_candidate_id, "115478367")
+        self.assertEqual(applicant.source, "Foundit")
+        self.assertIsNotNone(applicant.raw_profile_data)
+        self.assertEqual(applicant.raw_profile_data.get("application_id"), "FND-APP-001")
+
+    def test_mapper_handles_complex_arrays_and_parsed_experience(self):
+        """Test FounditCandidateMapper handles email arrays, phone arrays, it_skills, and resume_parsed_data."""
+        app_dict = {
+            "application_id": "FND-APP-002",
+            "candidate_name": "Ananya Sharma",
+            "folder_id": "987654321",
+            "resume_file_download_url": "https://foundit.in/resumes/ananya.pdf",
+            "profile_details": {
+                "personal_details": [{"first_name": "Ananya", "last_name": "Sharma"}],
+                "email": [
+                    {"id": "unverified@example.com", "is_verified": False},
+                    {"id": "ananya.verified@example.com", "is_verified": True}
+                ],
+                "mobile_details": [
+                    {"country_code": "91", "number": "9123456789", "verified": True}
+                ],
+                "it_skills": [{"text": "Python"}, {"text": "FastAPI"}],
+                "skills": [{"text": "PostgreSQL"}],
+                "top_qualification_name": "M.Tech Computer Science",
+                "resume_parsed_data": {
+                    "experience": 4.5,
+                    "additional_parsed_data": {
+                        "current_employment_designation": "Backend Engineer"
+                    }
+                },
+                "current_location": [{"text": "Bengaluru, Karnataka"}],
+                "profile_id": 99887766
+            }
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+
+        self.assertEqual(applicant.first_name, "Ananya")
+        self.assertEqual(applicant.last_name, "Sharma")
+        # Verified email should be chosen
+        self.assertEqual(applicant.email, "ananya.verified@example.com")
+        self.assertEqual(applicant.mobile_number, "+919123456789")
+        self.assertIn("Python", applicant.primary_skills)
+        self.assertIn("FastAPI", applicant.primary_skills)
+        self.assertIn("PostgreSQL", applicant.primary_skills)
+        self.assertEqual(applicant.qualification, "M.Tech Computer Science")
+        self.assertEqual(applicant.years_of_experience, 4.5)
+        self.assertEqual(applicant.current_company, "Backend Engineer")
+        self.assertEqual(applicant.city, "Bengaluru")
+        self.assertEqual(applicant.state, "Karnataka")
+        self.assertEqual(applicant.foundit_candidate_id, "99887766")
+        self.assertEqual(applicant.foundit_application_id, "FND-APP-002")
+
+    def test_database_level_duplicate_prevention_on_foundit_application_id(self):
+        """Test database UniqueConstraint prevents duplicate Foundit application insertion safely."""
+        app_dict = {
+            "application_id": "FND-DUP-CONSTRAINT",
+            "candidate_name": "Duplicate Tester",
+            "folder_id": "987654321",
+            "profile_details": {
+                "email": [{"id": "dup@example.com", "is_verified": True}]
+            }
+        }
+        res1 = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res1["success"])
+        self.assertFalse(res1.get("duplicate", False))
+
+        # Second ingestion should cleanly report duplicate: True without database IntegrityError crash
+        res2 = FounditCandidateIngestionService.ingest_candidate(app_dict)
+        self.assertTrue(res2["success"])
+        self.assertTrue(res2.get("duplicate"))
+        self.assertEqual(res1["applicant_id"], res2["applicant_id"])
+        self.assertEqual(CareerPortalApplicant.objects.filter(foundit_application_id="FND-DUP-CONSTRAINT").count(), 1)
+
+    def test_empty_and_malformed_response_handling(self):
+        """Test handling of empty applications array and malformed API response."""
+        empty_response = {
+            "success": True,
+            "data": {
+                "total_job_applications": 0,
+                "applications": []
+            }
+        }
+        client = FounditClient(transport=MockTransport(empty_response))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+        self.assertEqual(summary["total_fetched"], 0)
+        self.assertEqual(summary["pages_fetched"], 1)
+
+        # Malformed non-dict response handled safely
+        client_malformed = FounditClient(transport=MockTransport("non-json-string"))
+        summary2 = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client_malformed)
+        self.assertEqual(summary2["new_ingested"], 0)
+
+    def test_checkpoint_advancement_only_on_clean_persistence(self):
+        """Test posting.last_synced_at is advanced on clean sync, and preserved if errors occur."""
+        self.assertIsNone(self.posting.last_synced_at)
+
+        clean_resp = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "FND-CLEAN-01",
+                        "candidate_name": "Clean Tester",
+                        "folder_id": "987654321"
+                    }
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(clean_resp))
+        FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+
+        self.posting.refresh_from_db()
+        self.assertIsNotNone(self.posting.last_synced_at)
+        initial_synced_at = self.posting.last_synced_at
+
+        # Now simulate a sync that fails with an unmatched folder or API error
+        error_resp = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "FND-ERR-01",
+                        "candidate_name": "Error Tester",
+                        "folder_id": "UNKNOWN_UNMATCHED_FOLDER"
+                    }
+                ]
+            }
+        }
+        client_err = FounditClient(transport=MockTransport(error_resp))
+        summary_err = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client_err)
+        self.assertGreater(summary_err["unmatched_errors"], 0)
+
+        # Checkpoint must NOT advance past unmatched errors
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_synced_at)
+
+    def test_overlapping_sync_lock_prevents_duplicate_runs(self):
+        """Test cache lock prevents overlapping sync_all_published_jobs runs."""
+        from django.core.cache import cache
+        cache.set("foundit_sync_all_jobs_lock", "running", timeout=900)
+
+        res = FounditApplicationSyncService.sync_all_published_jobs()
+        self.assertTrue(res.get("skipped"))
+        self.assertEqual(res.get("total_jobs_scanned"), 0)
+
+        cache.delete("foundit_sync_all_jobs_lock")
+
+    def test_celery_task_registration_and_beat_schedule(self):
+        """Test that Foundit Celery tasks are discovered and periodic sync is in CELERY_BEAT_SCHEDULE."""
+        import applications.tasks  # triggers autodiscovery
+        from ats_backend.celery import app as celery_app
+        from django.conf import settings
+
+        # Verify task is discoverable in celery
+        registered_tasks = celery_app.tasks.keys()
+        self.assertTrue(
+            any("sync_all_foundit_jobs_task" in t for t in registered_tasks),
+            "sync_all_foundit_jobs_task should be registered with Celery app"
+        )
+        self.assertTrue(
+            any("sync_foundit_applications_task" in t for t in registered_tasks),
+            "sync_foundit_applications_task should be registered with Celery app"
+        )
+
+        # Verify Celery Beat schedule
+        beat_schedule = getattr(settings, "CELERY_BEAT_SCHEDULE", {})
+        self.assertIn("sync-all-foundit-jobs-periodic", beat_schedule)
+        self.assertEqual(
+            beat_schedule["sync-all-foundit-jobs-periodic"]["task"],
+            "applications.integrations.foundit.tasks.sync_all_foundit_jobs_task"
+        )
+
+    def test_on_demand_sync_endpoint_permissions_and_validation(self):
+        """Test /api/applications/<id>/sync-foundit/ action permissions and behavior."""
+        from rest_framework.test import APIClient
+        client = APIClient()
+
+        # 1. Admin user can successfully queue sync
+        client.force_authenticate(user=self.admin_user)
+        with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+            mock_delay.return_value = MagicMock(id="celery-task-12345")
+            res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+            self.assertEqual(res.status_code, 202)
+            self.assertTrue(res.data.get("success"))
+            self.assertEqual(res.data.get("status"), "QUEUED")
+            self.assertEqual(res.data.get("folder_id"), "987654321")
+            mock_delay.assert_called_once_with("987654321")
+
+        # 2. Team Lead can also call it
+        client.force_authenticate(user=self.team_lead_user)
+        with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+            mock_delay.return_value = MagicMock(id="celery-task-67890")
+            res2 = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+            self.assertEqual(res2.status_code, 202)
+
+        # 3. Associate Analyst receives 403 Forbidden
+        client.force_authenticate(user=self.associate_user)
+        res3 = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+        self.assertEqual(res3.status_code, 403)
+
+        # 4. Job without published Foundit posting receives 400 Bad Request
+        client.force_authenticate(user=self.admin_user)
+        unpub_job = Application.objects.create(
+            candidate_name="",
+            position="Unpublished Job",
+            technology="Go",
+            experience=2.0,
+            city="Hyderabad",
+            state="Telangana",
+            client_name="Test Client"
+        )
+        res4 = client.post(f"/api/applications/{unpub_job.id}/sync-foundit/")
+        self.assertEqual(res4.status_code, 400)
+        self.assertIn("does not have an active published Foundit posting", res4.data.get("error"))
+
+    def test_serializer_exposes_foundit_identifiers(self):
+        """Test CareerPortalApplicantSerializer includes foundit_application_id and foundit_candidate_id."""
+        from applications.serializers import CareerPortalApplicantSerializer
+        applicant = CareerPortalApplicant.objects.create(
+            job=self.job,
+            first_name="Meera",
+            last_name="Nair",
+            email="meera@example.com",
+            mobile_number="+919876500000",
+            qualification="B.Tech",
+            years_of_experience=3.0,
+            expected_pay=800000.0,
+            primary_skills="Java",
+            current_ctc=600000.0,
+            current_company="Acme Corp",
+            state="Telangana",
+            city="Hyderabad",
+            source="Foundit",
+            foundit_application_id="APP-SER-001",
+            foundit_candidate_id="CAND-SER-999"
+        )
+        serializer = CareerPortalApplicantSerializer(applicant)
+        data = serializer.data
+        self.assertIn("foundit_application_id", data)
+        self.assertEqual(data["foundit_application_id"], "APP-SER-001")
+        self.assertIn("foundit_candidate_id", data)
+        self.assertEqual(data["foundit_candidate_id"], "CAND-SER-999")
+
+    @patch("requests.get")
+    def test_client_http_401_token_refresh_retry(self, mock_get):
+        """Test FounditClient automatically refreshes session token and retries on HTTP 401."""
+        resp_401 = MagicMock()
+        resp_401.status_code = 401
+        resp_401.headers = {}
+
+        resp_200 = MagicMock()
+        resp_200.status_code = 200
+        resp_200.headers = {"X-RateLimit-Remaining": "95"}
+        resp_200.json.return_value = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 0,
+                "applications": []
+            }
+        }
+
+        # First call returns 401, second call returns 200
+        mock_get.side_effect = [resp_401, resp_200]
+
+        client = FounditClient()
+        client.live_applications_enabled = True  # Temporarily authorize for unit test
+        with patch.object(client, "generate_session_token", return_value="new_mock_token") as mock_token_gen:
+            res = client.get_applications("987654321")
+            self.assertTrue(res.get("success"))
+            # Verified token generation force refresh was requested
+            mock_token_gen.assert_called_with(force_refresh=True)
+            self.assertEqual(mock_get.call_count, 2)
+
+    def test_checkpoint_uses_sync_started_at_protecting_in_flight_applications(self):
+        """Test checkpoint is recorded at sync start time so applications arriving during sync are not missed."""
+        sync_start_ref = timezone.now()
+        payload = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "APP-INFLIGHT-1",
+                        "candidate_name": "Inflight Candidate",
+                        "folder_id": "987654321"
+                    }
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(payload))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+        self.assertEqual(summary["new_ingested"], 1)
+
+        self.posting.refresh_from_db()
+        self.assertIsNotNone(self.posting.last_synced_at)
+        # Checkpoint timestamp must be >= test start time and <= current time
+        self.assertGreaterEqual(self.posting.last_synced_at, sync_start_ref)
+        self.assertLessEqual(self.posting.last_synced_at, timezone.now())
+
+    def test_duplicate_results_in_overlapping_synchronization_window(self):
+        """Test overlapping synchronization window deduplicates existing applications while ingesting new ones."""
+        # Pre-ingest applicant 1
+        initial_app = {
+            "application_id": "APP-OVERLAP-1",
+            "candidate_name": "Existing Applicant",
+            "folder_id": "987654321"
+        }
+        res = FounditCandidateIngestionService.ingest_candidate(initial_app)
+        self.assertTrue(res["success"])
+        self.assertFalse(res.get("duplicate"))
+
+        # Set checkpoint to 10 minutes ago
+        past_checkpoint = timezone.now() - datetime.timedelta(minutes=10)
+        self.posting.last_synced_at = past_checkpoint
+        self.posting.save(update_fields=["last_synced_at"])
+
+        # Overlapping sync returns applicant 1 again plus applicant 2
+        overlap_payload = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 2,
+                "applications": [
+                    {
+                        "application_id": "APP-OVERLAP-1",
+                        "candidate_name": "Existing Applicant",
+                        "folder_id": "987654321"
+                    },
+                    {
+                        "application_id": "APP-OVERLAP-2",
+                        "candidate_name": "New Applicant",
+                        "folder_id": "987654321"
+                    }
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(overlap_payload))
+        results = FounditApplicationSyncService.sync_all_published_jobs(client=client)
+
+        self.assertEqual(results["total_new_ingested"], 1)
+        self.assertEqual(results["total_duplicates_skipped"], 1)
+        self.assertEqual(CareerPortalApplicant.objects.filter(foundit_application_id="APP-OVERLAP-1").count(), 1)
+        self.assertEqual(CareerPortalApplicant.objects.filter(foundit_application_id="APP-OVERLAP-2").count(), 1)
+
+        self.posting.refresh_from_db()
+        self.assertGreater(self.posting.last_synced_at, past_checkpoint)
+
+    def test_unmatched_folder_id_retry_and_subsequent_quarantine(self):
+        """Test unmatched folder errors hold checkpoint for 2 retries, then quarantine on 3rd attempt to prevent permanent stall."""
+        from django.core.cache import cache
+        cache.delete("foundit_folder_consecutive_errors_987654321")
+
+        unmatched_payload = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "APP-CORRUPT-1",
+                        "candidate_name": "Corrupt Candidate",
+                        "folder_id": "NON_EXISTENT_FOLDER"
+                    }
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(unmatched_payload))
+
+        # Attempt 1: Checkpoint held, no quarantine
+        summary1 = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+        self.assertEqual(summary1["unmatched_errors"], 1)
+        self.assertFalse(summary1["quarantined"])
+        self.posting.refresh_from_db()
+        self.assertIsNone(self.posting.last_synced_at)
+
+        # Attempt 2: Checkpoint held, no quarantine
+        summary2 = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+        self.assertEqual(summary2["unmatched_errors"], 1)
+        self.assertFalse(summary2["quarantined"])
+        self.posting.refresh_from_db()
+        self.assertIsNone(self.posting.last_synced_at)
+
+        # Attempt 3: Max retry threshold reached -> Quarantined and checkpoint advanced to unblock future syncs
+        summary3 = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+        self.assertEqual(summary3["unmatched_errors"], 1)
+        self.assertTrue(summary3["quarantined"])
+        self.posting.refresh_from_db()
+        self.assertIsNotNone(self.posting.last_synced_at)
+        self.assertIn("Quarantined", self.posting.error_message)
+
+    def test_malformed_candidate_payload_handled_safely(self):
+        """Test malformed candidate payloads return code MALFORMED_CANDIDATE_PAYLOAD without unhandled exceptions."""
+        # Non-dict payload
+        res1 = FounditCandidateIngestionService.ingest_candidate("not_a_dictionary")
+        self.assertFalse(res1["success"])
+        self.assertEqual(res1["code"], "MALFORMED_CANDIDATE_PAYLOAD")
+
+        # In sync_applications_for_folder, a non-dict application entry increments failed_errors
+        malformed_envelope = {
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 1,
+                "applications": ["invalid_string_item"]
+            }
+        }
+        client = FounditClient(transport=MockTransport(malformed_envelope))
+        summary = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
+        self.assertEqual(summary["failed_errors"], 1)
+
+    def test_failed_database_write_returns_db_integrity_conflict(self):
+        """Test database integrity conflict when no matching applicant can be found returns DB_INTEGRITY_CONFLICT."""
+        from django.db import IntegrityError
+        app_dict = {
+            "application_id": "APP-FAIL-DB",
+            "candidate_name": "Failure Case",
+            "folder_id": "987654321"
+        }
+        with patch("applications.models.CareerPortalApplicant.objects.create", side_effect=IntegrityError("Foreign key violation")):
+            res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+            self.assertFalse(res["success"])
+            self.assertEqual(res["code"], "DB_INTEGRITY_CONFLICT")
+
+    def test_transient_failure_recovery_on_following_sync_run(self):
+        """Test transient failure recovery on the following synchronization run."""
+        from django.core.cache import cache
+        cache.delete("foundit_folder_consecutive_errors_987654321")
+
+        # Run 1: Network error occurred
+        client_fail = FounditClient(transport=MockTransport(None, exception=FounditAPIError("Transient network timeout", status_code=500)))
+        summary_fail = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client_fail)
+        self.assertIsNotNone(summary_fail.get("error"))
+        self.posting.refresh_from_db()
+        self.assertIsNone(self.posting.last_synced_at)
+
+        # Run 2: Next run recovers successfully
+        client_success = FounditClient(transport=MockTransport({
+            "success": True,
+            "data": {
+                "folder_id": "987654321",
+                "total_job_applications": 1,
+                "applications": [{"application_id": "APP-REC-1", "candidate_name": "Recovered", "folder_id": "987654321"}]
+            }
+        }))
+        summary_ok = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client_success)
+        self.assertEqual(summary_ok["new_ingested"], 1)
+        self.posting.refresh_from_db()
+        self.assertIsNotNone(self.posting.last_synced_at)
+        self.assertEqual(self.posting.error_message, "")
+
+    def test_utc_timestamp_formatting_helpers(self):
+        """Test explicit UTC timestamp conversion for naive and timezone-aware datetimes."""
+        # 1. Aware datetime with offset (+05:30 IST)
+        ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+        dt_ist = datetime.datetime(2026, 4, 15, 12, 30, 0, tzinfo=ist)
+        formatted_ist = FounditApplicationSyncService.format_applications_since(dt_ist)
+        # 12:30 IST = 07:00 UTC
+        self.assertEqual(formatted_ist, "2026-04-15T07:00:00Z")
+
+        # 2. Naive datetime
+        dt_naive = datetime.datetime(2026, 4, 15, 10, 0, 0)
+        formatted_naive = FounditApplicationSyncService.format_applications_since(dt_naive)
+        self.assertEqual(formatted_naive, "2026-04-15T10:00:00Z")
+
+        # 3. String pass-through
+        self.assertEqual(FounditApplicationSyncService.format_applications_since(" 2026-04-15T00:00:00Z "), "2026-04-15T00:00:00Z")
+        self.assertIsNone(FounditApplicationSyncService.format_applications_since(None))
+
+    def test_redis_lock_ownership_expired_worker_cannot_delete_new_lock(self):
+        """Test worker whose lock expired cannot delete another worker's freshly acquired lock."""
+        from django.core.cache import cache
+        lock_key = "foundit_sync_all_jobs_lock"
+
+        # Worker 1 acquires lock
+        token_worker_1 = "worker-1-uuid"
+        token_worker_2 = "worker-2-uuid"
+
+        cache.set(lock_key, token_worker_1, timeout=900)
+        self.assertEqual(cache.get(lock_key), token_worker_1)
+
+        # Worker 1's lock expires and Worker 2 acquires the lock
+        cache.set(lock_key, token_worker_2, timeout=900)
+
+        # Worker 1 finishes and attempts to release the lock using its expired token
+        released = FounditApplicationSyncService._release_lock(lock_key, token_worker_1)
+        self.assertFalse(released)
+
+        # Worker 2's lock is still intact!
+        self.assertEqual(cache.get(lock_key), token_worker_2)
+
+        # Worker 2 successfully releases its lock
+        released_w2 = FounditApplicationSyncService._release_lock(lock_key, token_worker_2)
+        self.assertTrue(released_w2)
+        self.assertIsNone(cache.get(lock_key))
+
+    def test_concurrent_duplicate_insertion_leaves_outer_transaction_usable(self):
+        """Test savepoint isolation: duplicate IntegrityError inside outer transaction leaves connection healthy."""
+        from django.db import transaction
+
+        app_dict = {
+            "application_id": "APP-TX-TEST-1",
+            "candidate_name": "Tx Tester",
+            "folder_id": "987654321"
+        }
+
+        with transaction.atomic():
+            # First ingestion creates applicant
+            res1 = FounditCandidateIngestionService.ingest_candidate(app_dict)
+            self.assertTrue(res1["success"])
+            self.assertFalse(res1.get("duplicate"))
+
+            # Simulate concurrent duplicate insertion hitting database constraint
+            # (bypass pre-check by mocking filter.first to return None only for pre-check)
+            with patch("applications.models.CareerPortalApplicant.objects.filter") as mock_filter:
+                existing_record = CareerPortalApplicant.objects.get(id=res1["applicant_id"])
+                # First call (pre-check) returns None, second call (post-catch) returns existing_record
+                mock_filter.return_value.first.side_effect = [None, existing_record]
+
+                res2 = FounditCandidateIngestionService.ingest_candidate(app_dict)
+                self.assertTrue(res2["success"])
+                self.assertTrue(res2.get("duplicate"))
+                self.assertEqual(res2["applicant_id"], res1["applicant_id"])
+
+            # CRITICAL ASSERTION: The outer transaction is NOT aborted!
+            # We can perform subsequent queries/writes in the same transaction block without TransactionManagementError
+            total_count = CareerPortalApplicant.objects.filter(source="Foundit").count()
+            self.assertGreaterEqual(total_count, 1)
+
+            # Creating another record in the same outer transaction succeeds!
+            post_check_applicant = CareerPortalApplicant.objects.create(
+                job=self.job,
+                first_name="Healthy",
+                last_name="Transaction",
+                email="tx_healthy@example.com",
+                mobile_number="+919999888800",
+                qualification="B.Tech",
+                years_of_experience=3.0,
+                expected_pay=700000.0,
+                primary_skills="Python, Django",
+                current_ctc=550000.0,
+                source="Foundit",
+                foundit_application_id="APP-TX-TEST-2"
+            )
+            self.assertIsNotNone(post_check_applicant.id)

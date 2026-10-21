@@ -9,8 +9,8 @@ app = Celery('ats_backend')
 # Load task sources from all registered Django app configs
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
-# Auto-discover tasks in all installed apps
-app.autodiscover_tasks(['applications', 'applications.ai', 'users'])
+# Auto-discover tasks in all installed apps and integration packages
+app.autodiscover_tasks(['applications', 'applications.ai', 'applications.integrations.foundit', 'users'])
 
 @app.task(bind=True)
 def debug_task(self):
