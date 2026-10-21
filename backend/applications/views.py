@@ -2180,9 +2180,8 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             )
 
         # Check if live application synchronization is enabled in environment configuration
-        import os
-        live_enabled = os.getenv("FOUNDIT_LIVE_APPLICATIONS_ENABLED", "False").lower() in ("true", "1")
-        if not live_enabled:
+        from applications.integrations.foundit.constants import is_foundit_live_applications_enabled
+        if not is_foundit_live_applications_enabled():
             return Response(
                 {
                     "success": False,
@@ -2196,6 +2195,22 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                     "job_id": job.id,
                 },
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if synchronization for this folder is currently in progress
+        from django.core.cache import cache
+        from applications.integrations.foundit.candidate_ingestion import FounditApplicationSyncService
+        folder_lock_key = FounditApplicationSyncService.get_folder_lock_key(posting.external_job_id)
+        if cache.get(folder_lock_key):
+            return Response(
+                {
+                    "success": False,
+                    "error": f"Synchronization for folder {posting.external_job_id} is already in progress.",
+                    "code": "FOLDER_SYNC_BUSY",
+                    "folder_id": posting.external_job_id,
+                    "job_id": job.id,
+                },
+                status=status.HTTP_409_CONFLICT
             )
 
         # Operator recovery support: allow explicit reset of checkpoint and consecutive failure counter

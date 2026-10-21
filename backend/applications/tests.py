@@ -2447,6 +2447,11 @@ class FounditPhase4ApplicationsTests(TestCase):
         self.mock_score_task = self.score_patcher.start()
         self.addCleanup(self.score_patcher.stop)
 
+        # Explicitly enable live applications retrieval for mock transport unit tests
+        self.live_env_patcher = patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"})
+        self.live_env_patcher.start()
+        self.addCleanup(self.live_env_patcher.stop)
+
     # A. Applications request construction
     def test_a1_request_construction_endpoint_headers_params(self):
         """Test A1: Verify correct endpoint, params (folder_id, corp_id, login_id, channel_id, sub_channel_id), and headers."""
@@ -2478,10 +2483,11 @@ class FounditPhase4ApplicationsTests(TestCase):
 
     def test_a3_live_call_guard_blocks_unauthorized(self):
         """Test A3: Verify live outbound call without mock transport is blocked by safety guard."""
-        client = FounditClient()
-        with self.assertRaises(FounditContractUnverifiedException) as ctx:
-            client.get_applications("12345")
-        self.assertIn("execution is blocked", str(ctx.exception))
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            client = FounditClient()
+            with self.assertRaises(FounditContractUnverifiedException) as ctx:
+                client.get_applications("12345")
+            self.assertIn("execution is blocked", str(ctx.exception))
 
     # B. Pagination
     def test_b1_pagination_single_page(self):
@@ -3753,6 +3759,20 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         self.mock_score = self.score_patcher.start()
         self.addCleanup(self.score_patcher.stop)
 
+        # Explicitly enable live applications retrieval for mock transport unit tests
+        self.live_env_patcher = patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"})
+        self.live_env_patcher.start()
+        self.addCleanup(self.live_env_patcher.stop)
+
+        from django.core.cache import cache
+        cache.clear()
+
+    def tearDown(self):
+        super().tearDown()
+        from django.core.cache import cache
+        cache.clear()
+
+
     def test_official_nested_response_envelope_unwrapping(self):
         """Test unwrapping of official Foundit {success: true, data: {applications: [...]}} structure."""
         nested_payload = {
@@ -3980,14 +4000,15 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         from rest_framework.test import APIClient
         client = APIClient()
 
-        # 0. Live sync disabled by default: endpoint rejects safely with 400 and LIVE_SYNC_DISABLED
+        # 0. Live sync disabled: endpoint rejects safely with 400 and LIVE_SYNC_DISABLED
         client.force_authenticate(user=self.admin_user)
-        with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
-            res_disabled = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
-            self.assertEqual(res_disabled.status_code, 400)
-            self.assertFalse(res_disabled.data.get("success"))
-            self.assertEqual(res_disabled.data.get("code"), "LIVE_SYNC_DISABLED")
-            mock_delay.assert_not_called()
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+                res_disabled = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+                self.assertEqual(res_disabled.status_code, 400)
+                self.assertFalse(res_disabled.data.get("success"))
+                self.assertEqual(res_disabled.data.get("code"), "LIVE_SYNC_DISABLED")
+                mock_delay.assert_not_called()
 
         # 1. When live sync is enabled, Admin user can successfully queue sync
         with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"}):
@@ -4078,7 +4099,6 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         mock_get.side_effect = [resp_401, resp_200]
 
         client = FounditClient()
-        client.live_applications_enabled = True  # Temporarily authorize for unit test
         with patch.object(client, "generate_session_token", return_value="new_mock_token") as mock_token_gen:
             res = client.get_applications("987654321")
             self.assertTrue(res.get("success"))
@@ -4196,13 +4216,13 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         self.posting.refresh_from_db()
         self.assertIsNone(self.posting.last_synced_at)
 
-        # Attempt 3: Max retry threshold reached -> Quarantined and checkpoint advanced to unblock future syncs
+        # Attempt 3: Max retry threshold reached -> Quarantined and checkpoint PRESERVED to prevent application loss
         summary3 = FounditApplicationSyncService.sync_applications_for_folder("987654321", client=client)
         self.assertEqual(summary3["unmatched_errors"], 1)
         self.assertTrue(summary3["quarantined"])
         self.posting.refresh_from_db()
-        self.assertIsNotNone(self.posting.last_synced_at)
-        self.assertIn("Quarantined", self.posting.error_message)
+        self.assertIsNone(self.posting.last_synced_at)
+        self.assertIn("Operator action required", self.posting.error_message)
 
     def test_malformed_candidate_payload_handled_safely(self):
         """Test malformed candidate payloads return code MALFORMED_CANDIDATE_PAYLOAD without unhandled exceptions."""
@@ -4361,71 +4381,205 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
 
     def test_disabled_scheduled_sync_exits_safely_without_checkpoint_or_counter_modification(self):
         """When live sync is disabled, periodic sync exits safely without altering checkpoints or counters."""
-        from django.core.cache import cache
-        initial_synced_at = timezone.now() - datetime.timedelta(hours=2)
-        self.posting.last_synced_at = initial_synced_at
-        self.posting.error_message = ""
-        self.posting.save(update_fields=["last_synced_at", "error_message"])
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            from django.core.cache import cache
+            initial_synced_at = timezone.now() - datetime.timedelta(hours=2)
+            self.posting.last_synced_at = initial_synced_at
+            self.posting.error_message = ""
+            self.posting.save(update_fields=["last_synced_at", "error_message"])
 
-        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
-        cache.delete(counter_key)
+            counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+            cache.delete(counter_key)
 
-        # Execute scheduled sync (FOUNDIT_LIVE_APPLICATIONS_ENABLED is false by default)
-        result = FounditApplicationSyncService.sync_all_published_jobs()
+            # Execute scheduled sync (FOUNDIT_LIVE_APPLICATIONS_ENABLED is false)
+            result = FounditApplicationSyncService.sync_all_published_jobs()
 
-        self.assertTrue(result.get("skipped"))
-        self.assertIn("Live application retrieval is disabled", result.get("reason", ""))
-        self.assertEqual(result.get("total_jobs_scanned"), 0)
+            self.assertTrue(result.get("skipped"))
+            self.assertIn("Live application retrieval is disabled", result.get("reason", ""))
+            self.assertEqual(result.get("total_jobs_scanned"), 0)
 
-        # Verify posting checkpoint and failure counters are completely unchanged
-        self.posting.refresh_from_db()
-        self.assertEqual(self.posting.last_synced_at, initial_synced_at)
-        self.assertEqual(self.posting.error_message, "")
-        self.assertIsNone(cache.get(counter_key))
+            # Verify posting checkpoint and failure counters are completely unchanged
+            self.posting.refresh_from_db()
+            self.assertEqual(self.posting.last_synced_at, initial_synced_at)
+            self.assertEqual(self.posting.error_message, "")
+            self.assertIsNone(cache.get(counter_key))
 
     def test_disabled_folder_sync_exits_safely(self):
         """When live sync is disabled, folder sync returns skipped without network calls, checkpoint drift or error counting."""
-        from django.core.cache import cache
-        from applications.integrations.foundit.client import FounditClient
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            from django.core.cache import cache
+            from applications.integrations.foundit.client import FounditClient
 
-        initial_synced_at = timezone.now() - datetime.timedelta(hours=5)
-        self.posting.last_synced_at = initial_synced_at
-        self.posting.error_message = ""
-        self.posting.save(update_fields=["last_synced_at", "error_message"])
+            initial_synced_at = timezone.now() - datetime.timedelta(hours=5)
+            self.posting.last_synced_at = initial_synced_at
+            self.posting.error_message = ""
+            self.posting.save(update_fields=["last_synced_at", "error_message"])
 
-        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
-        cache.delete(counter_key)
+            counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+            cache.delete(counter_key)
 
-        client = FounditClient()  # live_applications_enabled is False, transport is None
-        summary = FounditApplicationSyncService.sync_applications_for_folder(
-            folder_id=self.posting.external_job_id,
-            client=client
-        )
+            client = FounditClient()  # live_applications_enabled is False, transport is None
+            summary = FounditApplicationSyncService.sync_applications_for_folder(
+                folder_id=self.posting.external_job_id,
+                client=client
+            )
 
-        self.assertTrue(summary.get("skipped"))
-        self.assertIn("Live application retrieval is disabled", summary.get("reason", ""))
-        self.assertFalse(summary.get("quarantined"))
-        self.assertEqual(summary.get("new_ingested"), 0)
+            self.assertTrue(summary.get("skipped"))
+            self.assertIn("Live application retrieval is disabled", summary.get("reason", ""))
+            self.assertFalse(summary.get("quarantined"))
+            self.assertEqual(summary.get("new_ingested"), 0)
 
-        # Database state and cache counter must remain unchanged
-        self.posting.refresh_from_db()
-        self.assertEqual(self.posting.last_synced_at, initial_synced_at)
-        self.assertEqual(self.posting.error_message, "")
-        self.assertIsNone(cache.get(counter_key))
+            # Database state and cache counter must remain unchanged
+            self.posting.refresh_from_db()
+            self.assertEqual(self.posting.last_synced_at, initial_synced_at)
+            self.assertEqual(self.posting.error_message, "")
+            self.assertIsNone(cache.get(counter_key))
 
     def test_disabled_manual_sync_endpoint_rejects_safely(self):
         """When live sync is disabled, manual sync endpoint rejects with 400 LIVE_SYNC_DISABLED and queues nothing."""
-        from rest_framework.test import APIClient
-        client = APIClient()
-        client.force_authenticate(user=self.admin_user)
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            from rest_framework.test import APIClient
+            client = APIClient()
+            client.force_authenticate(user=self.admin_user)
 
-        with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
-            res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
-            self.assertEqual(res.status_code, 400)
-            self.assertFalse(res.data.get("success"))
-            self.assertEqual(res.data.get("code"), "LIVE_SYNC_DISABLED")
-            self.assertIn("currently disabled in system configuration", res.data.get("error"))
-            mock_delay.assert_not_called()
+            with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+                res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+                self.assertEqual(res.status_code, 400)
+                self.assertFalse(res.data.get("success"))
+                self.assertEqual(res.data.get("code"), "LIVE_SYNC_DISABLED")
+                self.assertIn("currently disabled in system configuration", res.data.get("error"))
+                mock_delay.assert_not_called()
+
+    def test_direct_client_retrieval_rejected_when_disabled_even_with_custom_transport(self):
+        """When FOUNDIT_LIVE_APPLICATIONS_ENABLED=False, FounditClient.get_applications raises FounditContractUnverifiedException even with custom transport."""
+        mock_transport = MockTransport({
+            "folder_id": self.posting.external_job_id,
+            "total_job_applications": 1,
+            "applications": [{"application_id": "APP-BLOCKED-1", "candidate_name": "Blocked Candidate"}]
+        })
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            client = FounditClient(transport=mock_transport)
+            self.assertFalse(client.live_applications_enabled)
+            with self.assertRaises(FounditContractUnverifiedException) as ctx:
+                client.get_applications(self.posting.external_job_id)
+            self.assertIn("execution is blocked", str(ctx.exception))
+            self.assertIn("Live application retrieval is disabled", str(ctx.exception))
+            # Verify no HTTP request was dispatched through transport
+            self.assertIsNone(mock_transport.last_url)
+
+    def test_scheduled_sync_with_custom_transport_exits_when_flag_disabled(self):
+        """When FOUNDIT_LIVE_APPLICATIONS_ENABLED=False, sync_all_published_jobs exits without scanning jobs, acquiring lock, or modifying state, even with custom transport."""
+        from django.core.cache import cache
+        lock_key = "foundit_sync_all_jobs_lock"
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        cache.delete(lock_key)
+        cache.delete(counter_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=2)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        mock_transport = MockTransport({
+            "folder_id": self.posting.external_job_id,
+            "total_job_applications": 1,
+            "applications": [{"application_id": "APP-FAIL-FLAG", "candidate_name": "Should Not Ingest"}]
+        })
+
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            client = FounditClient(transport=mock_transport)
+            result = FounditApplicationSyncService.sync_all_published_jobs(client=client)
+
+            self.assertTrue(result.get("skipped"))
+            self.assertIn("Live application retrieval is disabled", result.get("reason", ""))
+            self.assertEqual(result.get("total_jobs_scanned"), 0)
+            self.assertEqual(result.get("total_new_ingested"), 0)
+
+            # Ensure lock was never held and never leaked
+            self.assertIsNone(cache.get(lock_key))
+            # Ensure transport was never contacted
+            self.assertIsNone(mock_transport.last_url)
+            # Ensure checkpoint and error counter are unchanged
+            self.posting.refresh_from_db()
+            self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+            self.assertEqual(self.posting.error_message, "")
+            self.assertIsNone(cache.get(counter_key))
+
+    def test_folder_sync_with_custom_transport_exits_when_flag_disabled(self):
+        """When FOUNDIT_LIVE_APPLICATIONS_ENABLED=False, sync_applications_for_folder exits without HTTP calls, checkpoint drift, or error counting, even with custom transport."""
+        from django.core.cache import cache
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        cache.delete(counter_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=2)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        mock_transport = MockTransport({
+            "folder_id": self.posting.external_job_id,
+            "total_job_applications": 1,
+            "applications": [{"application_id": "APP-FOLDER-FLAG", "candidate_name": "Should Not Ingest"}]
+        })
+
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            client = FounditClient(transport=mock_transport)
+            summary = FounditApplicationSyncService.sync_applications_for_folder(
+                self.posting.external_job_id,
+                client=client
+            )
+
+            self.assertTrue(summary.get("skipped"))
+            self.assertIn("Live application retrieval is disabled", summary.get("reason", ""))
+            self.assertEqual(summary.get("new_ingested"), 0)
+            self.assertIsNone(mock_transport.last_url)
+
+            # Ensure checkpoint and error counter are unchanged
+            self.posting.refresh_from_db()
+            self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+            self.assertEqual(self.posting.error_message, "")
+            self.assertIsNone(cache.get(counter_key))
+
+    def test_enabled_synchronization_works_with_mock_transport(self):
+        """When FOUNDIT_LIVE_APPLICATIONS_ENABLED=True, synchronization works cleanly with mock transport and advances checkpoint."""
+        from django.core.cache import cache
+        cache.delete("foundit_sync_all_jobs_lock")
+        cache.delete(f"foundit_folder_consecutive_errors_{self.posting.external_job_id}")
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=1)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        mock_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "APP-ENABLED-FLAG-1",
+                        "candidate_name": "Flag Enabled Candidate",
+                        "folder_id": self.posting.external_job_id
+                    }
+                ]
+            }
+        }
+        mock_transport = MockTransport(mock_payload)
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"}):
+            client = FounditClient(transport=mock_transport)
+            self.assertTrue(client.live_applications_enabled)
+
+            results = FounditApplicationSyncService.sync_all_published_jobs(client=client)
+
+            self.assertFalse(results.get("skipped", False))
+            self.assertEqual(results["total_new_ingested"], 1)
+            self.assertTrue(CareerPortalApplicant.objects.filter(foundit_application_id="APP-ENABLED-FLAG-1").exists())
+
+            # Checkpoint advanced cleanly
+            self.posting.refresh_from_db()
+            self.assertGreater(self.posting.last_synced_at, initial_checkpoint)
+            self.assertEqual(self.posting.error_message, "")
 
     def test_quarantine_recovery_with_reset_checkpoint(self):
         """Operators can recover quarantined folders by requesting sync with reset_checkpoint=true."""
@@ -4503,3 +4657,814 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         client = FounditClient(transport=mock_transport)
         client.get_applications("987654321", applications_since=None)
         self.assertNotIn("applications_since", mock_transport.last_params)
+
+    def test_applicant_ingestion_error_retains_checkpoint_while_other_applicants_succeed(self):
+        """When an applicant fails during ingestion, checkpoint is held even if other applicants succeed."""
+        from django.core.cache import cache
+        cache.delete(f"foundit_folder_consecutive_errors_{self.posting.external_job_id}")
+        initial_checkpoint = timezone.now() - datetime.timedelta(days=1)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        # Envelope contains 2 applicants: first valid, second invalid/malformed string
+        mixed_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 2,
+                "applications": [
+                    {
+                        "application_id": "APP-MIXED-SUCCESS",
+                        "candidate_name": "Valid Candidate",
+                        "folder_id": self.posting.external_job_id
+                    },
+                    "corrupt_non_dict_candidate"
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(mixed_payload))
+        summary = FounditApplicationSyncService.sync_applications_for_folder(self.posting.external_job_id, client=client)
+
+        self.assertEqual(summary["new_ingested"], 1)
+        self.assertEqual(summary["failed_errors"], 1)
+        self.assertTrue(CareerPortalApplicant.objects.filter(foundit_application_id="APP-MIXED-SUCCESS").exists())
+
+        # Checkpoint MUST NOT advance!
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        self.assertIn("Sync retry 1/3 failed", self.posting.error_message)
+
+    def test_later_page_retrieval_failure_retains_checkpoint(self):
+        """When a later page fails with an API error, checkpoint is held and earlier page data is preserved."""
+        from django.core.cache import cache
+        cache.delete(f"foundit_folder_consecutive_errors_{self.posting.external_job_id}")
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=6)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.save(update_fields=["last_synced_at"])
+
+        page_1 = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 2,
+                "applications": [
+                    {
+                        "application_id": "APP-PAGE-1",
+                        "candidate_name": "Page One Candidate",
+                        "folder_id": self.posting.external_job_id
+                    }
+                ]
+            }
+        }
+        # Multi-response MockTransport: Page 1 succeeds, Page 2 raises 502 error
+        transport = MockTransport([page_1, page_1])
+        call_count = {"n": 0}
+
+        def side_effect_get(url, params=None, headers=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return page_1
+            raise FounditAPIError("Page 2 temporary vendor gateway failure (HTTP 502)", status_code=502)
+        transport.get = side_effect_get
+
+        client = FounditClient(transport=transport)
+        summary = FounditApplicationSyncService.sync_applications_for_folder(
+            self.posting.external_job_id,
+            client=client,
+            limit=1
+        )
+
+        self.assertEqual(summary["new_ingested"], 1)
+        self.assertIn("Page 2 temporary vendor gateway failure", summary.get("error", ""))
+        self.assertTrue(CareerPortalApplicant.objects.filter(foundit_application_id="APP-PAGE-1").exists())
+
+        # Checkpoint MUST be held
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        self.assertIn("Page 2 temporary vendor gateway failure", self.posting.error_message)
+
+    def test_retry_threshold_reached_retains_checkpoint_and_flags_operator_action(self):
+        """When retry threshold (3) is reached, checkpoint is strictly preserved and operator action is required."""
+        from django.core.cache import cache
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        cache.delete(counter_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(days=3)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        unmatched_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "APP-FAIL-3X",
+                        "candidate_name": "Threshold Candidate",
+                        "folder_id": "UNKNOWN_UNMATCHED_FOLDER"
+                    }
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(unmatched_payload))
+
+        # Attempt 1
+        summary1 = FounditApplicationSyncService.sync_applications_for_folder(self.posting.external_job_id, client=client)
+        self.assertFalse(summary1["quarantined"])
+        self.assertEqual(cache.get(counter_key), 1)
+
+        # Attempt 2
+        summary2 = FounditApplicationSyncService.sync_applications_for_folder(self.posting.external_job_id, client=client)
+        self.assertFalse(summary2["quarantined"])
+        self.assertEqual(cache.get(counter_key), 2)
+
+        # Attempt 3: Threshold reached
+        summary3 = FounditApplicationSyncService.sync_applications_for_folder(self.posting.external_job_id, client=client)
+        self.assertTrue(summary3["quarantined"])
+        self.assertEqual(cache.get(counter_key), 3)  # Retry state preserved!
+
+        # Checkpoint MUST remain unchanged at initial_checkpoint!
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        self.assertIn("Operator action required", self.posting.error_message)
+        self.assertIn("Checkpoint held", self.posting.error_message)
+        # Status MUST remain unchanged (PUBLISHED)
+        self.assertEqual(self.posting.status, "PUBLISHED")
+
+    def test_successful_recovery_and_checkpoint_advancement_after_quarantine(self):
+        """When an unresolved window is recovered with clean data, checkpoint advances and errors clear."""
+        from django.core.cache import cache
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        stale_checkpoint = timezone.now() - datetime.timedelta(days=2)
+        self.posting.last_synced_at = stale_checkpoint
+        self.posting.error_message = "Operator action required: Folder reached maximum retries."
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+        cache.set(counter_key, 3)
+
+        clean_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 1,
+                "applications": [
+                    {
+                        "application_id": "APP-RECOVERED-01",
+                        "candidate_name": "Recovered Candidate",
+                        "folder_id": self.posting.external_job_id
+                    }
+                ]
+            }
+        }
+        client_clean = FounditClient(transport=MockTransport(clean_payload))
+        summary_rec = FounditApplicationSyncService.sync_applications_for_folder(self.posting.external_job_id, client=client_clean)
+
+        self.assertEqual(summary_rec["new_ingested"], 1)
+        self.assertEqual(summary_rec["failed_errors"], 0)
+        self.assertFalse(summary_rec["quarantined"])
+
+        # Checkpoint MUST advance beyond stale_checkpoint
+        self.posting.refresh_from_db()
+        self.assertGreater(self.posting.last_synced_at, stale_checkpoint)
+        self.assertEqual(self.posting.error_message, "")
+        self.assertIsNone(cache.get(counter_key))
+
+    def test_completely_successful_run_advances_checkpoint_cleanly(self):
+        """A completely clean sync advances last_synced_at to sync_started_at and leaves error_message empty."""
+        from django.core.cache import cache
+        counter_key = f"foundit_folder_consecutive_errors_{self.posting.external_job_id}"
+        cache.delete(counter_key)
+        self.posting.last_synced_at = None
+        self.posting.error_message = "Old error"
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        success_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 2,
+                "applications": [
+                    {
+                        "application_id": "APP-CLEAN-A",
+                        "candidate_name": "Candidate A",
+                        "folder_id": self.posting.external_job_id
+                    },
+                    {
+                        "application_id": "APP-CLEAN-B",
+                        "candidate_name": "Candidate B",
+                        "folder_id": self.posting.external_job_id
+                    }
+                ]
+            }
+        }
+        client = FounditClient(transport=MockTransport(success_payload))
+        summary = FounditApplicationSyncService.sync_applications_for_folder(self.posting.external_job_id, client=client)
+
+        self.assertEqual(summary["new_ingested"], 2)
+        self.assertEqual(summary["failed_errors"], 0)
+
+        self.posting.refresh_from_db()
+        self.assertIsNotNone(self.posting.last_synced_at)
+        self.assertEqual(self.posting.error_message, "")
+        self.assertIsNone(cache.get(counter_key))
+
+    def test_empty_first_page_with_positive_matching_count_retains_checkpoint(self):
+        """When page 1 is empty but API explicitly reports positive total_job_applications, checkpoint is held."""
+        from django.core.cache import cache
+        cache.delete("foundit_sync_all_jobs_lock")
+        cache.delete(f"foundit_folder_consecutive_errors_{self.posting.external_job_id}")
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=3)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        # Envelope says total_job_applications=15, but applications=[] on page 1
+        anomalous_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 15,
+                "applications": []
+            }
+        }
+        mock_transport = MockTransport(anomalous_payload)
+        client = FounditClient(transport=mock_transport)
+        results = FounditApplicationSyncService.sync_all_published_jobs(client=client)
+
+        expected_overlap = initial_checkpoint - datetime.timedelta(minutes=FounditApplicationSyncService.OVERLAP_WINDOW_MINUTES)
+        expected_since_str = FounditApplicationSyncService.format_applications_since(expected_overlap)
+        self.assertEqual(mock_transport.last_params.get("applications_since"), expected_since_str)
+
+        self.assertEqual(results["total_new_ingested"], 0)
+        self.assertEqual(len(results["job_results"]), 1)
+        self.assertIn("Incomplete response: Foundit reported 15 application(s)", results["job_results"][0].get("error", ""))
+
+        # Checkpoint MUST be held at initial_checkpoint!
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        self.assertIn("Incomplete response", self.posting.error_message)
+
+    def test_empty_result_with_zero_count_advances_checkpoint(self):
+        """When page 1 has zero applications and total_job_applications is 0 or missing, checkpoint advances cleanly."""
+        from django.core.cache import cache
+        cache.delete("foundit_sync_all_jobs_lock")
+        cache.delete(f"foundit_folder_consecutive_errors_{self.posting.external_job_id}")
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=3)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = "Old error"
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        clean_empty_payload = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 0,
+                "applications": []
+            }
+        }
+        mock_transport = MockTransport(clean_empty_payload)
+        client = FounditClient(transport=mock_transport)
+        results = FounditApplicationSyncService.sync_all_published_jobs(client=client)
+
+        expected_overlap = initial_checkpoint - datetime.timedelta(minutes=FounditApplicationSyncService.OVERLAP_WINDOW_MINUTES)
+        expected_since_str = FounditApplicationSyncService.format_applications_since(expected_overlap)
+        self.assertEqual(mock_transport.last_params.get("applications_since"), expected_since_str)
+
+        self.assertEqual(results["total_new_ingested"], 0)
+        self.assertEqual(len(results["job_results"]), 1)
+        self.assertIsNone(results["job_results"][0].get("error"))
+
+        # Checkpoint advances cleanly!
+        self.posting.refresh_from_db()
+        self.assertGreater(self.posting.last_synced_at, initial_checkpoint)
+        self.assertEqual(self.posting.error_message, "")
+
+    def test_end_to_end_recovery_via_sync_all_published_jobs(self):
+        """
+        Verify end-to-end recovery through sync_all_published_jobs:
+        1. Failure run: page 1 succeeds (saving an applicant), page 2 fails with HTTP 500 -> checkpoint held.
+        2. Recovery run: queries applications_since = checkpoint - 2 min, page 1 duplicate skipped,
+           page 2 applicant ingested -> checkpoint advances.
+        """
+        from django.core.cache import cache
+        cache.delete("foundit_sync_all_jobs_lock")
+        cache.delete(f"foundit_folder_consecutive_errors_{self.posting.external_job_id}")
+
+        t0 = timezone.now() - datetime.timedelta(hours=1)
+        self.posting.last_synced_at = t0
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        # Page 1 payload (1 applicant)
+        page_1_data = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 2,
+                "applications": [
+                    {
+                        "application_id": "APP-E2E-P1",
+                        "candidate_name": "Page One Ingested",
+                        "folder_id": self.posting.external_job_id
+                    }
+                ]
+            }
+        }
+        # Page 2 payload (1 applicant)
+        page_2_data = {
+            "success": True,
+            "data": {
+                "folder_id": self.posting.external_job_id,
+                "total_job_applications": 2,
+                "applications": [
+                    {
+                        "application_id": "APP-E2E-P2",
+                        "candidate_name": "Page Two Recovered",
+                        "folder_id": self.posting.external_job_id
+                    }
+                ]
+            }
+        }
+
+        # --- RUN 1: Failure on Page 2 ---
+        transport_fail = MockTransport(page_1_data)
+        call_count_1 = {"n": 0}
+        captured_since_1 = {}
+
+        def mock_get_1(url, params=None, headers=None):
+            call_count_1["n"] += 1
+            if params and "applications_since" in params:
+                captured_since_1["since"] = params["applications_since"]
+            if call_count_1["n"] == 1:
+                return page_1_data
+            raise FounditAPIError("Transient 500 error on page 2", status_code=500)
+
+        transport_fail.get = mock_get_1
+        client_fail = FounditClient(transport=transport_fail)
+
+        results_1 = FounditApplicationSyncService.sync_all_published_jobs(client=client_fail, max_pages=50, limit=1)
+
+        # In run 1: 1 new applicant ingested from page 1, but page 2 failed
+        self.assertEqual(results_1["total_new_ingested"], 1)
+        self.assertTrue(CareerPortalApplicant.objects.filter(foundit_application_id="APP-E2E-P1").exists())
+
+        # Expected overlap timestamp was requested
+        expected_overlap = t0 - datetime.timedelta(minutes=FounditApplicationSyncService.OVERLAP_WINDOW_MINUTES)
+        expected_since_str = FounditApplicationSyncService.format_applications_since(expected_overlap)
+        self.assertEqual(captured_since_1.get("since"), expected_since_str)
+
+        # Checkpoint MUST NOT advance!
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, t0)
+        self.assertIn("Transient 500 error on page 2", self.posting.error_message)
+
+        # --- RUN 2: Recovery run through sync_all_published_jobs ---
+        transport_recover = MockTransport(page_1_data)
+        call_count_2 = {"n": 0}
+        captured_since_2 = {}
+
+        def mock_get_2(url, params=None, headers=None):
+            call_count_2["n"] += 1
+            if params and "applications_since" in params:
+                captured_since_2["since"] = params["applications_since"]
+            if call_count_2["n"] == 1:
+                return page_1_data
+            elif call_count_2["n"] == 2:
+                return page_2_data
+            return {"success": True, "data": {"folder_id": self.posting.external_job_id, "applications": []}}
+
+        transport_recover.get = mock_get_2
+        client_recover = FounditClient(transport=transport_recover)
+
+        results_2 = FounditApplicationSyncService.sync_all_published_jobs(client=client_recover, max_pages=50, limit=1)
+
+        # In run 2: Page 1 was skipped as duplicate, Page 2 was newly ingested!
+        self.assertEqual(results_2["total_duplicates_skipped"], 1)
+        self.assertEqual(results_2["total_new_ingested"], 1)
+        self.assertTrue(CareerPortalApplicant.objects.filter(foundit_application_id="APP-E2E-P1").exists())
+        self.assertTrue(CareerPortalApplicant.objects.filter(foundit_application_id="APP-E2E-P2").exists())
+
+        # applications_since in run 2 was STILL computed from t0 - overlap (proving retry retrieved the uncompleted window)
+        self.assertEqual(captured_since_2.get("since"), expected_since_str)
+
+        # NOW checkpoint advances beyond t0 and error message is cleared!
+        self.posting.refresh_from_db()
+        self.assertGreater(self.posting.last_synced_at, t0)
+        self.assertEqual(self.posting.error_message, "")
+
+    def test_two_calls_same_folder_only_one_acquires_lock(self):
+        """Two calls attempting to sync the same folder concurrently: only one acquires the lock, other skips safely."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        cache.delete(lock_key)
+
+        # Simulate Worker A acquiring the lock
+        token_a = "worker-a-token-12345"
+        acquired = cache.add(lock_key, token_a, timeout=300)
+        self.assertTrue(acquired)
+
+        # Worker B attempts to sync the same folder
+        mock_transport = MockTransport({
+            "folder_id": folder_id,
+            "total_job_applications": 5,
+            "applications": [{"application_id": "APP-CONC-1", "candidate_name": "Conc Cand"}]
+        })
+        client = FounditClient(transport=mock_transport)
+        summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client)
+
+        self.assertTrue(summary.get("skipped"))
+        self.assertIn("already in progress", summary.get("reason"))
+        self.assertEqual(summary.get("new_ingested"), 0)
+        # Verify Worker B did not dispatch any HTTP request
+        self.assertIsNone(mock_transport.last_url)
+
+        # Verify lock is still held by Worker A's token
+        self.assertEqual(cache.get(lock_key), token_a)
+
+        # Clean up
+        cache.delete(lock_key)
+
+    def test_different_folder_ids_acquire_independent_locks(self):
+        """Different folder IDs acquire independent lock keys and do not block each other."""
+        from django.core.cache import cache
+        folder_1 = self.posting.external_job_id
+        folder_2 = "888888888"
+
+        lock_key_1 = FounditApplicationSyncService.get_folder_lock_key(folder_1)
+        lock_key_2 = FounditApplicationSyncService.get_folder_lock_key(folder_2)
+        self.assertNotEqual(lock_key_1, lock_key_2)
+        cache.delete(lock_key_1)
+        cache.delete(lock_key_2)
+
+        # Create posting for folder_2
+        job_2 = Application.objects.create(
+            candidate_name="",
+            position="Folder 2 Developer",
+            client_name="Test Client 2",
+            experience=3.0,
+            status="Active"
+        )
+        posting_2 = JobBoardPosting.objects.create(
+            job=job_2,
+            job_board="Foundit",
+            external_job_id=folder_2,
+            status="PUBLISHED"
+        )
+
+        # Hold lock on folder_1
+        cache.add(lock_key_1, "worker-1-token", timeout=300)
+
+        # Sync folder_2: succeeds independently
+        payload_2 = {
+            "success": True,
+            "data": {
+                "folder_id": folder_2,
+                "total_job_applications": 1,
+                "applications": [{"application_id": "APP-F2-1", "candidate_name": "F2 Applicant", "folder_id": folder_2}]
+            }
+        }
+        client_2 = FounditClient(transport=MockTransport(payload_2))
+        summary_2 = FounditApplicationSyncService.sync_applications_for_folder(folder_2, client=client_2)
+
+        self.assertFalse(summary_2.get("skipped", False))
+        self.assertEqual(summary_2["new_ingested"], 1)
+
+        # Folder 1 lock was never touched and is still held
+        self.assertEqual(cache.get(lock_key_1), "worker-1-token")
+        # Folder 2 lock was cleanly released
+        self.assertIsNone(cache.get(lock_key_2))
+
+        cache.delete(lock_key_1)
+
+    def test_busy_lock_skip_leaves_all_state_unchanged(self):
+        """A busy-lock skip leaves checkpoint, error state, candidates, and error counters unchanged."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        counter_key = f"foundit_folder_consecutive_errors_{folder_id}"
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=5)
+        initial_error = "Previous transient error note"
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = initial_error
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        cache.set(counter_key, 2, timeout=86400)
+        cache.set(lock_key, "active-holder", timeout=300)
+
+        initial_applicant_count = CareerPortalApplicant.objects.count()
+
+        mock_transport = MockTransport({
+            "folder_id": folder_id,
+            "total_job_applications": 10,
+            "applications": [{"application_id": "APP-SHOULD-NOT-RUN", "candidate_name": "Skip Me"}]
+        })
+        client = FounditClient(transport=mock_transport)
+        summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client)
+
+        self.assertTrue(summary.get("skipped"))
+
+        # Verify database posting is 100% untouched
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        self.assertEqual(self.posting.error_message, initial_error)
+
+        # Verify failure counter is NOT incremented
+        self.assertEqual(cache.get(counter_key), 2)
+
+        # Verify applicant records are untouched
+        self.assertEqual(CareerPortalApplicant.objects.count(), initial_applicant_count)
+
+        cache.delete(lock_key)
+        cache.delete(counter_key)
+
+    def test_scheduled_and_manual_sync_use_same_folder_lock_key(self):
+        """Scheduled sync and manual sync use the exact same namespaced folder-lock key format."""
+        from django.core.cache import cache
+        from rest_framework.test import APIClient
+
+        folder_id = self.posting.external_job_id
+        expected_key = f"foundit_sync_folder_lock_{folder_id}"
+        self.assertEqual(FounditApplicationSyncService.get_folder_lock_key(folder_id), expected_key)
+
+        cache.delete(expected_key)
+
+        # 1. Manual endpoint rejects when lock is held
+        cache.set(expected_key, "scheduled-task-worker-token", timeout=300)
+        client = APIClient()
+        client.force_authenticate(user=self.admin_user)
+
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "true"}):
+            with patch("applications.integrations.foundit.tasks.sync_foundit_applications_task.delay") as mock_delay:
+                res = client.post(f"/api/applications/{self.job.id}/sync-foundit/")
+                self.assertEqual(res.status_code, 409)
+                self.assertEqual(res.data.get("code"), "FOLDER_SYNC_BUSY")
+                self.assertIn("already in progress", res.data.get("error"))
+                mock_delay.assert_not_called()
+
+        # 2. Scheduled sync skips folder when lock is held by manual sync
+        sched_client = FounditClient(transport=MockTransport({"folder_id": folder_id, "applications": []}))
+        sched_results = FounditApplicationSyncService.sync_all_published_jobs(client=sched_client)
+        self.assertEqual(sched_results["total_jobs_scanned"], 1)
+        self.assertTrue(sched_results["job_results"][0].get("skipped"))
+        self.assertIn("already in progress", sched_results["job_results"][0].get("reason"))
+
+        # Lock was not deleted by either skip
+        self.assertEqual(cache.get(expected_key), "scheduled-task-worker-token")
+        cache.delete(expected_key)
+
+    def test_exception_and_early_return_paths_release_only_own_lock(self):
+        """Exception and early-return paths reliably release their own lock in finally."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        cache.delete(lock_key)
+
+        # Case A: Network/HTTP Exception during sync
+        class ExplodingTransport:
+            def get(self, url, params=None, headers=None):
+                raise RuntimeError("Exploding transport simulated crash")
+
+        client_crash = FounditClient(transport=ExplodingTransport())
+        summary_crash = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client_crash)
+        self.assertIn("Exploding transport simulated crash", summary_crash.get("error", ""))
+        # Lock must be released
+        self.assertIsNone(cache.get(lock_key))
+
+        # Case B: Early return (Phase safety guard exception)
+        with patch.object(FounditClient, "get_applications", side_effect=FounditContractUnverifiedException("Safety block")):
+            client_block = FounditClient()
+            summary_block = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client_block)
+            self.assertTrue(summary_block.get("skipped"))
+            # Lock must be released
+            self.assertIsNone(cache.get(lock_key))
+
+        # Case C: Clean successful run releases lock
+        clean_transport = MockTransport({
+            "folder_id": folder_id,
+            "total_job_applications": 0,
+            "applications": []
+        })
+        client_clean = FounditClient(transport=clean_transport)
+        summary_clean = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client_clean)
+        self.assertFalse(summary_clean.get("skipped", False))
+        self.assertIsNone(cache.get(lock_key))
+
+    def test_stale_or_expired_lock_cannot_be_released_or_renewed_by_different_owner(self):
+        """A worker cannot release or renew a lock owned by a different worker token."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+
+        token_legit_owner = "legit-owner-token"
+        token_stale_worker = "stale-worker-token"
+
+        cache.set(lock_key, token_legit_owner, timeout=300)
+
+        # Stale worker attempts to release
+        released = FounditApplicationSyncService._release_lock(lock_key, token_stale_worker)
+        self.assertFalse(released)
+        # Lock is STILL held by legit owner
+        self.assertEqual(cache.get(lock_key), token_legit_owner)
+
+        # Stale worker attempts to renew
+        renewed = FounditApplicationSyncService._renew_lock(lock_key, token_stale_worker, 600)
+        self.assertFalse(renewed)
+        self.assertEqual(cache.get(lock_key), token_legit_owner)
+
+        # Legit owner successfully releases
+        legit_released = FounditApplicationSyncService._release_lock(lock_key, token_legit_owner)
+        self.assertTrue(legit_released)
+        self.assertIsNone(cache.get(lock_key))
+
+    def test_execution_deadline_safety_halts_sync_and_holds_checkpoint(self):
+        """When execution deadline (240s) is reached, sync loop halts, holding checkpoint to maintain lock safety margin."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        cache.delete(lock_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=1)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.save(update_fields=["last_synced_at"])
+
+        # Page 1 returns 1 application; Page 2 should not be fetched because deadline is exceeded
+        payload_1 = {
+            "success": True,
+            "data": {
+                "folder_id": folder_id,
+                "total_job_applications": 100,
+                "applications": [{"application_id": "APP-DEADLINE-1", "candidate_name": "Deadline Applicant"}]
+            }
+        }
+        transport = MockTransport(payload_1)
+        start_t = timezone.now()
+        call_times = [
+            start_t,  # sync_started_at
+            start_t + datetime.timedelta(seconds=241),  # deadline check before page 1
+            start_t + datetime.timedelta(seconds=242),
+            start_t + datetime.timedelta(seconds=243),
+        ]
+
+        with patch("django.utils.timezone.now", side_effect=call_times):
+            client = FounditClient(transport=transport)
+            summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client, limit=1)
+
+        self.assertTrue(summary.get("incomplete_pagination"))
+        self.assertIn("Sync execution deadline", summary.get("error", ""))
+        self.assertEqual(summary.get("pages_fetched"), 0)
+
+        # Checkpoint MUST be held at initial_checkpoint!
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+
+        # Lock was safely released in finally
+        self.assertIsNone(cache.get(lock_key))
+
+    def test_disabled_feature_flag_does_not_acquire_lock_or_dispatch_requests(self):
+        """When FOUNDIT_LIVE_APPLICATIONS_ENABLED=false, no lock is acquired, no API request dispatched, no mutation."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        cache.delete(lock_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=2)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.save(update_fields=["last_synced_at"])
+
+        mock_transport = MockTransport({"folder_id": folder_id, "applications": []})
+
+        with patch.dict("os.environ", {"FOUNDIT_LIVE_APPLICATIONS_ENABLED": "false"}):
+            with patch.object(cache, "add", wraps=cache.add) as spy_add:
+                client = FounditClient(transport=mock_transport)
+                summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client)
+
+                self.assertTrue(summary.get("skipped"))
+                self.assertIn("Live application retrieval is disabled", summary.get("reason"))
+
+                # Verify cache.add was NEVER called for the folder lock
+                for call_args in spy_add.call_args_list:
+                    if call_args[0] and call_args[0][0] == lock_key:
+                        self.fail("Folder lock must not be acquired when live sync is disabled")
+
+                # Lock key must not exist
+                self.assertIsNone(cache.get(lock_key))
+
+                # Checkpoint unchanged
+                self.posting.refresh_from_db()
+                self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+
+    def test_failed_renewal_stops_sync_without_modifying_checkpoint(self):
+        """If lease renewal fails during sync, worker immediately halts with skipped=True and holds checkpoint."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        counter_key = f"foundit_folder_consecutive_errors_{folder_id}"
+        cache.delete(lock_key)
+        cache.delete(counter_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=3)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        # Page 1 succeeds, page 2 renewal fails (simulating lost ownership)
+        renewal_side_effects = [True, False]
+        transport = MockTransport({
+            "folder_id": folder_id,
+            "total_job_applications": 100,
+            "applications": [{"application_id": "APP-RENEW-FAIL", "candidate_name": "Renew Fail"}]
+        })
+        client = FounditClient(transport=transport)
+
+        with patch.object(FounditApplicationSyncService, "_renew_lock", side_effect=renewal_side_effects):
+            summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client, limit=1)
+
+        self.assertTrue(summary.get("skipped"))
+        self.assertIn("Lock ownership lost", summary.get("error", ""))
+
+        # Checkpoint and error counter must remain completely unmodified
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        self.assertEqual(self.posting.error_message, "")
+        self.assertIsNone(cache.get(counter_key))
+
+    def test_lost_ownership_before_checkpoint_save_prevents_advancement(self):
+        """If lock ownership is lost right before checkpoint save, checkpoint advancement is aborted."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        cache.delete(lock_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=4)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.error_message = ""
+        self.posting.save(update_fields=["last_synced_at", "error_message"])
+
+        transport = MockTransport({
+            "folder_id": folder_id,
+            "total_job_applications": 1,
+            "applications": [{"application_id": "APP-STOLEN-LOCK", "candidate_name": "Stolen Lock"}]
+        })
+        client = FounditClient(transport=transport)
+
+        # Let cache.get return a different token right before checkpoint check
+        real_get = cache.get
+        def mock_cache_get(key, default=None):
+            if key == lock_key:
+                return "different-worker-stole-lock"
+            return real_get(key, default)
+
+        with patch.object(cache, "get", side_effect=mock_cache_get):
+            summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client)
+
+        self.assertTrue(summary.get("skipped"))
+        self.assertIn("Lock ownership lost", summary.get("error", ""))
+
+        # Checkpoint must NOT advance!
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+        cache.delete(lock_key)
+
+    def test_post_network_call_deadline_halts_sync_and_holds_checkpoint(self):
+        """If execution deadline is exceeded during/after network call, sync loop halts and checkpoint is held."""
+        from django.core.cache import cache
+        folder_id = self.posting.external_job_id
+        lock_key = FounditApplicationSyncService.get_folder_lock_key(folder_id)
+        cache.delete(lock_key)
+
+        initial_checkpoint = timezone.now() - datetime.timedelta(hours=2)
+        self.posting.last_synced_at = initial_checkpoint
+        self.posting.save(update_fields=["last_synced_at"])
+
+        transport = MockTransport({
+            "folder_id": folder_id,
+            "total_job_applications": 50,
+            "applications": [{"application_id": "APP-POST-NET-1", "candidate_name": "Post Net"}]
+        })
+        client = FounditClient(transport=transport)
+
+        start_t = timezone.now()
+        # Call 1: sync_started_at
+        # Call 2: pre-network deadline check (0s, passes)
+        # Call 3: post-network deadline check (245s, exceeds deadline!)
+        call_times = [
+            start_t,
+            start_t + datetime.timedelta(seconds=5),
+            start_t + datetime.timedelta(seconds=245),
+            start_t + datetime.timedelta(seconds=246),
+        ]
+
+        with patch("django.utils.timezone.now", side_effect=call_times):
+            summary = FounditApplicationSyncService.sync_applications_for_folder(folder_id, client=client, limit=1)
+
+        self.assertTrue(summary.get("incomplete_pagination"))
+        self.assertIn("Sync execution deadline", summary.get("error", ""))
+        self.assertEqual(summary.get("pages_fetched"), 1)
+
+        # Checkpoint held
+        self.posting.refresh_from_db()
+        self.assertEqual(self.posting.last_synced_at, initial_checkpoint)

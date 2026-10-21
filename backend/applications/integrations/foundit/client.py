@@ -17,6 +17,7 @@ from applications.integrations.foundit.constants import (
     HEADER_SESSION_TOKEN,
     MAX_APPLICATIONS_PER_PAGE,
     get_foundit_credentials,
+    is_foundit_live_applications_enabled,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,9 +45,11 @@ class FounditClient:
         self.credentials = get_foundit_credentials()
         self.transport = transport  # Injection point for mock transport in unit tests
         self.live_job_posting_enabled = True       # Enabled in Phase 3B
-        import os
-        self.live_applications_enabled = os.getenv("FOUNDIT_LIVE_APPLICATIONS_ENABLED", "False").lower() in ("true", "1")
         self.live_webhook_enabled = False          # Remains False (unverified in documentation)
+
+    @property
+    def live_applications_enabled(self):
+        return is_foundit_live_applications_enabled()
 
     def assert_job_posting_authorized(self):
         if not self.live_job_posting_enabled and not self.transport:
@@ -72,11 +75,11 @@ class FounditClient:
             )
 
     def assert_applications_authorized(self):
-        if not self.live_applications_enabled and not self.transport:
-            logger.warning("[FounditClient] Application Retrieval API call blocked by Phase 3B Safety Guard.")
+        if not self.live_applications_enabled:
+            logger.warning("[FounditClient] Application Retrieval API call blocked by Phase Safety Guard.")
             raise FounditContractUnverifiedException(
-                "Phase 3B Guard: Foundit Application GET API execution is blocked. "
-                "Application retrieval authorization occurs in Phase 4."
+                "Phase Safety Guard: Foundit Application GET API execution is blocked. "
+                "Live application retrieval is disabled (FOUNDIT_LIVE_APPLICATIONS_ENABLED=False)."
             )
 
     def assert_webhook_authorized(self):
