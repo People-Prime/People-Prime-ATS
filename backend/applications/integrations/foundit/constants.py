@@ -51,3 +51,11 @@ def get_foundit_credentials():
         "network_industry_id": os.getenv("FOUNDIT_NETWORK_INDUSTRY_ID", "140"),
         "network_industry_name": os.getenv("FOUNDIT_NETWORK_INDUSTRY_NAME", "Consumer Software"),
     }
+
+
+def is_foundit_live_applications_enabled():
+    """
+    Returns True if live Foundit application retrieval is explicitly enabled via environment configuration.
+    Defaults to False for production safety.
+    """
+    return os.getenv("FOUNDIT_LIVE_APPLICATIONS_ENABLED", "False").lower() in ("true", "1")

@@ -6,6 +6,9 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+# Ensure integration and AI tasks are discovered by Celery worker
+import applications.integrations.foundit.tasks  # noqa: F401
+import applications.ai.tasks  # noqa: F401
 
 @shared_task
 def auto_close_expired_jobs():

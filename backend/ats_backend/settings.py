@@ -186,6 +186,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'applications.tasks.auto_close_expired_jobs',
         'schedule': crontab(hour=0, minute=5),  # Runs every day at 00:05 server time
     },
+    'sync-all-foundit-jobs-periodic': {
+        'task': 'applications.integrations.foundit.tasks.sync_all_foundit_jobs_task',
+        'schedule': crontab(minute='*/30'),  # Runs every 30 minutes
+    },
 }
 CELERY_TIMEZONE = TIME_ZONE
 

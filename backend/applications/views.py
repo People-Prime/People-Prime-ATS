@@ -2150,6 +2150,114 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 "error": posting.error_message or "Failed to publish job to Foundit."
             }, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], url_path='sync-foundit')
+    def sync_foundit(self, request, pk=None):
+        from users.models import Role
+        if request.user.role not in [Role.ADMIN, Role.TEAM_LEAD] and not request.user.is_superuser:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only Administrators and Team Leads are authorized to synchronize job board applications.")
+
+        job = self.get_object()
+        if job.candidate_name:
+            return Response(
+                {"success": False, "error": "Only job postings can be synchronized with Foundit."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        posting = JobBoardPosting.objects.filter(
+            job=job,
+            job_board='Foundit',
+            status='PUBLISHED'
+        ).exclude(external_job_id='').first()
+
+        if not posting:
+            return Response(
+                {
+                    "success": False,
+                    "error": f"Job {job.id} does not have an active published Foundit posting with an external folder ID."
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if live application synchronization is enabled in environment configuration
+        from applications.integrations.foundit.constants import is_foundit_live_applications_enabled
+        if not is_foundit_live_applications_enabled():
+            return Response(
+                {
+                    "success": False,
+                    "error": (
+                        "Foundit live application retrieval is currently disabled in system configuration "
+                        "(FOUNDIT_LIVE_APPLICATIONS_ENABLED=False). Enable live synchronization before "
+                        "requesting on-demand retrieval."
+                    ),
+                    "code": "LIVE_SYNC_DISABLED",
+                    "folder_id": posting.external_job_id,
+                    "job_id": job.id,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if synchronization for this folder is currently in progress
+        from django.core.cache import cache
+        from applications.integrations.foundit.candidate_ingestion import FounditApplicationSyncService
+        folder_lock_key = FounditApplicationSyncService.get_folder_lock_key(posting.external_job_id)
+        if cache.get(folder_lock_key):
+            return Response(
+                {
+                    "success": False,
+                    "error": f"Synchronization for folder {posting.external_job_id} is already in progress.",
+                    "code": "FOLDER_SYNC_BUSY",
+                    "folder_id": posting.external_job_id,
+                    "job_id": job.id,
+                },
+                status=status.HTTP_409_CONFLICT
+            )
+
+        # Operator recovery support: allow explicit reset of checkpoint and consecutive failure counter
+        reset_checkpoint = (
+            request.data.get("reset_checkpoint") is True
+            or str(request.query_params.get("reset_checkpoint", "")).lower() in ("true", "1")
+        )
+
+        app_since = None
+        if reset_checkpoint:
+            posting.last_synced_at = None
+            posting.error_message = ""
+            posting.save(update_fields=["last_synced_at", "error_message"])
+            from django.core.cache import cache
+            cache.delete(f"foundit_folder_consecutive_errors_{posting.external_job_id}")
+        else:
+            if posting.last_synced_at:
+                import datetime
+                from applications.integrations.foundit.candidate_ingestion import FounditApplicationSyncService
+                overlap_time = posting.last_synced_at - datetime.timedelta(minutes=FounditApplicationSyncService.OVERLAP_WINDOW_MINUTES)
+                app_since = FounditApplicationSyncService.format_applications_since(overlap_time)
+
+        # Queue background task to fetch applications asynchronously
+        from applications.integrations.foundit.tasks import sync_foundit_applications_task
+        if app_since is not None:
+            task = sync_foundit_applications_task.delay(posting.external_job_id, applications_since=app_since)
+        else:
+            task = sync_foundit_applications_task.delay(posting.external_job_id)
+        task_id_str = getattr(task, 'id', None) or str(task)
+
+        return Response(
+            {
+                "success": True,
+                "status": "QUEUED",
+                "task_id": task_id_str,
+                "folder_id": posting.external_job_id,
+                "job_id": job.id,
+                "reset_checkpoint": reset_checkpoint,
+                "message": (
+                    f"Foundit full resync queued for job {job.id} (folderId: {posting.external_job_id})."
+                    if reset_checkpoint else
+                    f"Foundit application synchronization queued for job {job.id} (folderId: {posting.external_job_id})."
+                )
+            },
+            status=status.HTTP_202_ACCEPTED
+        )
+
 
 class CareerPortalApplicantPagination(PageNumberPagination):
     """Pagination for career portal applicants — prevents unbounded list responses."""

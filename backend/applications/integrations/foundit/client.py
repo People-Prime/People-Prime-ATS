@@ -4,8 +4,10 @@ Handles communication structure for Foundit APIs using official endpoints and he
 Includes FounditContractUnverifiedException safety guard to prevent live production HTTP calls
 for un-authorized endpoints (application retrieval, webhook registration, job update, job expiry).
 """
+import datetime
 import logging
 import requests
+from django.utils import timezone
 from applications.integrations.foundit.constants import (
     TOKEN_ENDPOINT,
     JOB_POSTING_ENDPOINT,
@@ -15,6 +17,7 @@ from applications.integrations.foundit.constants import (
     HEADER_SESSION_TOKEN,
     MAX_APPLICATIONS_PER_PAGE,
     get_foundit_credentials,
+    is_foundit_live_applications_enabled,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,8 +45,11 @@ class FounditClient:
         self.credentials = get_foundit_credentials()
         self.transport = transport  # Injection point for mock transport in unit tests
         self.live_job_posting_enabled = True       # Enabled in Phase 3B
-        self.live_applications_enabled = False     # Remains False in Phase 3B
-        self.live_webhook_enabled = False          # Remains False in Phase 3B
+        self.live_webhook_enabled = False          # Remains False (unverified in documentation)
+
+    @property
+    def live_applications_enabled(self):
+        return is_foundit_live_applications_enabled()
 
     def assert_job_posting_authorized(self):
         if not self.live_job_posting_enabled and not self.transport:
@@ -69,11 +75,11 @@ class FounditClient:
             )
 
     def assert_applications_authorized(self):
-        if not self.live_applications_enabled and not self.transport:
-            logger.warning("[FounditClient] Application Retrieval API call blocked by Phase 3B Safety Guard.")
+        if not self.live_applications_enabled:
+            logger.warning("[FounditClient] Application Retrieval API call blocked by Phase Safety Guard.")
             raise FounditContractUnverifiedException(
-                "Phase 3B Guard: Foundit Application GET API execution is blocked. "
-                "Application retrieval authorization occurs in Phase 4."
+                "Phase Safety Guard: Foundit Application GET API execution is blocked. "
+                "Live application retrieval is disabled (FOUNDIT_LIVE_APPLICATIONS_ENABLED=False)."
             )
 
     def assert_webhook_authorized(self):
@@ -237,7 +243,16 @@ class FounditClient:
             "page_number": int(page_number) if page_number else 1,
         }
         if applications_since:
-            params["applications_since"] = applications_since
+            if isinstance(applications_since, (datetime.datetime, datetime.date)):
+                if isinstance(applications_since, datetime.date) and not isinstance(applications_since, datetime.datetime):
+                    dt = datetime.datetime.combine(applications_since, datetime.time.min, tzinfo=datetime.timezone.utc)
+                elif timezone.is_naive(applications_since):
+                    dt = timezone.make_aware(applications_since, datetime.timezone.utc)
+                else:
+                    dt = applications_since.astimezone(datetime.timezone.utc)
+                params["applications_since"] = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            else:
+                params["applications_since"] = str(applications_since).strip()
 
         if self.transport:
             return self.transport.get(APPLICATIONS_ENDPOINT, params=params)
@@ -252,11 +267,32 @@ class FounditClient:
             res = requests.get(APPLICATIONS_ENDPOINT, headers=headers, params=params, timeout=15)
             status_code = res.status_code
 
+            # Handle 401 with one-time force refresh and retry
+            if status_code == 401:
+                logger.info("[FounditClient] HTTP 401 received. Force refreshing session token and retrying get_applications once.")
+                session_token = self.generate_session_token(force_refresh=True)
+                headers[HEADER_SESSION_TOKEN] = session_token
+                res = requests.get(APPLICATIONS_ENDPOINT, headers=headers, params=params, timeout=15)
+                status_code = res.status_code
+
+            # Rate limit monitoring from headers
+            remaining = res.headers.get("X-RateLimit-Remaining")
+            if remaining is not None:
+                try:
+                    if int(remaining) <= 5:
+                        logger.warning(f"[FounditClient] Rate limit running low: {remaining} requests remaining.")
+                except (ValueError, TypeError):
+                    pass
+
             if status_code in (200, 201):
                 try:
-                    return res.json()
+                    data = res.json()
                 except Exception:
-                    return {}
+                    data = {}
+                if isinstance(data, dict) and data.get("success") is False:
+                    err_msg = FounditClient.extract_error_message(data)
+                    raise FounditAPIError(f"Foundit API error: {err_msg}", status_code=status_code)
+                return data
             elif status_code == 400:
                 err_msg = FounditClient.extract_error_message(res)
                 raise FounditAPIError(f"Foundit API Bad Request (HTTP 400): {err_msg}", status_code=400)
