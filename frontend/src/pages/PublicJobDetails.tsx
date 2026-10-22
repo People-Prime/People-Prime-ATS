@@ -63,9 +63,9 @@ export const PublicJobDetails: React.FC<PublicJobDetailsProps> = ({ themeMode, t
   const params = useParams<{ jobId?: string }>();
   const theme = useTheme();
 
-  // Support both /job-details?id=<ID>&src=Foundit and /job-details/:jobId
+  // Support both /job-details?id=<ID>&src=LinkedIn and /job-details/:jobId
   const jobId = searchParams.get('id') || params.jobId || '';
-  const src = searchParams.get('src') || searchParams.get('source') || 'Foundit';
+  const src = searchParams.get('src') || searchParams.get('source') || 'Company Career Portal';
 
   const [job, setJob] = useState<PublicJob | null>(null);
   const [loading, setLoading] = useState(true);
@@ -308,7 +308,7 @@ export const PublicJobDetails: React.FC<PublicJobDetailsProps> = ({ themeMode, t
             <Stack direction="row" spacing={1} alignItems="center">
               {src && (
                 <Chip
-                  label={`Referral Source: ${src}`}
+                  label={src === 'Company Career Portal' ? src : `Referral Source: ${src}`}
                   size="small"
                   variant="outlined"
                   color="primary"

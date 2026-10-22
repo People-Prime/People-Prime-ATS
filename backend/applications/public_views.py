@@ -147,13 +147,14 @@ class PublicJobApplyAPIView(APIView):
         # 4. Save Candidate ONLY in CareerPortalApplicant (DO NOT create ATS Application!)
         from applications.models import CareerPortalApplicant
 
-        req_source = request.data.get('source') or request.query_params.get('source') or request.query_params.get('src') or 'Company Career Portal'
-        if req_source and 'linkedin' in str(req_source).lower():
-            resolved_source = 'LinkedIn'
-        elif req_source and 'foundit' in str(req_source).lower():
-            resolved_source = 'Foundit'
-        else:
-            resolved_source = 'Company Career Portal'
+        # Public submissions via the career portal must default to 'Company Career Portal'
+        # and cannot impersonate trusted external integrations (Foundit, LinkedIn).
+        # Any incoming referral or campaign label is distinguished as referral metadata in raw_profile_data.
+        raw_source = request.data.get('source') or request.query_params.get('source') or request.query_params.get('src')
+        referral_label = str(raw_source).strip() if raw_source else ''
+
+        resolved_source = 'Company Career Portal'
+        profile_data = {'referral_source': referral_label} if referral_label and referral_label.lower() != 'company career portal' else None
 
         applicant = CareerPortalApplicant.objects.create(
             job=job,
@@ -173,6 +174,7 @@ class PublicJobApplyAPIView(APIView):
             resume=resume_link,
             accepted_terms=True,
             source=resolved_source,
+            raw_profile_data=profile_data,
             status='New'
         )
 

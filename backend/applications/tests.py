@@ -1260,10 +1260,11 @@ Required Skills & Experience
             res_valid = client.post(f"/api/public/jobs/{self.job.id}/apply/?src=Foundit", valid_payload)
             self.assertEqual(res_valid.status_code, 201)
 
-        # Confirm applicant was recorded with source 'Foundit' and valid resume filename
+        # Confirm applicant was recorded with default source 'Company Career Portal', referral label in raw_profile_data, and valid resume filename
         applicant = CareerPortalApplicant.objects.filter(job=self.job, email="jane.doe@example.com").first()
         self.assertIsNotNone(applicant)
-        self.assertEqual(applicant.source, "Foundit")
+        self.assertEqual(applicant.source, "Company Career Portal")
+        self.assertEqual(applicant.raw_profile_data, {"referral_source": "Foundit"})
         self.assertEqual(applicant.first_name, "Jane")
         self.assertIn("jane_resume.pdf", applicant.resume)
 
@@ -5468,3 +5469,370 @@ class FounditPhase4AApplicationRetrievalTests(TestCase):
         # Checkpoint held
         self.posting.refresh_from_db()
         self.assertEqual(self.posting.last_synced_at, initial_checkpoint)
+
+
+class FounditSourceClassificationAndWebhookSecurityTests(TestCase):
+    """
+    Regression and security test suite covering:
+    1. Public applications default to 'Company Career Portal'
+    2. Public requests cannot spoof trusted integration sources (Foundit, LinkedIn)
+    3. Dedicated Foundit ingestion service reliably records trusted 'Foundit' source & metadata
+    4. Webhook security requires authentication headers when configured, rejecting missing/invalid secrets
+    5. Webhook handles unauthenticated dev environments, invalid payloads, unsupported events, and duplicates safely
+    """
+    def setUp(self):
+        import os
+        from rest_framework.test import APIClient
+        from applications.models import Application, CareerPortalApplicant, JobBoardPosting
+        from applications.integrations.foundit.candidate_ingestion import FounditCandidateIngestionService
+
+        self.job = Application.objects.create(
+            candidate_name="",
+            position="Senior Cloud Architect",
+            technology="Python, AWS, Terraform",
+            experience=8.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Prime Tech Solutions",
+            publish_to_career_page=True,
+            status="New",
+            remarks="Full-time remote/hybrid role."
+        )
+        self.posting = JobBoardPosting.objects.create(
+            job=self.job,
+            job_board="Foundit",
+            external_job_id="FLDR-TEST-999",
+            status="PUBLISHED"
+        )
+        # Patch AI scoring task and S3 upload
+        self.score_patcher = patch("applications.ai.tasks.score_applicant_resume_task.delay")
+        self.mock_score_task = self.score_patcher.start()
+        self.addCleanup(self.score_patcher.stop)
+
+        self.boto_patcher = patch("boto3.client")
+        self.mock_boto = self.boto_patcher.start()
+        self.addCleanup(self.boto_patcher.stop)
+
+        self.client = APIClient()
+
+    def _get_valid_apply_payload(self, email="test.candidate@example.com", first_name="Alex", last_name="Johnson"):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        resume = SimpleUploadedFile("alex_resume.pdf", b"%PDF-1.4 sample content", content_type="application/pdf")
+        return {
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+            "mobile_number": "9123456780",
+            "qualification": "B.Tech Computer Science",
+            "years_of_experience": "6.0",
+            "expected_pay": "2500000",
+            "current_ctc": "1800000",
+            "primary_skills": "Python, Django, AWS",
+            "current_company": "Cloud Systems",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "accepted_terms": "true",
+            "resume": resume,
+        }
+
+    def test_public_apply_no_source_defaults_to_company_career_portal(self):
+        """A public application without a source parameter is recorded as 'Company Career Portal'."""
+        from applications.models import CareerPortalApplicant
+        payload = self._get_valid_apply_payload(email="ordinary.visitor@example.com")
+        res = self.client.post(f"/api/public/jobs/{self.job.id}/apply/", payload, format="multipart")
+        self.assertEqual(res.status_code, 201)
+
+        applicant = CareerPortalApplicant.objects.filter(job=self.job, email="ordinary.visitor@example.com").first()
+        self.assertIsNotNone(applicant)
+        self.assertEqual(applicant.source, "Company Career Portal")
+        self.assertIsNone(applicant.raw_profile_data)
+
+    def test_public_apply_cannot_impersonate_foundit_via_form_field(self):
+        """Public request submitting source='Foundit' in form data is classified as 'Company Career Portal'."""
+        from applications.models import CareerPortalApplicant
+        payload = self._get_valid_apply_payload(email="spoof.foundit.form@example.com")
+        payload["source"] = "Foundit"
+        res = self.client.post(f"/api/public/jobs/{self.job.id}/apply/", payload, format="multipart")
+        self.assertEqual(res.status_code, 201)
+
+        applicant = CareerPortalApplicant.objects.filter(job=self.job, email="spoof.foundit.form@example.com").first()
+        self.assertIsNotNone(applicant)
+        self.assertEqual(applicant.source, "Company Career Portal")
+        self.assertNotEqual(applicant.source, "Foundit")
+        self.assertEqual(applicant.raw_profile_data, {"referral_source": "Foundit"})
+
+    def test_public_apply_cannot_impersonate_foundit_via_query_param(self):
+        """Public request with ?src=Foundit is classified as 'Company Career Portal'."""
+        from applications.models import CareerPortalApplicant
+        payload = self._get_valid_apply_payload(email="spoof.foundit.param@example.com")
+        res = self.client.post(f"/api/public/jobs/{self.job.id}/apply/?src=Foundit", payload, format="multipart")
+        self.assertEqual(res.status_code, 201)
+
+        applicant = CareerPortalApplicant.objects.filter(job=self.job, email="spoof.foundit.param@example.com").first()
+        self.assertIsNotNone(applicant)
+        self.assertEqual(applicant.source, "Company Career Portal")
+        self.assertNotEqual(applicant.source, "Foundit")
+        self.assertEqual(applicant.raw_profile_data, {"referral_source": "Foundit"})
+
+    def test_public_apply_cannot_impersonate_linkedin_via_form_or_query_param(self):
+        """Public request with source='LinkedIn' or ?src=LinkedIn is classified as 'Company Career Portal'."""
+        from applications.models import CareerPortalApplicant
+        payload = self._get_valid_apply_payload(email="spoof.linkedin@example.com")
+        payload["source"] = "LinkedIn"
+        res = self.client.post(f"/api/public/jobs/{self.job.id}/apply/?src=LinkedIn", payload, format="multipart")
+        self.assertEqual(res.status_code, 201)
+
+        applicant = CareerPortalApplicant.objects.filter(job=self.job, email="spoof.linkedin@example.com").first()
+        self.assertIsNotNone(applicant)
+        self.assertEqual(applicant.source, "Company Career Portal")
+        self.assertNotEqual(applicant.source, "LinkedIn")
+        self.assertEqual(applicant.raw_profile_data, {"referral_source": "LinkedIn"})
+
+    def test_dedicated_foundit_ingestion_service_creates_trusted_foundit_applicant(self):
+        """The dedicated Foundit ingestion service reliably creates trusted 'Foundit' applicants with ID and raw payload."""
+        from applications.models import CareerPortalApplicant
+        from applications.integrations.foundit.candidate_ingestion import FounditCandidateIngestionService
+
+        foundit_payload = {
+            "folder_id": "FLDR-TEST-999",
+            "application_id": "FOUNDIT-VERIFIED-1001",
+            "candidate_name": "Trusted Candidate",
+            "candidate_email": "trusted.candidate@example.com",
+            "candidate_phone": "9876543219",
+            "experience": "5.5",
+            "current_location": "Hyderabad",
+            "preferred_location": "Hyderabad",
+            "key_skills": "Python, Microservices",
+        }
+        result = FounditCandidateIngestionService.ingest_candidate(foundit_payload)
+        self.assertTrue(result.get("success"))
+        self.assertFalse(result.get("duplicate", False))
+
+        applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-VERIFIED-1001").first()
+        self.assertIsNotNone(applicant)
+        self.assertEqual(applicant.source, "Foundit")
+        self.assertEqual(applicant.foundit_application_id, "FOUNDIT-VERIFIED-1001")
+        self.assertEqual(applicant.raw_profile_data, foundit_payload)
+
+    def test_webhook_accepted_with_correct_x_api_key(self):
+        """Webhook with configured secret accepts request using valid x-api-key header."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-APIKEY-1",
+                "candidate_name": "Webhook Candidate One",
+                "candidate_email": "wh.one@example.com",
+                "candidate_phone": "9876543211",
+                "experience": "4.0",
+            }
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json",
+                HTTP_X_API_KEY="test_wh_secret_xyz"
+            )
+            self.assertEqual(res.status_code, 201)
+            self.assertTrue(res.json().get("success"))
+
+            applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-APIKEY-1").first()
+            self.assertIsNotNone(applicant)
+            self.assertEqual(applicant.source, "Foundit")
+
+    def test_webhook_accepted_with_correct_x_foundit_signature(self):
+        """Webhook with configured secret accepts request using valid X-Foundit-Signature header."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-SIG-2",
+                "candidate_name": "Webhook Candidate Two",
+                "candidate_email": "wh.two@example.com",
+                "candidate_phone": "9876543212",
+                "experience": "5.0",
+            }
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json",
+                HTTP_X_FOUNDIT_SIGNATURE="test_wh_secret_xyz"
+            )
+            self.assertEqual(res.status_code, 201)
+            self.assertTrue(res.json().get("success"))
+
+            applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-SIG-2").first()
+            self.assertIsNotNone(applicant)
+            self.assertEqual(applicant.source, "Foundit")
+
+    def test_webhook_rejected_when_secret_configured_and_header_missing(self):
+        """Webhook with configured secret rejects requests missing auth headers with HTTP 401."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-MISSING-HDR",
+                "candidate_name": "Unauthenticated Candidate",
+            }
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json"
+            )
+            self.assertEqual(res.status_code, 401)
+            self.assertIn("missing", res.json().get("error", "").lower())
+
+            # No applicant recorded
+            applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-MISSING-HDR").first()
+            self.assertIsNone(applicant)
+
+    def test_webhook_rejected_when_secret_is_incorrect(self):
+        """Webhook with configured secret rejects requests with incorrect secrets with HTTP 401."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-WRONG-SECRET",
+                "candidate_name": "Intruder Candidate",
+            }
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json",
+                HTTP_X_API_KEY="invalid-or-spoofed-secret"
+            )
+            self.assertEqual(res.status_code, 401)
+            self.assertIn("invalid", res.json().get("error", "").lower())
+
+            # No applicant recorded
+            applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-WRONG-SECRET").first()
+            self.assertIsNone(applicant)
+
+    @override_settings(DEBUG=False)
+    def test_webhook_rejected_when_secret_unconfigured_in_production(self):
+        """When FOUNDIT_WEBHOOK_SECRET is empty/whitespace and DEBUG=False, webhook fails closed with HTTP 401."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "   "}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-PROD-UNCONFIG",
+                "candidate_name": "Prod Candidate",
+            }
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json"
+            )
+            self.assertEqual(res.status_code, 401)
+            self.assertIn("not configured", res.json().get("error", "").lower())
+
+            applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-PROD-UNCONFIG").first()
+            self.assertIsNone(applicant)
+
+    @override_settings(DEBUG=True)
+    def test_webhook_accepted_when_secret_unconfigured_in_dev_mode(self):
+        """When FOUNDIT_WEBHOOK_SECRET is empty and DEBUG=True, development fallback accepts request and logs warning."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": ""}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-DEV-FALLBACK",
+                "candidate_name": "Dev Candidate",
+                "candidate_email": "dev.candidate@example.com",
+                "candidate_phone": "9876543213",
+            }
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json"
+            )
+            self.assertEqual(res.status_code, 201)
+            self.assertTrue(res.json().get("success"))
+
+            applicant = CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-DEV-FALLBACK").first()
+            self.assertIsNotNone(applicant)
+
+    def test_webhook_rejects_invalid_json_payload(self):
+        """Webhook rejects non-dict payload with HTTP 400 Bad Request."""
+        import os
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                ["item1", "item2"],
+                format="json",
+                HTTP_X_API_KEY="test_wh_secret_xyz"
+            )
+            self.assertEqual(res.status_code, 400)
+            self.assertIn("Invalid JSON payload", res.json().get("error", ""))
+
+    def test_webhook_ignores_unsupported_event(self):
+        """Webhook safely ignores unsupported event types with HTTP 200 without creating an applicant."""
+        import os
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            res = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                {"event": "job.application.status.updated", "folder_id": "FLDR-TEST-999"},
+                format="json",
+                HTTP_X_API_KEY="test_wh_secret_xyz"
+            )
+            self.assertEqual(res.status_code, 200)
+            self.assertTrue(res.json().get("success"))
+            self.assertIn("ignored", res.json().get("message", "").lower())
+
+    def test_webhook_duplicate_application_handling(self):
+        """Webhook handles duplicate candidate payloads idempotently, returning HTTP 200 with duplicate=True."""
+        import os
+        from applications.models import CareerPortalApplicant
+
+        with patch.dict(os.environ, {"FOUNDIT_WEBHOOK_SECRET": "test_wh_secret_xyz"}):
+            webhook_payload = {
+                "event": "job.application.response.created",
+                "folder_id": "FLDR-TEST-999",
+                "application_id": "FOUNDIT-WH-DUP-1",
+                "candidate_name": "Idempotent Candidate",
+                "candidate_email": "idempotent@example.com",
+                "candidate_phone": "9876543214",
+                "experience": "2.0",
+            }
+            # First submission
+            res1 = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json",
+                HTTP_X_API_KEY="test_wh_secret_xyz"
+            )
+            self.assertEqual(res1.status_code, 201)
+
+            # Duplicate submission
+            res2 = self.client.post(
+                "/api/public/jobs/foundit/webhook/",
+                webhook_payload,
+                format="json",
+                HTTP_X_API_KEY="test_wh_secret_xyz"
+            )
+            self.assertEqual(res2.status_code, 200)
+            self.assertTrue(res2.json().get("duplicate"))
+            self.assertIn("already processed", res2.json().get("message", "").lower())
+
+            # Exactly one applicant in DB
+            self.assertEqual(CareerPortalApplicant.objects.filter(foundit_application_id="FOUNDIT-WH-DUP-1").count(), 1)

@@ -3,7 +3,9 @@ Isolated Foundit Public Webhook & Integration API Views.
 Receives candidate application webhooks (event: job.application.response.created) from Foundit
 with zero side-effects on LinkedIn or public ATS views.
 """
+import hmac
 import logging
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
@@ -19,14 +21,35 @@ class FounditCandidateWebhookView(APIView):
         # 1. Signature / Secret Check
         credentials = get_foundit_credentials()
         secret = credentials.get("webhook_secret")
-        if secret:
+        if secret and str(secret).strip():
             auth_header = request.headers.get("x-api-key") or request.headers.get("X-Foundit-Signature")
-            if auth_header and auth_header != secret:
-                logger.warning("[FounditWebhookView] Unauthorized webhook call - secret mismatch.")
+            if not auth_header or not str(auth_header).strip():
+                logger.warning("[FounditWebhookView] Unauthorized webhook call - missing authentication header.")
                 return Response(
-                    {"success": False, "error": "Unauthorized signature"},
+                    {"success": False, "error": "Unauthorized: missing webhook authentication header."},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
+            if not hmac.compare_digest(str(auth_header).strip(), str(secret).strip()):
+                logger.warning("[FounditWebhookView] Unauthorized webhook call - secret mismatch.")
+                return Response(
+                    {"success": False, "error": "Unauthorized: invalid webhook signature or secret."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+        else:
+            if not getattr(settings, 'DEBUG', False):
+                logger.error(
+                    "[FounditWebhookView] Webhook secret is not configured in production (FOUNDIT_WEBHOOK_SECRET is empty). "
+                    "Rejecting unauthenticated webhook request."
+                )
+                return Response(
+                    {"success": False, "error": "Unauthorized: webhook endpoint not configured."},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            logger.warning(
+                "[FounditWebhookView] Webhook secret is not configured in environment (FOUNDIT_WEBHOOK_SECRET is empty). "
+                "Endpoint is operating without authentication in development mode (DEBUG=True). "
+                "Configure FOUNDIT_WEBHOOK_SECRET to enforce security in production."
+            )
 
         payload = request.data
         if not isinstance(payload, dict):
