@@ -1,8 +1,15 @@
 import axios from 'axios';
 
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+const API_URL = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
   ? 'http://localhost:8000/api/' 
   : '/api/';
+
+// Standard timeout policies for ATS requests (milliseconds)
+export const API_TIMEOUTS = {
+  DEFAULT_LIST: 15000, // 15 seconds for paginated list queries
+  METRIC_STATS: 20000, // 20 seconds for dashboard metric aggregations
+  EXPORT: 60000,       // 60 seconds for heavy file/CSV streaming
+} as const;
 
 export const api = axios.create({
   baseURL: API_URL,

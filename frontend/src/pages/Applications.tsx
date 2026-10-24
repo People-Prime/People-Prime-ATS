@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import axios from 'axios';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
@@ -26,7 +27,8 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  TablePagination
+  TablePagination,
+  Alert
 } from '@mui/material';
 import {
   Search,
@@ -36,7 +38,7 @@ import {
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
 import { changeApplicationStatus, addApplicationNote, deleteApplication, updateApplication } from '../redux/applicationsSlice';
-import { api } from '../services/api';
+import { api, API_TIMEOUTS } from '../services/api';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 import { Application, ApplicationStatus } from '../types';
 import { getVisibleApplicantStatuses } from '../utils/statusVisibility';
@@ -217,9 +219,18 @@ export const Applications: React.FC = () => {
   const [localApplications, setLocalApplications] = useState<Application[]>([]);
   // Total count of matching records from the server (for pagination controls).
   const [totalCount, setTotalCount] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  const handleRetry = useCallback(() => {
+    setRetryTrigger(prev => prev + 1);
+  }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
+    setFetchError(null);
+
     const queryTerm = debouncedSearchTerm.trim();
     let url = 'applications/?is_job_posting=false&';
     if (queryTerm) {
@@ -232,14 +243,42 @@ export const Applications: React.FC = () => {
     }
     // Server-side pagination: request only one page of records.
     url += `page=${page + 1}&page_size=${rowsPerPage}&`;
-    api.get(url).then((res: any) => {
+
+    api.get(url, {
+      signal: controller.signal,
+      timeout: API_TIMEOUTS.DEFAULT_LIST
+    }).then((res: any) => {
+      if (controller.signal.aborted) return;
       const list = res.data?.results ?? res.data ?? [];
       const count = res.data?.count ?? list.length;
       setLocalApplications(list);
       setTotalCount(count);
-    }).catch(() => { })
-      .finally(() => setLoading(false));
-  }, [debouncedSearchTerm, startDate, endDate, statusFilter, page, rowsPerPage]);
+      setFetchError(null);
+    }).catch((err: any) => {
+      if (axios.isCancel(err) || err.name === 'CanceledError' || controller.signal.aborted) {
+        return;
+      }
+      let message = 'Failed to load applications. Please try again.';
+      if (err.code === 'ECONNABORTED' || (err.message && err.message.toLowerCase().includes('timeout'))) {
+        message = 'The request timed out. The server may be experiencing high load. Please try again.';
+      } else if (!err.response) {
+        message = 'Network connection error. Please check your internet connection.';
+      } else if (err.response.status >= 500) {
+        message = `Server error (${err.response.status}). Please try again shortly.`;
+      } else if (err.response.data?.detail) {
+        message = typeof err.response.data.detail === 'string' ? err.response.data.detail : JSON.stringify(err.response.data.detail);
+      }
+      setFetchError(message);
+    }).finally(() => {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      controller.abort();
+    };
+  }, [debouncedSearchTerm, startDate, endDate, statusFilter, page, rowsPerPage, retryTrigger]);
 
   // Handle drawer open
   const handleAppSelect = (app: Application) => {
@@ -466,7 +505,7 @@ export const Applications: React.FC = () => {
     }
   };
 
-  if (loading && applications.length === 0) {
+  if (loading && localApplications.length === 0 && !fetchError) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
         <CircularProgress />
@@ -567,6 +606,21 @@ export const Applications: React.FC = () => {
 
         </Grid>
       </Card>
+
+      {/* API Error Alert Banner with Retry action */}
+      {fetchError && (
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" size="small" startIcon={<RefreshCw size={14} />} onClick={handleRetry}>
+              Retry
+            </Button>
+          }
+          sx={{ mb: 3 }}
+        >
+          {fetchError}
+        </Alert>
+      )}
 
       {/* Main Table view */}
       <Card>
@@ -896,9 +950,24 @@ export const Applications: React.FC = () => {
               {displayApps.length === 0 && (
                 <tr>
                   <td colSpan={shouldHideAction ? 10 : 11} style={{ padding: '48px', textAlign: 'center', color: '#64748b' }}>
-                    {applications.length === 0 ? (
+                    {loading ? (
                       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'primary.main', fontWeight: 700 }}>
                         <CircularProgress size={18} color="primary" /> Loading...
+                      </Box>
+                    ) : fetchError ? (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5 }}>
+                        <Typography color="error" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                          {fetchError}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color="primary"
+                          startIcon={<RefreshCw size={14} />}
+                          onClick={handleRetry}
+                        >
+                          Retry
+                        </Button>
                       </Box>
                     ) : (
                       "No applications match the active filters or search terms."
