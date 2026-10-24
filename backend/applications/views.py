@@ -331,7 +331,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
-            ).distinct()
+            )
         elif user.role in [Role.TEAM_LEAD, Role.SUB_LEAD]:
             reporters = User.objects.filter(Q(reporting_to=user) | Q(reporting_to__reporting_to=user))
             qs = Application.objects.filter(
@@ -339,13 +339,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
-            ).distinct()
+            )
         elif user.role in [Role.ASSOCIATE_ANALYST, Role.SENIOR_ANALYST]:
             qs = Application.objects.filter(
                 Q(assigned_employee=user) |
                 Q(recruiter=user.full_name) |
                 Q(recruiter=user.email)
-            ).distinct()
+            )
         else:
             qs = Application.objects.none()
 
@@ -427,7 +427,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
                             created_at__date__lte=end_date
                         ) |
                         Exists(status_transition_subquery)
-                    ).distinct()
+                    )
 
         if self.action == 'list':
             # Prefetch ONLY status-transition notes (not all 81k notes).
