@@ -379,6 +379,11 @@ export const CreateRequirement: React.FC = () => {
       return;
     }
 
+    if (!applicationId && !formData.publishToFoundit) {
+      setError('Please select Publish to Foundit before creating the job requirement.');
+      return;
+    }
+
     if (formData.maxExperience && formData.maxExperience.trim()) {
       if (!/^\d+$/.test(formData.maxExperience)) {
         setMaxExperienceError('Accept non-negative whole numbers only (e.g. 8).');
@@ -1197,18 +1202,30 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                         <Checkbox
                           checked={formData.publishToFoundit}
                           onChange={(e) => setFormData(prev => ({ ...prev, publishToFoundit: e.target.checked }))}
-                          color="primary"
+                          color={!formData.publishToFoundit && !applicationId ? "error" : "primary"}
+                          sx={!formData.publishToFoundit && !applicationId ? { color: 'error.main' } : {}}
                         />
                       }
                       label={
-                        <Typography variant="body2" fontWeight={600}>
+                        <Typography
+                          variant="body2"
+                          fontWeight={700}
+                          sx={{ color: !formData.publishToFoundit && !applicationId ? 'error.main' : 'text.primary' }}
+                        >
                           Publish to Foundit
+                          {!applicationId && <Typography component="span" sx={{ color: 'error.main', ml: 0.5 }}>*</Typography>}
                         </Typography>
                       }
                     />
-                    <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', ml: 4, mt: -0.5 }}>
-                      Select this option to enable publishing this job to Foundit.
-                    </Typography>
+                    {!formData.publishToFoundit && !applicationId ? (
+                      <Typography variant="caption" sx={{ color: 'error.main', display: 'block', ml: 4, mt: -0.5, fontWeight: 600 }}>
+                        ⚠️ Please select Publish to Foundit before creating the job requirement.
+                      </Typography>
+                    ) : (
+                      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', ml: 4, mt: -0.5 }}>
+                        Select this option to enable publishing this job to Foundit.
+                      </Typography>
+                    )}
                     {formData.publishToFoundit && applicationId && (
                       <Box sx={{ ml: 4, mt: 1 }}>
                         <Button

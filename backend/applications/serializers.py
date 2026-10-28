@@ -399,6 +399,17 @@ class ApplicationCreateSerializer(ApplicationSerializer):
     class Meta(ApplicationSerializer.Meta):
         pass
 
+    def validate(self, attrs):
+        candidate_name = attrs.get('candidate_name', getattr(self.instance, 'candidate_name', ''))
+        # Only enforce mandatory Foundit selection for job requirements (candidate_name is empty)
+        if not candidate_name or not str(candidate_name).strip():
+            publish_foundit = attrs.get('publish_to_foundit')
+            if not publish_foundit:
+                raise serializers.ValidationError({
+                    'publish_to_foundit': 'Please select Publish to Foundit before creating the job requirement.'
+                })
+        return super().validate(attrs)
+
 
 class PublicJobApplySerializer(serializers.Serializer):
     first_name = serializers.CharField(required=False, allow_blank=True, allow_null=True)
