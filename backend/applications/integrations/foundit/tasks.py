@@ -8,6 +8,9 @@ from celery import shared_task
 from applications.models import Application
 from applications.integrations.foundit.job_posting import FounditJobPostingService
 from applications.integrations.foundit.candidate_ingestion import FounditCandidateIngestionService
+from applications.integrations.foundit.constants import (
+    is_foundit_webhook_processing_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +67,35 @@ def sync_all_foundit_jobs_task(self):
 @shared_task(bind=True, max_retries=2, default_retry_delay=30)
 def process_foundit_webhook_task(self, payload):
     """
-    Celery task to process incoming Foundit webhook event job.application.response.created.
+    Process an incoming Foundit application-created webhook event.
+
+    Processing remains disabled unless explicitly enabled in the environment.
     """
+    if not is_foundit_webhook_processing_enabled():
+        logger.warning(
+            "[process_foundit_webhook_task] Ignoring webhook: "
+            "FOUNDIT_WEBHOOK_PROCESSING_ENABLED is false."
+        )
+        return {"status": "disabled"}
+
+    if not isinstance(payload, dict):
+        logger.warning(
+            "[process_foundit_webhook_task] Ignoring invalid payload type."
+        )
+        return {"status": "invalid_payload"}
+
     try:
         folder_id = payload.get("folder_id") or payload.get("folderId")
         if folder_id:
             sync_foundit_applications_task.delay(folder_id)
-        else:
-            FounditCandidateIngestionService.ingest_candidate(payload)
+            return {"status": "sync_queued"}
+
+        FounditCandidateIngestionService.ingest_candidate(payload)
+        return {"status": "processed"}
+
     except Exception as exc:
-        logger.error(f"[process_foundit_webhook_task] Failure processing payload: {exc}")
+        logger.error(
+            "[process_foundit_webhook_task] Failure processing payload: %s",
+            exc,
+        )
+        raise

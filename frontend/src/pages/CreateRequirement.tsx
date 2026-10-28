@@ -58,6 +58,9 @@ export const CreateRequirement: React.FC = () => {
     budgetConfirmed: false,
     startDate: '',
     endDate: '',
+    contractBillingDuration: '',
+    contractTenure: '',
+    contractJoiningDate: '',
     location: '',
     jobStatus: '',
     jobType: '',
@@ -151,6 +154,7 @@ export const CreateRequirement: React.FC = () => {
     error?: string;
   } | null>(null);
   const [publishingFoundit, setPublishingFoundit] = useState(false);
+  const [confirmLiveFounditOpen, setConfirmLiveFounditOpen] = useState(false);
   const [founditPublishResult, setFounditPublishResult] = useState<{
     success?: boolean;
     message?: string;
@@ -236,6 +240,9 @@ export const CreateRequirement: React.FC = () => {
           budgetConfirmed: extractField('Client Budget Confirmed') === 'Yes' || extractField('Budget Confirmed') === 'Yes',
           startDate: extractField('Start Date') || new Date().toISOString().split('T')[0],
           endDate: extractField('End Date') === 'N/A' ? '' : extractField('End Date'),
+          contractBillingDuration: extractField('Foundit Contract Billing Duration') || '',
+          contractTenure: extractField('Foundit Contract Tenure') || '',
+          contractJoiningDate: extractField('Foundit Contract Joining Date') || '',
           location: extractField('Location') || '',
           jobStatus: extractField('Job Status') || 'Active',
           jobType: extractField('Job Type') || '',
@@ -283,14 +290,35 @@ export const CreateRequirement: React.FC = () => {
     }
   };
 
-  const handlePublishFoundit = async (jobIdToPublish: number, dryRun: boolean = false) => {
+  const handlePublishFoundit = async (
+    jobIdToPublish: number,
+    dryRun: boolean = true,
+    confirmLive: boolean = false
+  ) => {
+    if (!dryRun && !confirmLive) {
+      setFounditPublishResult({
+        success: false,
+        error: 'Live publication requires explicit confirmation.'
+      });
+      return;
+    }
+
     setPublishingFoundit(true);
     setFounditPublishResult(null);
     try {
-      const res = await api.post(`applications/${jobIdToPublish}/publish-foundit/`, { dry_run: dryRun });
+      const payload = dryRun
+        ? { dry_run: true }
+        : { dry_run: false, confirm_live: true };
+      const res = await api.post(`applications/${jobIdToPublish}/publish-foundit/`, payload);
+      const isDryRun = res.data.dry_run === true || res.data.status === 'VALIDATED';
       setFounditPublishResult({
-        success: true,
-        message: res.data.message || 'Successfully processed Foundit publication.'
+        success: !isDryRun && res.data.success === true && res.data.status === 'PUBLISHED',
+        error: !isDryRun && !(res.data.success === true && res.data.status === 'PUBLISHED')
+          ? (res.data.error || res.data.message || 'Publication was not confirmed.')
+          : undefined,
+        message: isDryRun
+          ? `Validated — not published. ${res.data.message || 'Dry run completed without a live Foundit request.'}`
+          : res.data.message
       });
     } catch (err: any) {
       const errData = err.response?.data;
@@ -364,31 +392,6 @@ export const CreateRequirement: React.FC = () => {
       }
     }
 
-    if (formData.publishToFoundit) {
-      if (!formData.maxExperience || !formData.maxExperience.trim()) {
-        setMaxExperienceError('Foundit publication requires Maximum Experience (years).');
-        setError('Foundit publication blocked: Maximum Experience (years) is required. Please specify a maximum experience.');
-        return;
-      }
-      if (!/^\d+$/.test(formData.maxExperience)) {
-        setMaxExperienceError('Accept non-negative whole numbers only (e.g. 8).');
-        setError('Maximum Experience: Accept non-negative whole numbers only.');
-        return;
-      }
-      if (parseFloat(formData.maxExperience) < parseFloat(formData.experience)) {
-        setMaxExperienceError('Maximum Experience must be greater than or equal to Minimum Experience.');
-        setError('Maximum Experience must be greater than or equal to Minimum Experience.');
-        return;
-      }
-      if (formData.salaryPeriod === 'Unknown') {
-        setError('Foundit publication blocked: Budget Period is Unknown. Please select and confirm the client-approved budget period before publishing to Foundit.');
-        return;
-      }
-      if (formData.salaryPeriod === 'Per Annum' && !formData.budgetConfirmed) {
-        setError('Foundit publication blocked: Recruiter confirmation is required. The selected period must reflect the actual client-approved budget.');
-        return;
-      }
-    }
 
     setSubmitting(true);
     try {
@@ -418,6 +421,9 @@ Salary Period: ${formData.salaryPeriod}
 Client Budget Confirmed: ${formData.budgetConfirmed ? 'Yes' : 'No'}
 Start Date: ${formData.startDate}
 End Date: ${formData.endDate || 'N/A'}
+Foundit Contract Billing Duration: ${formData.contractBillingDuration}
+Foundit Contract Tenure: ${formData.contractTenure}
+Foundit Contract Joining Date: ${formData.contractJoiningDate}
 Location: ${formData.location}
 Job Status: ${formData.jobStatus}
 Job Type: ${formData.jobType}
@@ -495,6 +501,9 @@ Salary Period: ${formData.salaryPeriod}
 Client Budget Confirmed: ${formData.budgetConfirmed ? 'Yes' : 'No'}
 Start Date: ${formData.startDate}
 End Date: ${formData.endDate || 'N/A'}
+Foundit Contract Billing Duration: ${formData.contractBillingDuration}
+Foundit Contract Tenure: ${formData.contractTenure}
+Foundit Contract Joining Date: ${formData.contractJoiningDate}
 Location: ${formData.location}
 Job Status: ${formData.jobStatus}
 Job Type: ${formData.jobType}
@@ -849,6 +858,66 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                   </Select>
                 </FormControl>
               </Grid>
+              {formData.jobType === 'Contract' && (
+                <>
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Foundit Contract Billing Duration</InputLabel>
+                      <Select
+                        value={formData.contractBillingDuration}
+                        label="Foundit Contract Billing Duration"
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            contractBillingDuration: e.target.value,
+                          })
+                        }
+                      >
+                        <MenuItem value="per_month">Per Month</MenuItem>
+                        <MenuItem value="per_year">Per Year</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Foundit Contract Tenure</InputLabel>
+                      <Select
+                        value={formData.contractTenure}
+                        label="Foundit Contract Tenure"
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            contractTenure: e.target.value,
+                          })
+                        }
+                      >
+                        <MenuItem value="up_to_6_month">Up to 6 months</MenuItem>
+                        <MenuItem value="from_6_to_12_month">6–12 months</MenuItem>
+                        <MenuItem value="above_12_month">Above 12 months</MenuItem>
+                        <MenuItem value="contract_to_hire">Contract to Hire</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      label="Foundit Contract Joining Date"
+                      type="date"
+                      fullWidth
+                      size="small"
+                      value={formData.contractJoiningDate}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contractJoiningDate: e.target.value,
+                        })
+                      }
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                </>
+              )}
               <Grid item xs={12} sm={6}>
                 <TextField
                   label="Client Name"
@@ -1275,16 +1344,72 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           </Button>
 
           {founditValidationResult?.valid && (
-            <Button
-              variant="contained"
-              color="success"
-              disabled={publishingFoundit || !postSaveActionJobId}
-              onClick={() => postSaveActionJobId && handlePublishFoundit(postSaveActionJobId, true)}
-              startIcon={publishingFoundit ? <CircularProgress size={16} color="inherit" /> : null}
-            >
-              {publishingFoundit ? 'Publishing...' : 'Publish to Foundit (Dry Run)'}
-            </Button>
+            <>
+              <Button
+                variant="contained"
+                color="success"
+                disabled={publishingFoundit || !postSaveActionJobId}
+                onClick={() => postSaveActionJobId && handlePublishFoundit(postSaveActionJobId, true)}
+                startIcon={publishingFoundit ? <CircularProgress size={16} color="inherit" /> : null}
+              >
+                {publishingFoundit ? 'Validating...' : 'Publish to Foundit (Dry Run)'}
+              </Button>
+              <Button
+                variant="contained"
+                color="warning"
+                disabled={publishingFoundit || !postSaveActionJobId || founditPublishResult?.success === true}
+                onClick={() => setConfirmLiveFounditOpen(true)}
+              >
+                Publish Live to Foundit
+              </Button>
+            </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={confirmLiveFounditOpen}
+        onClose={() => {
+          if (!publishingFoundit) setConfirmLiveFounditOpen(false);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          Confirm Live Foundit Publication
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This sends a real publication request to Foundit. It is not a dry run.
+          </Alert>
+          <Typography variant="body1">
+            Are you sure you want to publish ATS Job ID <strong>#{postSaveActionJobId}</strong> to Foundit?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Proceed only if this is the correct job and you are authorized to publish it.
+            Foundit may accept, reject, or take additional time to display the job.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            variant="outlined"
+            disabled={publishingFoundit}
+            onClick={() => setConfirmLiveFounditOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            disabled={publishingFoundit || !postSaveActionJobId}
+            onClick={() => {
+              if (!postSaveActionJobId) return;
+              setConfirmLiveFounditOpen(false);
+              handlePublishFoundit(postSaveActionJobId, false, true);
+            }}
+          >
+            {publishingFoundit ? 'Submitting...' : 'Confirm Live Publication'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
