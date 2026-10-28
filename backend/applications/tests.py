@@ -5312,7 +5312,9 @@ class FounditPhase4ApplicationsTests(TestCase):
 
         mock_response.status_code = 200
 
-        mock_response.raw = MagicMock()
+        mock_pdf_bytes = b"%PDF-1.4 Mock PDF Resume Content for testing\n%%EOF"
+
+        mock_response.iter_content.return_value = [mock_pdf_bytes]
 
         mock_get.return_value.__enter__.return_value = mock_response
 
