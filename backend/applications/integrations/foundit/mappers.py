@@ -13,39 +13,65 @@ from applications.integrations.foundit.client import FounditValidationError
 logger = logging.getLogger(__name__)
 
 def extract_clean_job_description(remarks):
+    """Extract the actual job description, excluding client profile and ATS metadata."""
     if not remarks:
         return ""
-    desc = ""
-    if "[Skills & Assignment]" in remarks:
-        parts = remarks.split("[Skills & Assignment]", 1)
-        after = parts[1]
-        if "[Notice Period]" in after:
-            desc = after.split("[Notice Period]", 1)[0]
-        elif "[" in after:
-            desc = after.split("[", 1)[0]
-        else:
-            desc = after
-    elif "Description:" in remarks:
-        desc = remarks.split("Description:", 1)[1]
+
+    desc = remarks
+
+    # Isolate the job assignment section when ATS remarks contain metadata.
+    if "[Skills & Assignment]" in desc:
+        desc = desc.split("[Skills & Assignment]", 1)[1]
+
+    # Remove notice-period and attachment sections.
+    for marker in ("[Notice Period]", "[Document Attachment]"):
+        if marker in desc:
+            desc = desc.split(marker, 1)[0]
+
+    # Prefer the explicitly labelled job description, excluding company profile.
+    import re
+    match = re.search(r"(?im)^\s*Job Description\s*:\s*", desc)
+    if match:
+        desc = desc[match.end():]
     else:
-        desc = remarks
+        # If there is an About Company section but no Job Description label,
+        # discard the company-profile portion.
+        match = re.search(r"(?im)^\s*About Company\s*:\s*", desc)
+        if match:
+            desc = desc[:match.start()]
 
     sensitive_key_pattern = re.compile(
-        r"^\s*(Client Bill Rate|Pay Rate|Job Code|Start Date|End Date|Location|Job Status|Job Type|Client Job ID|Required Documents|Address|Work Mode|Employee Type|Zip Code|Source Option|FileName):\s*",
-        re.IGNORECASE
+        r"^\s*(Client Bill Rate|Pay Rate|Job Code|Start Date|End Date|"
+        r"Location|Job Status|Job Type|Client Job ID|Required Documents|"
+        r"Address|Work Mode|Employee Type|Zip Code|Source Option|FileName):\s*",
+        re.IGNORECASE,
     )
 
     cleaned_lines = []
-    for line in desc.split("\n"):
-        if sensitive_key_pattern.match(line) or re.match(r"^\s*(Degree|Primary Skills):\s*", line, re.IGNORECASE) or line.strip() in ("[Job Details]", "[Skills & Assignment]", "[Notice Period]", "[Document Attachment]"):
+    for line in desc.splitlines():
+        stripped = line.strip()
+
+        if sensitive_key_pattern.match(line):
+            continue
+        if re.match(r"^\s*(Degree|Primary Skills):\s*", line, re.IGNORECASE):
+            continue
+        if stripped in (
+            "[Job Details]",
+            "[Skills & Assignment]",
+            "[Notice Period]",
+            "[Document Attachment]",
+        ):
             continue
         if re.match(r"^\s*Description:\s*$", line, re.IGNORECASE):
             continue
-        line_clean = re.sub(r"^\s*Description:\s*", "", line, flags=re.IGNORECASE) if re.match(r"^\s*Description:\s*\S+", line, re.IGNORECASE) else line
-        cleaned_lines.append(line_clean)
+
+        line = re.sub(
+            r"^\s*Description:\s*", "", line, flags=re.IGNORECASE
+        )
+        cleaned_lines.append(line)
 
     result = "\n".join(cleaned_lines).strip()
-    return result if result else remarks.strip()
+    return result
 
 VERIFIED_FOUNDIT_LOCATIONS = {
     # Top Metros & ATS Hiring Hubs (Official Foundit Master Data)
@@ -143,92 +169,138 @@ CANONICAL_SKILL_NAMES = {
 }
 
 def extract_job_skills(job_application):
-    """
-    Extracts, normalizes, and deduplicates relevant skills for an ATS job application:
-    1. Identifies optional/preferred skills in remarks (e.g. 'Python is a plus') to avoid
-       marking them as mandatory in Foundit's skillList.
-    2. Combines skills from structured job_application.technology and matched technical terms in remarks.
-    3. Normalizes and deduplicates skills case-insensitively using canonical taxonomy names.
-    4. Rejects generic words or job title fallback; raises FounditValidationError if no skills exist.
-    """
+    """Extract deduplicated technical skills, excluding clearly optional terms."""
     remarks = job_application.remarks or ""
-    pos = (job_application.position or "").strip()
-    tech = (job_application.technology or "").strip()
+    position = (job_application.position or "").strip()
+    technology = (job_application.technology or "").strip()
+
+    aliases = {
+        ".net": ".NET",
+        ".net core": ".NET",
+        "oracle pl/sql": "Oracle",
+        "pl/sql": "PL/SQL",
+        "rest apis": "APIs",
+        "aiml": "AI/ML",
+        "ai/ml": "AI/ML",
+        "machine learning": "Machine Learning",
+        "deep learning": "Deep Learning",
+        "rag": "RAG",
+        "devops": "DevOps",
+        "ci/cd": "CI/CD",
+        "cicd": "CI/CD",
+        "langchain": "LangChain",
+        "llamaindex": "LlamaIndex",
+        "pinecone": "Pinecone",
+        "faiss": "FAISS",
+        "opensearch": "OpenSearch",
+        "amazon bedrock": "Amazon Bedrock",
+        "sagemaker": "SageMaker",
+        "aws lambda": "AWS Lambda",
+        "lambda": "AWS Lambda",
+        "api gateway": "API Gateway",
+        "amazon s3": "Amazon S3",
+        "s3": "Amazon S3",
+        "flask": "Flask",
+        "oauth 2.0": "OAuth 2.0",
+        "github copilot": "GitHub Copilot",
+        "cloudformation": "CloudFormation",
+        "aws cdk": "AWS CDK",
+        "feature engineering": "Feature Engineering",
+    }
+
+    taxonomy = {
+        key.lower(): value
+        for key, value in CANONICAL_SKILL_NAMES.items()
+    }
+    taxonomy.update(aliases)
+
+    # Restrict free-text extraction to the job description when available.
+    skill_source = remarks
+    if "[Skills & Assignment]" in remarks:
+        skill_source = remarks.split("[Skills & Assignment]", 1)[1]
+        for marker in ("[Notice Period]", "[Document Attachment]"):
+            if marker in skill_source:
+                skill_source = skill_source.split(marker, 1)[0]
+
+    if re.search(r"(?im)^\s*Job Description\s*:", skill_source):
+        skill_source = re.split(
+            r"(?im)^\s*Job Description\s*:", skill_source, maxsplit=1
+        )[1]
+
+    # Detect optional skills and optional alternative groups.
+    optional_skills = set()
+    optional_contexts = [
+        r"\b(?:is\s+)?(?:considered\s+)?(?:an?\s+)?added\s+advantage\b",
+        r"\b(?:is\s+)?(?:optional|preferred|a\s+plus)\b",
+        r"\b(?:would\s+be|will\s+be)\s+(?:an?\s+)?(?:plus|advantage)\b",
+    ]
+
+    for key, canonical in taxonomy.items():
+        escaped = re.escape(key)
+        patterns = [
+            rf"\b{escaped}\b\s+is\s+(?:a\s+)?(?:plus|preferred|optional)\b",
+            rf"\b{escaped}\b\s+is\s+(?:an?\s+)?advantage\b",
+            rf"\b{escaped}\b\s+(?:knowledge|experience)\s+is\s+(?:a\s+)?(?:plus|preferred|optional)\b",
+        ]
+        if any(re.search(p, skill_source, re.IGNORECASE) for p in patterns):
+            optional_skills.add(canonical.lower())
+
+    # Mark all technologies in a sentence as optional when that sentence
+    # explicitly says they are an added advantage, optional, or preferred.
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", skill_source):
+        if not any(re.search(p, sentence, re.IGNORECASE) for p in optional_contexts):
+            continue
+        for key, canonical in taxonomy.items():
+            if re.search(
+                r"(?<![A-Za-z0-9])" + re.escape(key) + r"(?![A-Za-z0-9])",
+                sentence,
+                re.IGNORECASE,
+            ):
+                optional_skills.add(canonical.lower())
 
     skills = []
     seen = set()
 
-    # 1. Identify optional/preferred skills in remarks (e.g. 'Python is a plus', 'optional', 'preferred')
-    optional_skills = set()
-    for k in CANONICAL_SKILL_NAMES:
-        esc = re.escape(k) if not k.startswith('.') else re.escape(k)
-        patterns = [
-            rf'\b{esc}\b\s+is\s+(?:a\s+)?plus\b',
-            rf'\b{esc}\b\s+is\s+(?:preferred|optional|an\s+advantage)\b',
-            rf'\b{esc}\b\s*\((?:plus|preferred|optional)\)',
-            rf'\b(?:preferred|optional|plus|nice\s+to\s+have|good\s+to\s+have)\s*:\s*.*?\b{esc}\b',
-            rf'\b(?:knowledge|experience)\s+(?:of|with|in)\s+{esc}\s+is\s+(?:a\s+)?(?:plus|preferred|optional|advantage)\b',
-            rf'\b{esc}\s+(?:knowledge|experience)\s+is\s+(?:a\s+)?(?:plus|preferred|optional|advantage)\b',
-            rf'\bplus\s+{esc}\b',
-        ]
-        if re.search('|'.join(patterns), remarks, re.IGNORECASE):
-            optional_skills.add(k)
-
-    def add_skill(s):
-        s_clean = s.strip().strip("-*•●\t ")
-        if not s_clean or len(s_clean) < 2:
+    def add_skill(value):
+        cleaned = value.strip().strip("-*•●\t :")
+        canonical = taxonomy.get(cleaned.lower())
+        if not canonical:
             return
-        s_lower = s_clean.lower()
-        if s_lower in optional_skills:
-            logger.info(f"[FounditJobMapper] Skill '{s_clean}' identified as optional/preferred; excluded from mandatory skillList.")
+
+        key = canonical.lower()
+        if key == position.lower() or key in optional_skills:
             return
-        canonical_name = CANONICAL_SKILL_NAMES.get(s_lower, s_clean)
-        canonical_lower = canonical_name.lower()
-        if canonical_lower not in seen and canonical_lower != pos.lower():
-            seen.add(canonical_lower)
-            skills.append(canonical_name)
+        if key == "sql" and re.search(r"\bPL/SQL\b", remarks, re.IGNORECASE):
+            return
+        if key not in seen:
+            seen.add(key)
+            skills.append(canonical)
 
-    # 2. Extract from explicit skill sections in remarks
-    header_patterns = [
-        r'Technical Proficiency:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-        r'Primary Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-        r'Mandatory Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-        r'Key Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-        r'Technical Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-        r'Required Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-        r'Skills\s*:\s*(.*?)(?=\n\s*(?:\[|[A-Z][A-Za-z &]+:|$))',
-    ]
-    for pat in header_patterns:
-        m = re.search(pat, remarks, re.DOTALL | re.IGNORECASE)
-        if m:
-            content = m.group(1).strip()
-            for part in re.split(r'[,;|\u2022\u25cf/\n]+', content):
-                part = part.strip()
-                if part and not re.match(r'^(Degree|Location|Client|Job|Start|End|Work|Pay|Notice|Required|Experience)', part, re.IGNORECASE):
-                    add_skill(part)
+    # Preserve explicitly structured technology values.
+    for item in re.split(r"[,;|\n]+", technology):
+        add_skill(item)
 
-    # 3. Combine with structured job.technology
-    if tech and tech.lower() != pos.lower():
-        for s in re.split(r'[,;/|\n]+', tech):
-            add_skill(s)
+    # Scan known skills in the job-description section only.
+    for key, canonical in sorted(
+        taxonomy.items(), key=lambda item: len(item[0]), reverse=True
+    ):
+        if key == "sql":
+            pattern = r"(?<![A-Za-z0-9/])sql(?![A-Za-z0-9])"
+        else:
+            pattern = (
+                r"(?<![A-Za-z0-9])"
+                + re.escape(key)
+                + r"(?![A-Za-z0-9])"
+            )
 
-    # 4. Scan description for recognized technical tools/technologies (combining with technology)
-    if remarks:
-        for term, canonical_name in CANONICAL_SKILL_NAMES.items():
-            if term == 'sql':
-                pattern = r'(?<!pl/)(?<![A-Za-z0-9])sql(?![A-Za-z0-9])'
-            elif term.startswith('.'):
-                pattern = re.escape(term) + r'(?![A-Za-z0-9])'
-            else:
-                pattern = r'(?<![A-Za-z0-9])' + re.escape(term) + r'(?![A-Za-z0-9])'
-            if re.search(pattern, remarks, re.IGNORECASE):
-                add_skill(canonical_name)
+        if re.search(pattern, skill_source, re.IGNORECASE):
+            add_skill(canonical)
 
-    # 5. Strict rejection: Do not fall back to job title
     if not skills:
         raise FounditValidationError(
-            f"Validation Error: No valid technical skills identified for job {job_application.id}. "
-            "Foundit requires at least one verified required technical skill."
+            f"Validation Error: No valid technical skills identified for "
+            f"job {job_application.id}. Foundit requires at least one "
+            "verified required technical skill."
         )
 
     return skills
@@ -359,6 +431,63 @@ def extract_job_experience(job_application):
         f"Validation Error: Missing experience requirements for job {job_application.id}. "
         "Foundit requires valid minExperience and maxExperience."
     )
+
+def extract_foundit_contract_fields(job_application):
+    """
+    Extract required Foundit contract fields from ATS remarks.
+    Missing or unsupported values must block publication.
+    """
+    remarks = job_application.remarks or ""
+
+    def read_field(label):
+        match = re.search(
+            rf"(?im)^\s*{re.escape(label)}\s*:\s*([^\r\n]*)",
+            remarks,
+        )
+        return match.group(1).strip() if match else ""
+
+    billing_duration = read_field("Foundit Contract Billing Duration").lower()
+    contract_tenure = read_field("Foundit Contract Tenure").lower()
+    joining_date = read_field("Foundit Contract Joining Date")
+
+    allowed_billing_durations = {"per_month", "per_year"}
+    allowed_contract_tenures = {
+        "up_to_6_month",
+        "from_6_to_12_month",
+        "above_12_month",
+        "contract_to_hire",
+    }
+
+    if billing_duration not in allowed_billing_durations:
+        raise FounditValidationError(
+            "Contract job requires a confirmed Foundit Contract Billing Duration "
+            "(per_month or per_year)."
+        )
+
+    if contract_tenure not in allowed_contract_tenures:
+        raise FounditValidationError(
+            "Contract job requires a confirmed Foundit Contract Tenure."
+        )
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", joining_date):
+        raise FounditValidationError(
+            "Contract job requires a confirmed Foundit Contract Joining Date "
+            "in YYYY-MM-DD format."
+        )
+
+    try:
+        from datetime import date
+        date.fromisoformat(joining_date)
+    except ValueError:
+        raise FounditValidationError(
+            "Foundit Contract Joining Date must be a valid calendar date."
+        )
+
+    return {
+        "contractJobBillingDuration": billing_duration,
+        "contractJobContractTenure": contract_tenure,
+        "contractJobJoiningDate": joining_date,
+    }
 
 def extract_job_salary(job_application, creds):
     """
@@ -911,8 +1040,20 @@ class FounditJobMapper:
         start_date = timezone.now().strftime("%Y-%m-%d")
 
         min_exp, max_exp = extract_job_experience(job_application)
+        remarks = job_application.remarks or ""
+        job_type_match = re.search(
+            r"(?im)^\s*Job Type\s*:\s*([^\r\n]*)",
+            remarks,
+        )
+        ats_job_type = job_type_match.group(1).strip().lower() if job_type_match else ""
 
-        return {
+        is_contract = ats_job_type == "contract"
+        contract_fields = (
+            extract_foundit_contract_fields(job_application)
+            if is_contract
+            else {}
+        )
+        payload = {
             "userName": username,
             "password": password,
             "corpId": corp_id,
@@ -922,8 +1063,8 @@ class FounditJobMapper:
             "folderId": folder_id,
             "mapToExistingFolderId": 0,
             "status": "save",
-            "jobPostingType": "JP",
-            "jobType": "fulltime",
+            "jobPostingType": "CJP" if is_contract else "JP",
+            "jobType": "contract" if is_contract else "fulltime",
             "siteContext": "rexmonster",
             "companyName": company_name,
             "ownerName": owner_name,
@@ -946,6 +1087,8 @@ class FounditJobMapper:
             "roleList": role_list,
             "job_priority": job_priority,
         }
+        payload.update(contract_fields)
+        return payload
 
 class FounditCandidateMapper:
     @staticmethod

@@ -99,6 +99,55 @@ export const JobPostings: React.FC = () => {
   const [expandedPortalSections, setExpandedPortalSections] = useState<Record<number, boolean>>({});
   const [linkedinSearchTerms, setLinkedinSearchTerms] = useState<Record<number, string>>({});
   const [expandedLinkedInSections, setExpandedLinkedInSections] = useState<Record<number, boolean>>({});
+  const [founditSearchTerms, setFounditSearchTerms] = useState<Record<number, string>>({});
+  const [expandedFounditSections, setExpandedFounditSections] = useState<Record<number, boolean>>({});
+  const [founditApplicantsByJobId, setFounditApplicantsByJobId] = useState<Record<number, CareerPortalApplicant[]>>({});
+  const [founditLoadingByJobKey, setFounditLoadingByJobKey] = useState<Record<string, boolean>>({});
+  const [founditErrorsByJobKey, setFounditErrorsByJobKey] = useState<Record<string, string>>({});
+  const [founditLoadedJobKeys, setFounditLoadedJobKeys] = useState<Record<string, boolean>>({});
+
+  const fetchFounditApplicantsForJobs = async (jobIds: number[], jobKey: string) => {
+    const uniqueJobIds = [...new Set(jobIds.map(Number).filter(Number.isFinite))];
+    setFounditLoadingByJobKey(prev => ({ ...prev, [jobKey]: true }));
+    setFounditErrorsByJobKey(prev => ({ ...prev, [jobKey]: '' }));
+
+    try {
+      const results = await Promise.all(uniqueJobIds.map(async (jobId) => {
+        const first = await api.get(
+          `applications/career-portal-applicants/?job_id=${jobId}&page=1&page_size=200`
+        );
+        const firstPage = first.data?.results ?? first.data ?? [];
+        const applicants: CareerPortalApplicant[] = Array.isArray(firstPage) ? firstPage : [];
+        const count = Number(first.data?.count ?? applicants.length);
+        const totalPages = Math.max(1, Math.ceil(count / 200));
+
+        for (let page = 2; page <= totalPages; page++) {
+          const res = await api.get(
+            `applications/career-portal-applicants/?job_id=${jobId}&page=${page}&page_size=200`
+          );
+          const pageData = res.data?.results ?? res.data ?? [];
+          if (Array.isArray(pageData)) applicants.push(...pageData);
+        }
+
+        return [jobId, applicants.filter(pa => (pa.source || '').trim().toLowerCase() === 'foundit')] as const;
+      }));
+
+      setFounditApplicantsByJobId(prev => {
+        const next = { ...prev };
+        for (const [jobId, applicants] of results) next[jobId] = applicants;
+        return next;
+      });
+      setFounditLoadedJobKeys(prev => ({ ...prev, [jobKey]: true }));
+    } catch (err: any) {
+      console.error('Failed to fetch Foundit applicants', err);
+      setFounditErrorsByJobKey(prev => ({
+        ...prev,
+        [jobKey]: err?.response?.data?.detail || err?.message || 'Failed to load Foundit applicants.'
+      }));
+    } finally {
+      setFounditLoadingByJobKey(prev => ({ ...prev, [jobKey]: false }));
+    }
+  };
 
   const portalApplicantsTotalPages = Math.max(1, Math.ceil(portalApplicantsTotalCount / portalApplicantsPageSize));
 
@@ -1367,12 +1416,27 @@ Remarks: ${candidateForm.remarks}`;
                             const reqId = Number(app.id);
                             // Match portal applicants against ALL job IDs in the same group
                             // (handles duplicate job postings sharing the same Job Code)
-                            const reqIds = new Set((app.associated_ids || (app.associatedApps || [app]).map((a: any) => a.id)).map(Number));
+                            const reqIds = new Set<number>(
+                              (app.associated_ids || (app.associatedApps || [app]).map((a: any) => a.id))
+                                .map(Number)
+                                .filter((id: number) => Number.isFinite(id))
+                            );
                             const portalApps = portalApplicants.filter(pa => reqIds.has(Number(pa.job)));
 
-                            // Split LinkedIn vs Career Portal
-                            const linkedinApps = portalApps.filter(pa => pa.source && pa.source.toLowerCase().includes('linkedin'));
-                            const careerPortalApps = portalApps.filter(pa => !pa.source || !pa.source.toLowerCase().includes('linkedin'));
+                            // Foundit applicants are loaded independently by associated job ID.
+                            const founditJobKey = [...reqIds].sort((a, b) => a - b).join(',');
+                            const founditApps = [...reqIds].flatMap(jobId => founditApplicantsByJobId[jobId] || []);
+                            const uniqueFounditApps = Array.from(new Map(founditApps.map(pa => [pa.id, pa])).values());
+                            const founditLoading = !!founditLoadingByJobKey[founditJobKey];
+                            const founditError = founditErrorsByJobKey[founditJobKey];
+                            const founditHasLoaded = !!founditLoadedJobKeys[founditJobKey];
+
+                            // Split applicants by source so Foundit records are not duplicated in Career Portal.
+                            const normalizedSource = (pa: CareerPortalApplicant) => (pa.source || '').trim().toLowerCase();
+                            const linkedinApps = portalApps.filter(pa => normalizedSource(pa).includes('linkedin'));
+                            const careerPortalApps = portalApps.filter(
+                              pa => normalizedSource(pa) !== 'foundit' && !normalizedSource(pa).includes('linkedin')
+                            );
 
                             const portalSearch = portalSearchTerms[reqId] || '';
                             const filteredPortalApps = careerPortalApps.filter(pa => {
@@ -1398,8 +1462,21 @@ Remarks: ${candidateForm.remarks}`;
                               );
                             });
 
+                            const founditSearch = founditSearchTerms[reqId] || '';
+                            const filteredFounditApps = uniqueFounditApps.filter(pa => {
+                              if (!founditSearch.trim()) return true;
+                              const q = founditSearch.toLowerCase();
+                              const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
+                              return (
+                                fullName.includes(q) ||
+                                (pa.email || '').toLowerCase().includes(q) ||
+                                (pa.mobile_number || '').includes(q)
+                              );
+                            });
+
                             const isPortalSectionExpanded = expandedPortalSections[reqId] ?? true;
                             const isLinkedInSectionExpanded = expandedLinkedInSections[reqId] ?? true;
+                            const isFounditSectionExpanded = expandedFounditSections[reqId] ?? true;
 
                             if (applicantTypeFilter === 'ATS') return null;
 
@@ -1821,6 +1898,234 @@ Remarks: ${candidateForm.remarks}`;
                                                       color="error"
                                                       onClick={() => handleDeletePortalApplicant(pa.id, `${pa.first_name} ${pa.last_name}`)}
                                                       title="Delete Portal Applicant"
+                                                    >
+                                                      <Trash2 size={14} />
+                                                    </IconButton>
+                                                  </td>
+                                                )}
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      )}
+                                    </>
+                                  )}
+                                </Box>
+
+                                {/* Foundit Section */}
+                                <Box sx={{ mt: 2.5, pt: 2, borderTop: `1px solid ${theme.palette.divider}` }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
+                                    <Box
+                                      sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
+                                      onClick={() => {
+                                        const willExpand = !isFounditSectionExpanded;
+                                        setExpandedFounditSections(prev => ({ ...prev, [reqId]: willExpand }));
+                                        if (willExpand && !founditHasLoaded && !founditLoading) {
+                                          void fetchFounditApplicantsForJobs([...reqIds], founditJobKey);
+                                        }
+                                      }}
+                                    >
+                                      <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        {isFounditSectionExpanded ? '▼' : '+'} Foundit Applicants ({uniqueFounditApps.length})
+                                      </Typography>
+                                    </Box>
+
+                                    {isFounditSectionExpanded && (
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                        {uniqueFounditApps.length > 0 && (
+                                          <TextField
+                                            size="small"
+                                            placeholder="Search Foundit applicants (Name, Email, Mobile)..."
+                                            value={founditSearch}
+                                            onChange={(e) => setFounditSearchTerms(prev => ({ ...prev, [reqId]: e.target.value }))}
+                                            InputProps={{
+                                              startAdornment: <Search size={14} style={{ marginRight: 6, color: '#94a3b8' }} />,
+                                              sx: { fontSize: '0.7rem', height: 28, borderRadius: '6px', bgcolor: 'background.paper' }
+                                            }}
+                                            sx={{ width: 280 }}
+                                          />
+                                        )}
+                                      </Box>
+                                    )}
+                                  </Box>
+
+                                  {isFounditSectionExpanded && (
+                                    <>
+                                      {founditLoading ? (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                                          <CircularProgress size={14} color="primary" />
+                                          <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
+                                            Loading Foundit applicants...
+                                          </Typography>
+                                        </Box>
+                                      ) : founditError ? (
+                                        <Alert severity="error" sx={{ my: 1, fontSize: '0.75rem' }}>
+                                          {founditError}
+                                          <Button size="small" onClick={() => {
+                                            setFounditLoadedJobKeys(prev => ({ ...prev, [founditJobKey]: false }));
+                                            void fetchFounditApplicantsForJobs([...reqIds], founditJobKey);
+                                          }}>Retry</Button>
+                                        </Alert>
+                                      ) : filteredFounditApps.length === 0 ? (
+                                        <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
+                                          {uniqueFounditApps.length === 0
+                                            ? "No candidate applications received from Foundit yet."
+                                            : "No Foundit applicants match your search keyword."}
+                                        </Typography>
+                                      ) : (
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, borderRadius: '6px', overflow: 'hidden' }}>
+                                          <thead>
+                                            <tr style={{ borderBottom: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.mode === 'light' ? '#f8fafc' : '#1e293b' }}>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>App ID</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>First Name</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Last Name</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>AI Match Score</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Email</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Mobile</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Exp</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Qualification</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current Company</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Current CTC</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Expected Pay</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Primary Skills</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>City</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>State</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Applied Date</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Resume</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Status</th>
+                                              <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary }}>Modified By</th>
+                                              {activeRole === 'ADMIN' && (
+                                                <th style={{ padding: '4px 8px', fontSize: '0.68rem', fontWeight: 700, color: theme.palette.text.secondary, textAlign: 'center' }}>Actions</th>
+                                              )}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {filteredFounditApps.map((pa) => (
+                                              <tr key={pa.id} style={{ borderBottom: `1px solid ${theme.palette.divider}`, whiteSpace: 'nowrap' }}>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.id}</td>
+                                                <td
+                                                  style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700, color: theme.palette.primary.main, cursor: 'pointer' }}
+                                                  onClick={() => navigate(`/career-portal-candidates/${pa.id}/details`)}
+                                                >
+                                                  <Typography variant="body2" sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}>
+                                                    {pa.first_name}
+                                                  </Typography>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem', fontWeight: 700 }}>{pa.last_name}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.ai_match_score !== null && pa.ai_match_score !== undefined ? (
+                                                    <Chip
+                                                      label={`${pa.ai_match_score}%`}
+                                                      size="small"
+                                                      color={pa.ai_match_score >= 70 ? 'success' : pa.ai_match_score >= 45 ? 'warning' : 'default'}
+                                                      sx={{ fontWeight: 800, fontSize: '0.68rem', height: 20 }}
+                                                    />
+                                                  ) : (
+                                                    <Typography variant="caption" color="text.secondary">N/A</Typography>
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.email}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.mobile_number}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.years_of_experience} Yrs</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.qualification}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.resume ? (
+                                                    <Typography
+                                                      variant="caption"
+                                                      color="primary"
+                                                      sx={{ fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+                                                      onClick={async () => {
+                                                        try {
+                                                          const res: any = await api.post('applications/generate-resume-url/', { url: pa.resume });
+                                                          window.open(res.data.url, '_blank', 'noopener,noreferrer');
+                                                        } catch (err: any) {
+                                                          const errMsg = err?.response?.data?.error || err?.message || 'Unknown error';
+                                                          alert(`Failed to load resume: ${errMsg}`);
+                                                        }
+                                                      }}
+                                                    >
+                                                      View Resume
+                                                    </Typography>
+                                                  ) : (
+                                                    'N/A'
+                                                  )}
+                                                </td>
+                                                <td style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
+                                                  <FormControl size="small" variant="standard" sx={{ minWidth: 110 }}>
+                                                    <Select
+                                                      value={pa.status || 'New'}
+                                                      onChange={async (e) => {
+                                                        const newStatus = e.target.value;
+                                                        try {
+                                                          const res = await api.patch(
+                                                            `applications/career-portal-applicants/${pa.id}/`,
+                                                            { status: newStatus }
+                                                          );
+                                                          const updated = res.data as CareerPortalApplicant;
+                                                          setFounditApplicantsByJobId(prev => {
+                                                            const next = { ...prev };
+                                                            for (const jobId of reqIds) {
+                                                              next[jobId] = (next[jobId] || []).map(item =>
+                                                                item.id === pa.id ? updated : item
+                                                              );
+                                                            }
+                                                            return next;
+                                                          });
+                                                          setPortalApplicants(prev => prev.map(item =>
+                                                            item.id === pa.id ? updated : item
+                                                          ));
+                                                        } catch (err: any) {
+                                                          alert(err?.response?.data?.error || 'Failed to update Foundit applicant status.');
+                                                        }
+                                                      }}
+                                                      disableUnderline
+                                                      sx={{ fontSize: '0.7rem', fontWeight: 700, color: 'primary.main', cursor: 'pointer' }}
+                                                    >
+                                                      <MenuItem value="New" sx={{ fontSize: '0.7rem' }}>New</MenuItem>
+                                                      <MenuItem value="Submitted" sx={{ fontSize: '0.7rem' }}>Submitted</MenuItem>
+                                                      <MenuItem value="Under Review" sx={{ fontSize: '0.7rem' }}>Under Review</MenuItem>
+                                                      <MenuItem value="Interview Scheduled" sx={{ fontSize: '0.7rem' }}>Interview Scheduled</MenuItem>
+                                                      <MenuItem value="Interview Completed" sx={{ fontSize: '0.7rem' }}>Interview Completed</MenuItem>
+                                                      <MenuItem value="Selected" sx={{ fontSize: '0.7rem' }}>Selected</MenuItem>
+                                                      <MenuItem value="Rejected" sx={{ fontSize: '0.7rem' }}>Rejected</MenuItem>
+                                                      <MenuItem value="On Hold" sx={{ fontSize: '0.7rem' }}>On Hold</MenuItem>
+                                                      <MenuItem value="Closed" sx={{ fontSize: '0.7rem' }}>Closed</MenuItem>
+                                                    </Select>
+                                                  </FormControl>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>
+                                                  {pa.modified_by || 'N/A'}
+                                                </td>
+                                                {activeRole === 'ADMIN' && (
+                                                  <td style={{ padding: '2px 8px', fontSize: '0.7rem', textAlign: 'center' }}>
+                                                    <IconButton
+                                                      size="small"
+                                                      color="error"
+                                                      onClick={async () => {
+                                                        const name = `${pa.first_name} ${pa.last_name}`;
+                                                        if (!window.confirm(`Are you sure you want to delete the Foundit applicant "${name}"?`)) return;
+                                                        try {
+                                                          await api.delete(`applications/career-portal-applicants/${pa.id}/`);
+                                                          setFounditApplicantsByJobId(prev => {
+                                                            const next = { ...prev };
+                                                            for (const jobId of reqIds) {
+                                                              next[jobId] = (next[jobId] || []).filter(item => item.id !== pa.id);
+                                                            }
+                                                            return next;
+                                                          });
+                                                          setPortalApplicants(prev => prev.filter(item => item.id !== pa.id));
+                                                        } catch (err: any) {
+                                                          alert(err?.response?.data?.error || 'Failed to delete Foundit applicant.');
+                                                        }
+                                                      }}
+                                                      title="Delete Foundit Applicant"
                                                     >
                                                       <Trash2 size={14} />
                                                     </IconButton>

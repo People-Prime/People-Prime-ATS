@@ -6,6 +6,7 @@ for un-authorized endpoints (application retrieval, webhook registration, job up
 """
 import datetime
 import logging
+import os
 import requests
 from django.utils import timezone
 from applications.integrations.foundit.constants import (
@@ -45,7 +46,11 @@ class FounditClient:
         self.credentials = get_foundit_credentials()
         self.transport = transport  # Injection point for mock transport in unit tests
         self.live_job_posting_enabled = True       # Enabled in Phase 3B
-        self.live_webhook_enabled = False          # Remains False (unverified in documentation)
+        # Explicit opt-in; registration remains disabled unless configured.
+        self.live_webhook_enabled = (
+            os.getenv("FOUNDIT_WEBHOOK_REGISTRATION_ENABLED", "false").lower()
+            in ("true", "1")
+        )
 
     @property
     def live_applications_enabled(self):
@@ -83,11 +88,15 @@ class FounditClient:
             )
 
     def assert_webhook_authorized(self):
-        if not self.live_webhook_enabled and not self.transport:
-            logger.warning("[FounditClient] Webhook Registration API call blocked by Phase 3B Safety Guard.")
+        if not self.live_webhook_enabled:
+            logger.warning(
+                "[FounditClient] Webhook Registration API call blocked: "
+                "FOUNDIT_WEBHOOK_REGISTRATION_ENABLED is false."
+            )
             raise FounditContractUnverifiedException(
-                "Phase 3B Guard: Foundit Webhook Registration API execution is blocked. "
-                "Webhook registration authorization occurs in Phase 4."
+                "Foundit webhook registration is disabled. "
+                "Set FOUNDIT_WEBHOOK_REGISTRATION_ENABLED=true "
+                "only for an explicitly authorized registration attempt."
             )
 
     def generate_session_token(self, force_refresh=False):
@@ -315,20 +324,95 @@ class FounditClient:
 
     def register_webhook(self, callback_url):
         """
-        POST https://recruiter.foundit.in/recruiter-ats/v1/web-hook/register
-        BLOCKED in Phase 3B.
+        Register the Foundit application-created webhook.
+
+        Live registration requires FOUNDIT_WEBHOOK_REGISTRATION_ENABLED=true.
+        A timeout is treated as an unknown outcome: do not retry automatically.
         """
         self.assert_webhook_authorized()
-        if self.transport:
-            payload = {
-                "channelId": self.credentials["channel_id"],
-                "subChannelId": self.credentials["sub_channel_id"],
-                "corpId": self.credentials["corp_id"],
-                "url": callback_url,
-                "events": ["job.application.response.created"],
-                "secret": self.credentials["webhook_secret"],
-                "login_id": self.credentials["login_id"]
-            }
-            return self.transport.post(WEBHOOK_REGISTER_ENDPOINT, json=payload)
-        return {"status": "SUCCESS"}
+
+        if not isinstance(callback_url, str) or not callback_url.startswith("https://"):
+            raise FounditValidationError("Webhook callback URL must be an HTTPS URL.")
+
+        required = (
+            "api_key", "channel_id", "sub_channel_id", "corp_id",
+            "login_id",
+        )
+        missing = [key for key in required if not self.credentials.get(key)]
+        if missing:
+            raise FounditValidationError(
+                "Missing Foundit webhook configuration: " + ", ".join(missing)
+            )
+
+        payload = {
+            "channelId": self.credentials["channel_id"],
+            "subChannelId": self.credentials["sub_channel_id"],
+            "corpId": self.credentials["corp_id"],
+            "url": callback_url,
+            "events": ["job.application.response.created"],
+            "login_id": self.credentials["login_id"],
+        }
+        if self.credentials.get("webhook_secret"):
+            payload["secret"] = self.credentials["webhook_secret"]
+        headers = {
+            HEADER_API_KEY: self.credentials["api_key"],
+            HEADER_SESSION_TOKEN: self.generate_session_token(),
+            "Content-Type": "application/json",
+        }
+
+        try:
+            if self.transport:
+                # Test-only injected transport; never reaches Foundit.
+                result = self.transport.post(
+                    WEBHOOK_REGISTER_ENDPOINT, json=payload, headers=headers
+                )
+                if isinstance(result, dict):
+                    response_data = result
+                    status_code = 200
+                else:
+                    raise FounditAPIError(
+                        "Unexpected webhook registration test response."
+                    )
+            else:
+                response = requests.post(
+                    WEBHOOK_REGISTER_ENDPOINT,
+                    headers=headers,
+                    json=payload,
+                    timeout=15,
+                )
+                status_code = response.status_code
+                try:
+                    response_data = response.json()
+                except ValueError:
+                    response_data = {}
+
+        except requests.exceptions.Timeout:
+            raise FounditTimeoutError(
+                "Foundit webhook registration timed out; its outcome is unknown. "
+                "Check registration status with Foundit before retrying.",
+                status_code=408,
+            )
+        except requests.exceptions.RequestException as exc:
+            raise FounditAPIError(
+                "Foundit webhook registration network failure: "
+                + exc.__class__.__name__
+            )
+
+        if status_code not in (200, 201):
+            message = self.extract_error_message(
+                response_data, default_msg="Webhook registration failed."
+            )
+            raise FounditAPIError(
+                f"Foundit webhook registration failed (HTTP {status_code}): {message}",
+                status_code=status_code,
+            )
+
+        if not isinstance(response_data, dict) or response_data.get("success") is not True:
+            raise FounditAPIError(
+                "Foundit returned HTTP success without confirming webhook registration.",
+                status_code=status_code,
+            )
+
+        logger.info("Foundit webhook registration accepted; verify handshake status.")
+        return response_data
 
