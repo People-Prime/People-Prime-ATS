@@ -575,6 +575,7 @@ class PublicJobApplySerializer(serializers.Serializer):
 
 class CareerPortalApplicantSerializer(serializers.ModelSerializer):
     job_code = serializers.SerializerMethodField()
+    referral_source = serializers.SerializerMethodField()
 
     class Meta:
         model = CareerPortalApplicant
@@ -582,7 +583,7 @@ class CareerPortalApplicantSerializer(serializers.ModelSerializer):
             'id', 'job', 'job_code', 'first_name', 'last_name', 'mobile_number',
             'alternate_mobile_number', 'email', 'qualification', 'years_of_experience',
             'expected_pay', 'primary_skills', 'current_ctc', 'current_company',
-            'state', 'city', 'resume', 'accepted_terms', 'source', 'status', 'modified_by',
+            'state', 'city', 'resume', 'accepted_terms', 'source', 'referral_source', 'status', 'modified_by',
             'is_imported', 'imported_at', 'imported_by', 'imported_application',
             'ai_match_score', 'ai_scored_at',
             'foundit_application_id', 'foundit_candidate_id',
@@ -599,6 +600,11 @@ class CareerPortalApplicantSerializer(serializers.ModelSerializer):
                 if val and 'Auto Generated' not in val:
                     return val
             return f"PPW - {obj.job.id:04d}"
+        return None
+
+    def get_referral_source(self, obj):
+        if obj.raw_profile_data and isinstance(obj.raw_profile_data, dict):
+            return obj.raw_profile_data.get('referral_source') or None
         return None
 
 

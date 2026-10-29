@@ -140,6 +140,7 @@ export interface CareerPortalApplicant {
   resume?: string;
   accepted_terms: boolean;
   source: string;
+  referral_source?: string | null;
   status: string;
   modified_by?: string;
   is_imported: boolean;

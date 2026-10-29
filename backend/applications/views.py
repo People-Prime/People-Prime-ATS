@@ -2288,9 +2288,35 @@ class CareerPortalApplicantViewSet(viewsets.ModelViewSet):
         ) \
         .all().order_by('-created_at')
 
-        job_id = self.request.query_params.get('job_id')
-        if job_id:
-            qs = qs.filter(job_id=job_id)
+        job_ids_param = self.request.query_params.get('job_ids')
+        job_id_param = self.request.query_params.get('job_id')
+        if job_ids_param:
+            clean_ids = [int(x.strip()) for x in job_ids_param.split(',') if x.strip().isdigit()]
+            if clean_ids:
+                qs = qs.filter(job_id__in=clean_ids)
+        elif job_id_param:
+            clean_ids = [int(x.strip()) for x in job_id_param.split(',') if x.strip().isdigit()]
+            if len(clean_ids) == 1:
+                qs = qs.filter(job_id=clean_ids[0])
+            elif len(clean_ids) > 1:
+                qs = qs.filter(job_id__in=clean_ids)
+
+        source_param = self.request.query_params.get('source', '').strip().lower()
+        if source_param == 'linkedin':
+            qs = qs.filter(
+                Q(source__iexact='LinkedIn') |
+                Q(raw_profile_data__referral_source__iexact='LinkedIn')
+            )
+        elif source_param in ('portal', 'career_portal', 'company career portal'):
+            qs = qs.filter(
+                Q(source__iexact='Company Career Portal') &
+                (Q(raw_profile_data__isnull=True) | ~Q(raw_profile_data__referral_source__iexact='LinkedIn'))
+            )
+        elif source_param == 'foundit':
+            qs = qs.filter(source__iexact='Foundit')
+        elif source_param:
+            qs = qs.filter(source__iexact=self.request.query_params.get('source').strip())
+
         search = self.request.query_params.get('search')
         if search:
             qs = qs.filter(

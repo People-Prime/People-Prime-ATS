@@ -60,6 +60,20 @@ const getRemarkField = (remarks: string | undefined | null, fieldName: string): 
   return cleanVal;
 };
 
+export const isLinkedInApplicant = (pa: CareerPortalApplicant): boolean => {
+  const src = (pa.source || '').trim().toLowerCase();
+  const ref = (pa.referral_source || '').trim().toLowerCase();
+  return src.includes('linkedin') || ref.includes('linkedin');
+};
+
+export const isFounditApplicant = (pa: CareerPortalApplicant): boolean => {
+  return (pa.source || '').trim().toLowerCase() === 'foundit';
+};
+
+export const isCareerPortalApplicant = (pa: CareerPortalApplicant): boolean => {
+  return !isFounditApplicant(pa) && !isLinkedInApplicant(pa);
+};
+
 export const JobPostings: React.FC = () => {
   const dispatch = useAppDispatch();
   const theme = useTheme();
@@ -91,9 +105,7 @@ export const JobPostings: React.FC = () => {
   // Career Portal Applicants states
   const [portalApplicants, setPortalApplicants] = useState<CareerPortalApplicant[]>([]);
   const [portalApplicantsPage, setPortalApplicantsPage] = useState<number>(1);
-  const [portalApplicantsPageSize, setPortalApplicantsPageSize] = useState<number>(100);
-  const [portalApplicantsTotalCount, setPortalApplicantsTotalCount] = useState<number>(0);
-  const [isPortalLoading, setIsPortalLoading] = useState<boolean>(true);
+  const [portalApplicantsPageSize] = useState<number>(100);
   const [applicantTypeFilter, setApplicantTypeFilter] = useState<'ALL' | 'ATS' | 'PORTAL'>('ALL');
   const [portalSearchTerms, setPortalSearchTerms] = useState<Record<number, string>>({});
   const [expandedPortalSections, setExpandedPortalSections] = useState<Record<number, boolean>>({});
@@ -105,6 +117,93 @@ export const JobPostings: React.FC = () => {
   const [founditLoadingByJobKey, setFounditLoadingByJobKey] = useState<Record<string, boolean>>({});
   const [founditErrorsByJobKey, setFounditErrorsByJobKey] = useState<Record<string, string>>({});
   const [founditLoadedJobKeys, setFounditLoadedJobKeys] = useState<Record<string, boolean>>({});
+
+  // Per-job Career Portal & LinkedIn applicants states
+  const [careerPortalApplicantsByJobKey, setCareerPortalApplicantsByJobKey] = useState<Record<string, CareerPortalApplicant[]>>({});
+  const [careerPortalCountByJobKey, setCareerPortalCountByJobKey] = useState<Record<string, number>>({});
+  const [careerPortalPageByJobKey, setCareerPortalPageByJobKey] = useState<Record<string, number>>({});
+  const [careerPortalPageSizeByJobKey, setCareerPortalPageSizeByJobKey] = useState<Record<string, number>>({});
+  const [careerPortalLoadingByJobKey, setCareerPortalLoadingByJobKey] = useState<Record<string, boolean>>({});
+  const [careerPortalErrorsByJobKey, setCareerPortalErrorsByJobKey] = useState<Record<string, string>>({});
+  const [careerPortalLoadedJobKeys, setCareerPortalLoadedJobKeys] = useState<Record<string, boolean>>({});
+
+  const [linkedinApplicantsByJobKey, setLinkedinApplicantsByJobKey] = useState<Record<string, CareerPortalApplicant[]>>({});
+  const [linkedinCountByJobKey, setLinkedinCountByJobKey] = useState<Record<string, number>>({});
+  const [linkedinPageByJobKey, setLinkedinPageByJobKey] = useState<Record<string, number>>({});
+  const [linkedinPageSizeByJobKey, setLinkedinPageSizeByJobKey] = useState<Record<string, number>>({});
+  const [linkedinLoadingByJobKey, setLinkedinLoadingByJobKey] = useState<Record<string, boolean>>({});
+  const [linkedinErrorsByJobKey, setLinkedinErrorsByJobKey] = useState<Record<string, string>>({});
+  const [linkedinLoadedJobKeys, setLinkedinLoadedJobKeys] = useState<Record<string, boolean>>({});
+
+  const fetchCareerPortalApplicantsForJobs = async (
+    jobIds: number[],
+    jobKey: string,
+    page: number = 1,
+    pageSize: number = 50
+  ) => {
+    const uniqueJobIds = [...new Set(jobIds.map(Number).filter(Number.isFinite))];
+    if (uniqueJobIds.length === 0) return;
+    setCareerPortalLoadingByJobKey(prev => ({ ...prev, [jobKey]: true }));
+    setCareerPortalErrorsByJobKey(prev => ({ ...prev, [jobKey]: '' }));
+    try {
+      const res = await api.get(
+        `applications/career-portal-applicants/?job_ids=${uniqueJobIds.join(',')}&source=career_portal&page=${page}&page_size=${pageSize}`
+      );
+      const pageData = res.data?.results ?? res.data ?? [];
+      const count = Number(res.data?.count ?? (Array.isArray(pageData) ? pageData.length : 0));
+      setCareerPortalApplicantsByJobKey(prev => ({
+        ...prev,
+        [jobKey]: Array.isArray(pageData) ? pageData : []
+      }));
+      setCareerPortalCountByJobKey(prev => ({ ...prev, [jobKey]: count }));
+      setCareerPortalPageByJobKey(prev => ({ ...prev, [jobKey]: page }));
+      setCareerPortalPageSizeByJobKey(prev => ({ ...prev, [jobKey]: pageSize }));
+      setCareerPortalLoadedJobKeys(prev => ({ ...prev, [jobKey]: true }));
+    } catch (err: any) {
+      console.error('Failed to fetch Career Portal applicants', err);
+      setCareerPortalErrorsByJobKey(prev => ({
+        ...prev,
+        [jobKey]: err?.response?.data?.detail || err?.message || 'Failed to load Career Portal applicants.'
+      }));
+    } finally {
+      setCareerPortalLoadingByJobKey(prev => ({ ...prev, [jobKey]: false }));
+    }
+  };
+
+  const fetchLinkedInApplicantsForJobs = async (
+    jobIds: number[],
+    jobKey: string,
+    page: number = 1,
+    pageSize: number = 50
+  ) => {
+    const uniqueJobIds = [...new Set(jobIds.map(Number).filter(Number.isFinite))];
+    if (uniqueJobIds.length === 0) return;
+    setLinkedinLoadingByJobKey(prev => ({ ...prev, [jobKey]: true }));
+    setLinkedinErrorsByJobKey(prev => ({ ...prev, [jobKey]: '' }));
+    try {
+      const res = await api.get(
+        `applications/career-portal-applicants/?job_ids=${uniqueJobIds.join(',')}&source=linkedin&page=${page}&page_size=${pageSize}`
+      );
+      const pageData = res.data?.results ?? res.data ?? [];
+      const count = Number(res.data?.count ?? (Array.isArray(pageData) ? pageData.length : 0));
+      setLinkedinApplicantsByJobKey(prev => ({
+        ...prev,
+        [jobKey]: Array.isArray(pageData) ? pageData : []
+      }));
+      setLinkedinCountByJobKey(prev => ({ ...prev, [jobKey]: count }));
+      setLinkedinPageByJobKey(prev => ({ ...prev, [jobKey]: page }));
+      setLinkedinPageSizeByJobKey(prev => ({ ...prev, [jobKey]: pageSize }));
+      setLinkedinLoadedJobKeys(prev => ({ ...prev, [jobKey]: true }));
+    } catch (err: any) {
+      console.error('Failed to fetch LinkedIn applicants', err);
+      setLinkedinErrorsByJobKey(prev => ({
+        ...prev,
+        [jobKey]: err?.response?.data?.detail || err?.message || 'Failed to load LinkedIn applicants.'
+      }));
+    } finally {
+      setLinkedinLoadingByJobKey(prev => ({ ...prev, [jobKey]: false }));
+    }
+  };
 
   const fetchFounditApplicantsForJobs = async (jobIds: number[], jobKey: string) => {
     const uniqueJobIds = [...new Set(jobIds.map(Number).filter(Number.isFinite))];
@@ -149,20 +248,13 @@ export const JobPostings: React.FC = () => {
     }
   };
 
-  const portalApplicantsTotalPages = Math.max(1, Math.ceil(portalApplicantsTotalCount / portalApplicantsPageSize));
-
   const fetchPortalApplicants = async (pageToFetch = portalApplicantsPage, pageSize = portalApplicantsPageSize) => {
-    setIsPortalLoading(true);
     try {
       const res = await api.get(`applications/career-portal-applicants/?page=${pageToFetch}&page_size=${pageSize}`);
       const pageData = res.data?.results ?? res.data ?? [];
-      const count = res.data?.count ?? (Array.isArray(pageData) ? pageData.length : 0);
       setPortalApplicants(Array.isArray(pageData) ? pageData : []);
-      setPortalApplicantsTotalCount(count);
     } catch (err) {
       console.error("Failed to fetch career portal applicants", err);
-    } finally {
-      setIsPortalLoading(false);
     }
   };
 
@@ -191,13 +283,27 @@ export const JobPostings: React.FC = () => {
       const res = await api.patch(`applications/career-portal-applicants/${portalApplicantId}/`, { status: newStatus });
       const updated = res.data;
       setPortalApplicants(prev => prev.map(p => p.id === portalApplicantId ? updated : p));
+      setLinkedinApplicantsByJobKey(prev => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          next[k] = next[k].map(p => p.id === portalApplicantId ? updated : p);
+        }
+        return next;
+      });
+      setCareerPortalApplicantsByJobKey(prev => {
+        const next = { ...prev };
+        for (const k of Object.keys(next)) {
+          next[k] = next[k].map(p => p.id === portalApplicantId ? updated : p);
+        }
+        return next;
+      });
     } catch (err: any) {
       alert(err?.response?.data?.error || "Failed to update status.");
     }
   };
 
   const handleDeletePortalApplicant = async (portalApplicantId: number, name: string) => {
-    if (window.confirm(`Are you sure you want to delete the career portal submission for "${name}"?`)) {
+    if (window.confirm(`Are you sure you want to delete the applicant submission for "${name}"?`)) {
       try {
         await api.delete(`applications/career-portal-applicants/${portalApplicantId}/`);
         if (portalApplicants.length === 1 && portalApplicantsPage > 1) {
@@ -205,9 +311,37 @@ export const JobPostings: React.FC = () => {
         } else {
           fetchPortalApplicants(portalApplicantsPage, portalApplicantsPageSize);
         }
-        alert("Career portal applicant deleted successfully.");
+        setLinkedinApplicantsByJobKey(prev => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) {
+            next[k] = next[k].filter(p => p.id !== portalApplicantId);
+          }
+          return next;
+        });
+        setLinkedinCountByJobKey(prev => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) {
+            if (next[k] > 0) next[k] = next[k] - 1;
+          }
+          return next;
+        });
+        setCareerPortalApplicantsByJobKey(prev => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) {
+            next[k] = next[k].filter(p => p.id !== portalApplicantId);
+          }
+          return next;
+        });
+        setCareerPortalCountByJobKey(prev => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) {
+            if (next[k] > 0) next[k] = next[k] - 1;
+          }
+          return next;
+        });
+        alert("Applicant deleted successfully.");
       } catch (err: any) {
-        alert(err?.response?.data?.error || "Failed to delete career portal applicant.");
+        alert(err?.response?.data?.error || "Failed to delete applicant.");
       }
     }
   };
@@ -585,21 +719,45 @@ export const JobPostings: React.FC = () => {
     });
   }, [startDate, endDate, debouncedSearchTerm, statusFilter, selectedTeamId, page, rowsPerPage]);
 
-  const handleToggleExpandJob = async (jobCodeKey: string, appId: number | string) => {
+  const handleToggleExpandJob = async (jobCodeKey: string, appOrId: any) => {
     const isCurrentlyExpanded = !!expandedJobs[jobCodeKey];
     const willExpand = !isCurrentlyExpanded;
     setExpandedJobs(prev => ({ ...prev, [jobCodeKey]: willExpand }));
 
-    if (willExpand && !candidatesByJobId[jobCodeKey]) {
-      setLoadingCandidates(prev => ({ ...prev, [jobCodeKey]: true }));
-      try {
-        const res = await api.get(`applications/job-candidates/?job_id=${appId}`);
-        const cands = res.data?.candidates ?? [];
-        setCandidatesByJobId(prev => ({ ...prev, [jobCodeKey]: cands }));
-      } catch (err) {
-        console.error("Failed to load candidates for job", err);
-      } finally {
-        setLoadingCandidates(prev => ({ ...prev, [jobCodeKey]: false }));
+    const appId = typeof appOrId === 'object' && appOrId !== null ? appOrId.id : appOrId;
+    const appObj = typeof appOrId === 'object' && appOrId !== null
+      ? appOrId
+      : applications.find(a => String(a.id) === String(appId));
+
+    if (willExpand) {
+      if (!candidatesByJobId[jobCodeKey]) {
+        setLoadingCandidates(prev => ({ ...prev, [jobCodeKey]: true }));
+        try {
+          const res = await api.get(`applications/job-candidates/?job_id=${appId}`);
+          const cands = res.data?.candidates ?? [];
+          setCandidatesByJobId(prev => ({ ...prev, [jobCodeKey]: cands }));
+        } catch (err) {
+          console.error("Failed to load candidates for job", err);
+        } finally {
+          setLoadingCandidates(prev => ({ ...prev, [jobCodeKey]: false }));
+        }
+      }
+
+      if (appObj) {
+        const reqIds = (appObj.associated_ids || (appObj.associatedApps || [appObj]).map((a: any) => a.id))
+          .map(Number)
+          .filter((id: number) => Number.isFinite(id));
+        const jobKey = [...reqIds].sort((a: number, b: number) => a - b).join(',');
+
+        if (!linkedinLoadedJobKeys[jobKey] && !linkedinLoadingByJobKey[jobKey]) {
+          void fetchLinkedInApplicantsForJobs(reqIds, jobKey, 1, 50);
+        }
+        if (!careerPortalLoadedJobKeys[jobKey] && !careerPortalLoadingByJobKey[jobKey]) {
+          void fetchCareerPortalApplicantsForJobs(reqIds, jobKey, 1, 50);
+        }
+        if (!founditLoadedJobKeys[jobKey] && !founditLoadingByJobKey[jobKey]) {
+          void fetchFounditApplicantsForJobs(reqIds, jobKey);
+        }
       }
     }
   };
@@ -1054,7 +1212,7 @@ Remarks: ${candidateForm.remarks}`;
                         <Box
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleExpandJob(jobCodeKey, app.id);
+                            handleToggleExpandJob(jobCodeKey, app);
                           }}
                           sx={{
                             display: 'inline-flex',
@@ -1421,32 +1579,45 @@ Remarks: ${candidateForm.remarks}`;
                                 .map(Number)
                                 .filter((id: number) => Number.isFinite(id))
                             );
-                            const portalApps = portalApplicants.filter(pa => reqIds.has(Number(pa.job)));
+                            const jobKey = [...reqIds].sort((a, b) => a - b).join(',');
 
                             // Foundit applicants are loaded independently by associated job ID.
-                            const founditJobKey = [...reqIds].sort((a, b) => a - b).join(',');
+                            const founditJobKey = jobKey;
                             const founditApps = [...reqIds].flatMap(jobId => founditApplicantsByJobId[jobId] || []);
                             const uniqueFounditApps = Array.from(new Map(founditApps.map(pa => [pa.id, pa])).values());
                             const founditLoading = !!founditLoadingByJobKey[founditJobKey];
                             const founditError = founditErrorsByJobKey[founditJobKey];
                             const founditHasLoaded = !!founditLoadedJobKeys[founditJobKey];
 
-                            // Split applicants by source so Foundit records are not duplicated in Career Portal.
-                            const normalizedSource = (pa: CareerPortalApplicant) => (pa.source || '').trim().toLowerCase();
-                            const linkedinApps = portalApps.filter(pa => normalizedSource(pa).includes('linkedin'));
-                            const careerPortalApps = portalApps.filter(
-                              pa => normalizedSource(pa) !== 'foundit' && !normalizedSource(pa).includes('linkedin')
-                            );
+                            // Career Portal applicants loaded per-job with database pagination
+                            const careerPortalLoading = !!careerPortalLoadingByJobKey[jobKey];
+                            const careerPortalError = careerPortalErrorsByJobKey[jobKey];
+                            const careerPortalHasLoaded = !!careerPortalLoadedJobKeys[jobKey];
+                            const careerPortalTotalCount = careerPortalCountByJobKey[jobKey] ?? 0;
+                            const careerPortalPage = careerPortalPageByJobKey[jobKey] ?? 1;
+                            const careerPortalPageSize = careerPortalPageSizeByJobKey[jobKey] ?? 50;
+                            const careerPortalTotalPages = Math.max(1, Math.ceil(careerPortalTotalCount / careerPortalPageSize));
+                            const careerPortalApps = careerPortalApplicantsByJobKey[jobKey] || [];
+
+                            // LinkedIn applicants loaded per-job with database pagination
+                            const linkedinLoading = !!linkedinLoadingByJobKey[jobKey];
+                            const linkedinError = linkedinErrorsByJobKey[jobKey];
+                            const linkedinHasLoaded = !!linkedinLoadedJobKeys[jobKey];
+                            const linkedinTotalCount = linkedinCountByJobKey[jobKey] ?? 0;
+                            const linkedinPage = linkedinPageByJobKey[jobKey] ?? 1;
+                            const linkedinPageSize = linkedinPageSizeByJobKey[jobKey] ?? 50;
+                            const linkedinTotalPages = Math.max(1, Math.ceil(linkedinTotalCount / linkedinPageSize));
+                            const linkedinApps = linkedinApplicantsByJobKey[jobKey] || [];
 
                             const portalSearch = portalSearchTerms[reqId] || '';
                             const filteredPortalApps = careerPortalApps.filter(pa => {
                               if (!portalSearch.trim()) return true;
                               const q = portalSearch.toLowerCase();
-                              const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
+                              const fullName = `${pa.first_name || ''} ${pa.last_name || ''}`.toLowerCase();
                               return (
                                 fullName.includes(q) ||
-                                pa.email.toLowerCase().includes(q) ||
-                                pa.mobile_number.includes(q)
+                                (pa.email || '').toLowerCase().includes(q) ||
+                                (pa.mobile_number || '').includes(q)
                               );
                             });
 
@@ -1454,11 +1625,11 @@ Remarks: ${candidateForm.remarks}`;
                             const filteredLinkedInApps = linkedinApps.filter(pa => {
                               if (!linkedinSearch.trim()) return true;
                               const q = linkedinSearch.toLowerCase();
-                              const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
+                              const fullName = `${pa.first_name || ''} ${pa.last_name || ''}`.toLowerCase();
                               return (
                                 fullName.includes(q) ||
-                                pa.email.toLowerCase().includes(q) ||
-                                pa.mobile_number.includes(q)
+                                (pa.email || '').toLowerCase().includes(q) ||
+                                (pa.mobile_number || '').includes(q)
                               );
                             });
 
@@ -1466,7 +1637,7 @@ Remarks: ${candidateForm.remarks}`;
                             const filteredFounditApps = uniqueFounditApps.filter(pa => {
                               if (!founditSearch.trim()) return true;
                               const q = founditSearch.toLowerCase();
-                              const fullName = `${pa.first_name} ${pa.last_name}`.toLowerCase();
+                              const fullName = `${pa.first_name || ''} ${pa.last_name || ''}`.toLowerCase();
                               return (
                                 fullName.includes(q) ||
                                 (pa.email || '').toLowerCase().includes(q) ||
@@ -1487,10 +1658,16 @@ Remarks: ${candidateForm.remarks}`;
                                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                                     <Box
                                       sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
-                                      onClick={() => setExpandedPortalSections(prev => ({ ...prev, [reqId]: !isPortalSectionExpanded }))}
+                                      onClick={() => {
+                                        const willExpand = !isPortalSectionExpanded;
+                                        setExpandedPortalSections(prev => ({ ...prev, [reqId]: willExpand }));
+                                        if (willExpand && !careerPortalHasLoaded && !careerPortalLoading) {
+                                          void fetchCareerPortalApplicantsForJobs([...reqIds], jobKey, 1, careerPortalPageSize);
+                                        }
+                                      }}
                                     >
                                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        {isPortalSectionExpanded ? '▼' : '+'} Career Portal Applicants ({careerPortalApps.length})
+                                        {isPortalSectionExpanded ? '▼' : '+'} Career Portal Applicants ({careerPortalTotalCount})
                                       </Typography>
                                     </Box>
 
@@ -1501,37 +1678,37 @@ Remarks: ${candidateForm.remarks}`;
                                           <Button
                                             size="small"
                                             variant="outlined"
-                                            disabled={portalApplicantsPage <= 1 || isPortalLoading}
-                                            onClick={() => setPortalApplicantsPage(prev => Math.max(1, prev - 1))}
+                                            disabled={careerPortalPage <= 1 || careerPortalLoading}
+                                            onClick={() => void fetchCareerPortalApplicantsForJobs([...reqIds], jobKey, Math.max(1, careerPortalPage - 1), careerPortalPageSize)}
                                             sx={{ minWidth: 65, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
                                           >
                                             Previous
                                           </Button>
                                           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                                            Page {portalApplicantsPage} of {portalApplicantsTotalPages} ({portalApplicantsTotalCount} total)
+                                            Page {careerPortalPage} of {careerPortalTotalPages} ({careerPortalTotalCount} total)
                                           </Typography>
                                           <Button
                                             size="small"
                                             variant="outlined"
-                                            disabled={portalApplicantsPage >= portalApplicantsTotalPages || isPortalLoading}
-                                            onClick={() => setPortalApplicantsPage(prev => Math.min(portalApplicantsTotalPages, prev + 1))}
+                                            disabled={careerPortalPage >= careerPortalTotalPages || careerPortalLoading}
+                                            onClick={() => void fetchCareerPortalApplicantsForJobs([...reqIds], jobKey, Math.min(careerPortalTotalPages, careerPortalPage + 1), careerPortalPageSize)}
                                             sx={{ minWidth: 50, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
                                           >
                                             Next
                                           </Button>
                                           <FormControl size="small" variant="standard" sx={{ minWidth: 70 }}>
                                             <Select
-                                              value={portalApplicantsPageSize}
+                                              value={careerPortalPageSize}
                                               onChange={(e) => {
-                                                setPortalApplicantsPageSize(Number(e.target.value));
-                                                setPortalApplicantsPage(1);
+                                                const newSize = Number(e.target.value);
+                                                void fetchCareerPortalApplicantsForJobs([...reqIds], jobKey, 1, newSize);
                                               }}
                                               disableUnderline
                                               sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}
                                             >
+                                              <MenuItem value={25} sx={{ fontSize: '0.7rem' }}>25 / page</MenuItem>
                                               <MenuItem value={50} sx={{ fontSize: '0.7rem' }}>50 / page</MenuItem>
                                               <MenuItem value={100} sx={{ fontSize: '0.7rem' }}>100 / page</MenuItem>
-                                              <MenuItem value={200} sx={{ fontSize: '0.7rem' }}>200 / page</MenuItem>
                                             </Select>
                                           </FormControl>
                                         </Box>
@@ -1555,16 +1732,23 @@ Remarks: ${candidateForm.remarks}`;
 
                                   {isPortalSectionExpanded && (
                                     <>
-                                      {isPortalLoading ? (
+                                      {careerPortalLoading ? (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                                           <CircularProgress size={14} color="primary" />
                                           <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
-                                            Loading applicant details...
+                                            Loading Career Portal applicants...
                                           </Typography>
                                         </Box>
+                                      ) : careerPortalError ? (
+                                        <Alert severity="error" sx={{ my: 1, fontSize: '0.75rem' }}>
+                                          {careerPortalError}
+                                          <Button size="small" onClick={() => {
+                                            void fetchCareerPortalApplicantsForJobs([...reqIds], jobKey, careerPortalPage, careerPortalPageSize);
+                                          }}>Retry</Button>
+                                        </Alert>
                                       ) : filteredPortalApps.length === 0 ? (
                                         <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
-                                          {careerPortalApps.length === 0
+                                          {careerPortalTotalCount === 0
                                             ? "No candidate applications received from Company Career Portal yet."
                                             : "No portal applicants match your search keyword."}
                                         </Typography>
@@ -1702,10 +1886,16 @@ Remarks: ${candidateForm.remarks}`;
                                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap', gap: 1 }}>
                                     <Box
                                       sx={{ display: 'flex', alignItems: 'center', gap: 1, cursor: 'pointer' }}
-                                      onClick={() => setExpandedLinkedInSections(prev => ({ ...prev, [reqId]: !isLinkedInSectionExpanded }))}
+                                      onClick={() => {
+                                        const willExpand = !isLinkedInSectionExpanded;
+                                        setExpandedLinkedInSections(prev => ({ ...prev, [reqId]: willExpand }));
+                                        if (willExpand && !linkedinHasLoaded && !linkedinLoading) {
+                                          void fetchLinkedInApplicantsForJobs([...reqIds], jobKey, 1, linkedinPageSize);
+                                        }
+                                      }}
                                     >
                                       <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'primary.main', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        {isLinkedInSectionExpanded ? '▼' : '+'} LinkedIn Applicants ({linkedinApps.length})
+                                        {isLinkedInSectionExpanded ? '▼' : '+'} LinkedIn Applicants ({linkedinTotalCount})
                                       </Typography>
                                     </Box>
 
@@ -1716,37 +1906,37 @@ Remarks: ${candidateForm.remarks}`;
                                           <Button
                                             size="small"
                                             variant="outlined"
-                                            disabled={portalApplicantsPage <= 1 || isPortalLoading}
-                                            onClick={() => setPortalApplicantsPage(prev => Math.max(1, prev - 1))}
+                                            disabled={linkedinPage <= 1 || linkedinLoading}
+                                            onClick={() => void fetchLinkedInApplicantsForJobs([...reqIds], jobKey, Math.max(1, linkedinPage - 1), linkedinPageSize)}
                                             sx={{ minWidth: 65, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
                                           >
                                             Previous
                                           </Button>
                                           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                                            Page {portalApplicantsPage} of {portalApplicantsTotalPages} ({portalApplicantsTotalCount} total)
+                                            Page {linkedinPage} of {linkedinTotalPages} ({linkedinTotalCount} total)
                                           </Typography>
                                           <Button
                                             size="small"
                                             variant="outlined"
-                                            disabled={portalApplicantsPage >= portalApplicantsTotalPages || isPortalLoading}
-                                            onClick={() => setPortalApplicantsPage(prev => Math.min(portalApplicantsTotalPages, prev + 1))}
+                                            disabled={linkedinPage >= linkedinTotalPages || linkedinLoading}
+                                            onClick={() => void fetchLinkedInApplicantsForJobs([...reqIds], jobKey, Math.min(linkedinTotalPages, linkedinPage + 1), linkedinPageSize)}
                                             sx={{ minWidth: 50, height: 26, fontSize: '0.68rem', py: 0, px: 1, textTransform: 'none' }}
                                           >
                                             Next
                                           </Button>
                                           <FormControl size="small" variant="standard" sx={{ minWidth: 70 }}>
                                             <Select
-                                              value={portalApplicantsPageSize}
+                                              value={linkedinPageSize}
                                               onChange={(e) => {
-                                                setPortalApplicantsPageSize(Number(e.target.value));
-                                                setPortalApplicantsPage(1);
+                                                const newSize = Number(e.target.value);
+                                                void fetchLinkedInApplicantsForJobs([...reqIds], jobKey, 1, newSize);
                                               }}
                                               disableUnderline
                                               sx={{ fontSize: '0.68rem', fontWeight: 600, color: 'text.secondary' }}
                                             >
+                                              <MenuItem value={25} sx={{ fontSize: '0.7rem' }}>25 / page</MenuItem>
                                               <MenuItem value={50} sx={{ fontSize: '0.7rem' }}>50 / page</MenuItem>
                                               <MenuItem value={100} sx={{ fontSize: '0.7rem' }}>100 / page</MenuItem>
-                                              <MenuItem value={200} sx={{ fontSize: '0.7rem' }}>200 / page</MenuItem>
                                             </Select>
                                           </FormControl>
                                         </Box>
@@ -1770,16 +1960,23 @@ Remarks: ${candidateForm.remarks}`;
 
                                   {isLinkedInSectionExpanded && (
                                     <>
-                                      {isPortalLoading ? (
+                                      {linkedinLoading ? (
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                                           <CircularProgress size={14} color="primary" />
                                           <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', fontStyle: 'italic' }}>
-                                            Loading applicant details...
+                                            Loading LinkedIn applicants...
                                           </Typography>
                                         </Box>
+                                      ) : linkedinError ? (
+                                        <Alert severity="error" sx={{ my: 1, fontSize: '0.75rem' }}>
+                                          {linkedinError}
+                                          <Button size="small" onClick={() => {
+                                            void fetchLinkedInApplicantsForJobs([...reqIds], jobKey, linkedinPage, linkedinPageSize);
+                                          }}>Retry</Button>
+                                        </Alert>
                                       ) : filteredLinkedInApps.length === 0 ? (
                                         <Typography variant="body2" sx={{ fontSize: '0.7rem', color: 'text.secondary', py: 1, fontStyle: 'italic' }}>
-                                          {linkedinApps.length === 0
+                                          {linkedinTotalCount === 0
                                             ? "No candidate applications received from LinkedIn yet."
                                             : "No LinkedIn applicants match your search keyword."}
                                         </Typography>
