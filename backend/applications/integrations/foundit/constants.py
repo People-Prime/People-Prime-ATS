@@ -7,6 +7,7 @@ Contains ONLY confirmed Foundit endpoints, headers, and event constants.
 """
 
 import os
+import datetime
 
 
 
@@ -135,3 +136,74 @@ def is_foundit_webhook_processing_enabled():
     """
 
     return os.getenv("FOUNDIT_WEBHOOK_PROCESSING_ENABLED", "false").strip().lower() in ("true", "1")
+
+
+MANDATORY_FUTURE_ONLY_FOLDER_IDS = frozenset({"156278847"})
+DEFAULT_FUTURE_ONLY_FOLDER_IDS = MANDATORY_FUTURE_ONLY_FOLDER_IDS
+
+
+def get_foundit_future_only_folder_ids():
+    """
+    Returns the set of Foundit folder IDs subject to the future-only synchronization safeguard.
+    Mandatory folder 156278847 is always included and cannot be excluded through environment configuration.
+    Any folders specified in FOUNDIT_FUTURE_ONLY_FOLDER_IDS are treated as additional protected folders.
+    """
+    protected_ids = set(MANDATORY_FUTURE_ONLY_FOLDER_IDS)
+    env_ids = os.getenv("FOUNDIT_FUTURE_ONLY_FOLDER_IDS", "").strip()
+    if env_ids:
+        additional_ids = {item.strip() for item in env_ids.split(",") if item.strip()}
+        protected_ids.update(additional_ids)
+    return protected_ids
+
+
+def is_folder_future_only_protected(folder_id):
+    """
+    Checks if a given folder_id is protected by the future-only synchronization safeguard.
+    """
+    if not folder_id:
+        return False
+    return str(folder_id).strip() in get_foundit_future_only_folder_ids()
+
+
+def parse_utc_iso_datetime(dt_or_str):
+    """
+    Parses a string or datetime into a timezone-aware UTC datetime.
+    Rejects timezone-naive datetimes, dates without time/tz, and invalid strings by returning None.
+    """
+    if not dt_or_str:
+        return None
+    if isinstance(dt_or_str, datetime.datetime):
+        from django.utils import timezone
+        if timezone.is_naive(dt_or_str):
+            return None
+        return dt_or_str.astimezone(datetime.timezone.utc)
+    if isinstance(dt_or_str, datetime.date) and not isinstance(dt_or_str, datetime.datetime):
+        return None
+    if isinstance(dt_or_str, str):
+        val = dt_or_str.strip()
+        if not val:
+            return None
+        from django.utils.dateparse import parse_datetime
+        from django.utils import timezone
+        parsed = parse_datetime(val)
+        if parsed is None or timezone.is_naive(parsed):
+            return None
+        return parsed.astimezone(datetime.timezone.utc)
+    return None
+
+
+def get_foundit_activation_cutoff_utc(folder_id=None):
+    """
+    Retrieves and parses the UTC activation cutoff timestamp for a given folder or default.
+    Checks FOUNDIT_APPLICATIONS_MIN_DATE_UTC_<folder_id> first, then FOUNDIT_APPLICATIONS_MIN_DATE_UTC.
+    Returns timezone-aware datetime in UTC or None if unset/invalid/naive.
+    """
+    val = None
+    if folder_id:
+        clean_folder = str(folder_id).strip()
+        val = os.getenv(f"FOUNDIT_APPLICATIONS_MIN_DATE_UTC_{clean_folder}", "").strip()
+    if not val:
+        val = os.getenv("FOUNDIT_APPLICATIONS_MIN_DATE_UTC", "").strip()
+    if not val:
+        return None
+    return parse_utc_iso_datetime(val)

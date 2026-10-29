@@ -13,6 +13,9 @@ from applications.integrations.foundit.mappers import FounditCandidateMapper
 from applications.integrations.foundit.constants import (
     FOUNDIT_JOB_BOARD_NAME,
     is_foundit_live_applications_enabled,
+    is_folder_future_only_protected,
+    get_foundit_activation_cutoff_utc,
+    parse_utc_iso_datetime,
 )
 
 logger = logging.getLogger(__name__)
@@ -246,6 +249,52 @@ class FounditCandidateIngestionService:
                 "error": f"Unmatched Foundit folder_id: {folder_id}",
                 "code": "UNMATCHED_FOLDER_ID"
             }
+
+        # Safeguard Guard: Fail closed on protected folder if cutoff missing, naive, or application submitted before cutoff
+        effective_folder_id = folder_id or (posting.external_job_id if (posting and posting.external_job_id) else "")
+        if is_folder_future_only_protected(effective_folder_id):
+            cutoff_dt = get_foundit_activation_cutoff_utc(effective_folder_id)
+            if cutoff_dt is None:
+                logger.error(
+                    f"[FounditIngestion] Ingestion blocked for protected folder {effective_folder_id}: "
+                    "Missing or invalid UTC activation cutoff configuration (FOUNDIT_APPLICATIONS_MIN_DATE_UTC)."
+                )
+                return {
+                    "success": False,
+                    "error": f"Protected folder {effective_folder_id} missing valid UTC cutoff timestamp",
+                    "code": "SAFEGUARD_CUTOFF_MISSING"
+                }
+
+            raw_app_date = (
+                application_dict.get("application_date")
+                or application_dict.get("applicationDate")
+                or application_dict.get("applied_date")
+                or application_dict.get("appliedDate")
+                or application_dict.get("created_at")
+                or application_dict.get("createdAt")
+            )
+            app_dt = parse_utc_iso_datetime(raw_app_date)
+            if app_dt is None:
+                logger.warning(
+                    f"[FounditIngestion] Ingestion blocked for protected folder {effective_folder_id}: "
+                    f"Missing, invalid, or timezone-naive application submission date: '{raw_app_date}'"
+                )
+                return {
+                    "success": False,
+                    "error": f"Protected folder application has missing, invalid, or naive date: '{raw_app_date}'",
+                    "code": "SAFEGUARD_INVALID_DATE"
+                }
+
+            if app_dt < cutoff_dt:
+                logger.info(
+                    f"[FounditIngestion] Safeguard excluded historical candidate application for folder {effective_folder_id}: "
+                    f"application date {app_dt.isoformat()} is before activation cutoff {cutoff_dt.isoformat()}."
+                )
+                return {
+                    "success": False,
+                    "error": f"Application date {app_dt.isoformat()} is prior to activation cutoff {cutoff_dt.isoformat()}",
+                    "code": "SAFEGUARD_BEFORE_CUTOFF"
+                }
 
         # 2. Duplicate Protection (Idempotency Check)
         foundit_app_id = str(application_dict.get("application_id") or application_dict.get("applicationId") or "").strip()
@@ -528,8 +577,39 @@ class FounditApplicationSyncService:
             # 1. Capture sync_started_at BEFORE the first API call to prevent checkpoint boundary drift
             sync_started_at = timezone.now()
 
+            # Safeguard: For future-only protected folders, verify valid cutoff configuration exists
+            is_protected = is_folder_future_only_protected(clean_folder_id)
+            cutoff_dt = None
+            if is_protected:
+                cutoff_dt = get_foundit_activation_cutoff_utc(clean_folder_id)
+                if cutoff_dt is None:
+                    logger.error(
+                        f"[FounditSync] Safeguard blocked sync: Missing or invalid UTC activation cutoff "
+                        f"(FOUNDIT_APPLICATIONS_MIN_DATE_UTC) for protected folder {clean_folder_id}. "
+                        "Failing closed to protect historical applicants. Checkpoint held."
+                    )
+                    summary["error"] = (
+                        f"Safeguard error: Protected folder {clean_folder_id} requires a valid "
+                        "FOUNDIT_APPLICATIONS_MIN_DATE_UTC configuration. Checkpoint held."
+                    )
+                    summary["failed_errors"] += 1
+                    return summary
+
             # Format applications_since safely to UTC ISO 8601
-            formatted_since = cls.format_applications_since(applications_since)
+            # For protected folders, never query an API date earlier than cutoff_dt,
+            # but preserve the overlap window when overlap_time >= cutoff_dt.
+            if is_protected and cutoff_dt is not None:
+                if applications_since:
+                    parsed_since = parse_utc_iso_datetime(applications_since)
+                    if parsed_since is None or parsed_since < cutoff_dt:
+                        effective_since = cutoff_dt
+                    else:
+                        effective_since = parsed_since
+                else:
+                    effective_since = cutoff_dt
+                formatted_since = cls.format_applications_since(effective_since)
+            else:
+                formatted_since = cls.format_applications_since(applications_since)
 
             safe_limit = min(int(limit) if limit else cls.DEFAULT_PAGE_SIZE, cls.DEFAULT_PAGE_SIZE)
             if safe_limit < 1:
@@ -608,7 +688,16 @@ class FounditApplicationSyncService:
                 # Unpack official {"success": true, "data": {...}} or flat mock dictionary
                 data_envelope = response.get("data") if (isinstance(response, dict) and isinstance(response.get("data"), dict)) else response
                 if not isinstance(data_envelope, dict):
-                    data_envelope = {}
+                    logger.error(
+                        f"[FounditSync] Malformed API response structure for folder {clean_folder_id} at page {page_number}: "
+                        f"expected dictionary envelope, got {type(data_envelope).__name__}. Checkpoint held."
+                    )
+                    summary["error"] = (
+                        f"Malformed API response: expected dictionary envelope, "
+                        f"got {type(data_envelope).__name__}. Checkpoint held."
+                    )
+                    summary["failed_errors"] += 1
+                    break
 
                 raw_total = data_envelope.get("total_job_applications")
                 try:
@@ -617,11 +706,27 @@ class FounditApplicationSyncService:
                     total_job_apps = 0
                 summary["total_job_applications"] = total_job_apps
 
-                apps = data_envelope.get("applications", [])
-                if not isinstance(apps, list) or len(apps) == 0:
-                    # If page 1 is empty but the API explicitly reports matching applications,
+                raw_apps = data_envelope.get("applications")
+                # Reject malformed applications types (e.g. dict, str, int, bool)
+                if raw_apps is not None and not isinstance(raw_apps, list):
+                    logger.error(
+                        f"[FounditSync] Malformed API response for folder {clean_folder_id} at page {page_number}: "
+                        f"'applications' field must be a list or null, got {type(raw_apps).__name__}. Checkpoint held."
+                    )
+                    summary["error"] = (
+                        f"Malformed API response: 'applications' field expected list or null, "
+                        f"got {type(raw_apps).__name__}. Checkpoint held."
+                    )
+                    summary["failed_errors"] += 1
+                    break
+
+                apps = raw_apps if isinstance(raw_apps, list) else []
+                if len(apps) == 0:
+                    # If page 1 is empty but the API explicitly reports matching applications on an unfiltered query,
                     # we have concrete evidence of an incomplete response. Hold checkpoint.
-                    if page_number == 1 and total_job_apps > 0:
+                    # Note: When formatted_since is active, total_job_applications reflects lifetime folder count,
+                    # so an empty applications list is a valid empty delta and NOT an error.
+                    if page_number == 1 and total_job_apps > 0 and not is_protected:
                         summary["error"] = (
                             f"Incomplete response: Foundit reported {total_job_apps} application(s), "
                             "but page 1 returned an empty applications list. Checkpoint held."
@@ -634,6 +739,35 @@ class FounditApplicationSyncService:
                     if not isinstance(app_dict, dict):
                         summary["failed_errors"] += 1
                         continue
+
+                    if is_protected and cutoff_dt is not None:
+                        raw_app_date = (
+                            app_dict.get("application_date")
+                            or app_dict.get("applicationDate")
+                            or app_dict.get("applied_date")
+                            or app_dict.get("appliedDate")
+                            or app_dict.get("created_at")
+                            or app_dict.get("createdAt")
+                        )
+                        app_dt = parse_utc_iso_datetime(raw_app_date)
+                        app_id_for_log = app_dict.get("application_id") or app_dict.get("applicationId") or "unknown"
+
+                        if app_dt is None:
+                            logger.warning(
+                                f"[FounditSync] Safeguard rejected application {app_id_for_log} for protected folder {clean_folder_id}: "
+                                f"missing, invalid, or timezone-naive application submission date ('{raw_app_date}'). Checkpoint held."
+                            )
+                            summary["failed_errors"] += 1
+                            continue
+
+                        if app_dt < cutoff_dt:
+                            logger.info(
+                                f"[FounditSync] Safeguard pre-filter excluded historical application {app_id_for_log} for folder {clean_folder_id}: "
+                                f"application date {app_dt.isoformat()} is before cutoff {cutoff_dt.isoformat()}."
+                            )
+                            summary["before_cutoff_excluded"] = summary.get("before_cutoff_excluded", 0) + 1
+                            continue
+
                     summary["total_fetched"] += 1
                     if not app_dict.get("folder_id") and not app_dict.get("folderId"):
                         app_dict["folder_id"] = env_folder_id
@@ -814,7 +948,15 @@ class FounditApplicationSyncService:
                 app_since_str = None
                 if posting.last_synced_at:
                     overlap_time = posting.last_synced_at - datetime.timedelta(minutes=cls.OVERLAP_WINDOW_MINUTES)
+                    if is_folder_future_only_protected(folder_id):
+                        cutoff_dt = get_foundit_activation_cutoff_utc(folder_id)
+                        if cutoff_dt and overlap_time < cutoff_dt:
+                            overlap_time = cutoff_dt
                     app_since_str = cls.format_applications_since(overlap_time)
+                elif is_folder_future_only_protected(folder_id):
+                    cutoff_dt = get_foundit_activation_cutoff_utc(folder_id)
+                    if cutoff_dt:
+                        app_since_str = cls.format_applications_since(cutoff_dt)
 
                 job_summary = cls.sync_applications_for_folder(
                     folder_id=folder_id,
