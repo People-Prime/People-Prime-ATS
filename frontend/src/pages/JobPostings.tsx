@@ -712,6 +712,7 @@ export const JobPostings: React.FC = () => {
       const count = res.data?.count ?? list.length;
       setLocalApplications(list);
       setTotalCount(count);
+      dispatch(setApplications(list));
     }).catch((err) => {
       console.error("Error loading job postings", err);
     }).finally(() => {

@@ -39,7 +39,6 @@ export const CreateRequirement: React.FC = () => {
 
   const { user: currentUser } = useAppSelector(state => state.auth);
   const { users } = useAppSelector(state => state.users);
-  const { applications } = useAppSelector(state => state.applications);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -95,6 +94,9 @@ export const CreateRequirement: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isLoadingJob, setIsLoadingJob] = useState<boolean>(Boolean(applicationId));
+  const [jobLoadError, setJobLoadError] = useState<string>('');
+  const [existingGroupApps, setExistingGroupApps] = useState<any[]>([]);
   const [clientBillRateError, setClientBillRateError] = useState('');
   const [payRateError, setPayRateError] = useState('');
   const [maxExperienceError, setMaxExperienceError] = useState('');
@@ -193,9 +195,18 @@ export const CreateRequirement: React.FC = () => {
   }, [applicationId, currentUser, navigate]);
 
   useEffect(() => {
-    if (applicationId && applications.length > 0) {
-      const app = applications.find(a => String(a.id) === applicationId);
-      if (app) {
+    if (!applicationId) return;
+
+    let isMounted = true;
+    setIsLoadingJob(true);
+    setJobLoadError('');
+
+    const fetchJobAndSiblings = async () => {
+      try {
+        const res = await api.get(`applications/${applicationId}/`);
+        const app = res.data;
+        if (!isMounted) return;
+
         const remarks = app.remarks || '';
         const extractField = (fieldName: string): string => {
           const regex = new RegExp(`${fieldName}:\\s*(.*)`);
@@ -203,19 +214,41 @@ export const CreateRequirement: React.FC = () => {
           return match ? match[1].trim() : '';
         };
 
-        const jobCode = extractField('Job Code') || `PPW - ${String(app.id).padStart(4, '0')}`;
-        
-        // Find all applications with the same Job Code to get assigneeIds
-        const groupApps = applications.filter(a => {
-          const aRemarks = a.remarks || '';
-          const aMatch = aRemarks.match(/Job Code:\s*(.+)/);
-          const aCode = aMatch ? aMatch[1].trim() : '';
-          return aCode === jobCode && !a.candidate_name;
-        });
+        const matchJobCode = remarks.match(/Job Code:\s*(.+)/);
+        const jobCode = matchJobCode ? matchJobCode[1].trim() : `PPW - ${String(app.id).padStart(4, '0')}`;
+
+        // Find all applications with the same Job Code to get assigneeIds and preserve grouped records
+        let groupApps: any[] = [app];
+        try {
+          const siblingRes = await api.get(`applications/?is_job_posting=true&global_search=${encodeURIComponent(jobCode)}`);
+          const siblingList = siblingRes.data?.results ?? (Array.isArray(siblingRes.data) ? siblingRes.data : []);
+          const matchedSiblings = siblingList.filter((a: any) => {
+            const aRemarks = a.remarks || '';
+            const aMatch = aRemarks.match(/Job Code:\s*(.+)/);
+            const aCode = aMatch ? aMatch[1].trim() : '';
+            return aCode === jobCode && !a.candidate_name;
+          });
+          if (matchedSiblings.length > 0) {
+            groupApps = matchedSiblings;
+            if (!groupApps.some((a: any) => String(a.id) === String(app.id))) {
+              groupApps.push(app);
+            }
+          }
+        } catch (siblingErr) {
+          console.warn('Could not fetch sibling applications by job code, using primary app:', siblingErr);
+        }
+
+        if (!isMounted) return;
+
+        setExistingGroupApps(groupApps);
 
         const emails = groupApps
-          .map(a => a.assigned_employee?.email)
+          .map((a: any) => a.assigned_employee?.email)
           .filter(Boolean) as string[];
+
+        if (emails.length === 0 && app.assigned_employee_id) {
+          emails.push(app.assigned_employee_id);
+        }
 
         setAssigneeIds(emails);
 
@@ -265,9 +298,25 @@ export const CreateRequirement: React.FC = () => {
           publishToLinkedin: Boolean(app.publish_to_linkedin),
           publishToFoundit: Boolean(app.publish_to_foundit)
         });
+      } catch (err: any) {
+        console.error('Failed to load job for editing:', err);
+        if (isMounted) {
+          const detail = err.response?.data?.detail || err.response?.data?.error || err.message || 'Failed to load job requirements. Please try again.';
+          setJobLoadError(detail);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingJob(false);
+        }
       }
-    }
-  }, [applicationId, applications]);
+    };
+
+    fetchJobAndSiblings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [applicationId]);
 
   const handleValidateFoundit = async (jobIdToValidate: number) => {
     setValidatingFoundit(true);
@@ -335,6 +384,11 @@ export const CreateRequirement: React.FC = () => {
   const handleSaveRequirement = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (submitting) return;
+    if (applicationId && (isLoadingJob || Boolean(jobLoadError))) {
+      setError('Cannot save changes: Job requirement data has not finished loading or encountered an error. Please refresh the page.');
+      return;
+    }
     setSuccess('');
 
     if (!formData.client || !formData.client.trim()) {
@@ -408,14 +462,22 @@ export const CreateRequirement: React.FC = () => {
 
       if (applicationId) {
         // Edit mode!
-        const app = applications.find(a => String(a.id) === applicationId);
-        const oldJobCode = app ? (app.remarks.match(/Job Code:\s*(.+)/)?.[1]?.trim() || '') : '';
-        const groupApps = applications.filter(a => {
-          const aRemarks = a.remarks || '';
-          const aMatch = aRemarks.match(/Job Code:\s*(.+)/);
-          const aCode = aMatch ? aMatch[1].trim() : '';
-          return aCode === oldJobCode && !a.candidate_name;
-        });
+        let groupApps = [...existingGroupApps];
+        if (groupApps.length === 0) {
+          try {
+            const freshRes = await api.get(`applications/${applicationId}/`);
+            if (freshRes.data) {
+              groupApps = [freshRes.data];
+            }
+          } catch (fetchErr) {
+            setError('Could not verify existing job requirement. Save aborted to prevent unintended duplicate job creation.');
+            setSubmitting(false);
+            return;
+          }
+        }
+
+        const primaryJobId = Number(applicationId);
+        const primaryApp = groupApps.find(a => Number(a.id) === primaryJobId) || groupApps[0];
 
         const formattedRemarks = `[Job Details]
 Job Code: ${formData.jobCode}
@@ -452,40 +514,85 @@ Notice Period: ${formData.noticePeriod}
 Source Option: ${formData.docSource}
 FileName: ${formData.fileName || 'No document uploaded'}`;
 
-        const updatePromises = assigneeIds.map(async (email) => {
-          const existing = groupApps.find(a => a.assigned_employee?.email === email);
-          const payload = {
-            client_name: formData.client,
-            city: formData.city.trim(),
-            state: formData.state.trim(),
-            country: formData.country.trim(),
-            position: formData.jobTitle,
-            technology: formData.primarySkills,
-            experience: parseFloat(formData.experience) || 0.0,
-            max_experience: formData.maxExperience || '',
-            assigned_employee_id: email,
-            remarks: formattedRemarks,
-            publish_to_career_page: formData.publishToCareerPage,
-            publish_to_linkedin: formData.publishToLinkedin,
-            publish_to_foundit: formData.publishToFoundit
-          };
+        const basePayload = {
+          client_name: formData.client,
+          city: formData.city.trim(),
+          state: formData.state.trim(),
+          country: formData.country.trim(),
+          position: formData.jobTitle,
+          technology: formData.primarySkills,
+          experience: parseFloat(formData.experience) || 0.0,
+          max_experience: formData.maxExperience || '',
+          remarks: formattedRemarks,
+          publish_to_career_page: formData.publishToCareerPage,
+          publish_to_linkedin: formData.publishToLinkedin,
+          publish_to_foundit: formData.publishToFoundit
+        };
 
-          if (existing) {
-            const res = await api.put(`applications/${existing.id}/`, payload);
-            dispatch(updateApplication(res.data));
+        // Match assignees with existing application rows
+        const usedAppIds = new Set<number>();
+        const appToEmail = new Map<number, string>();
+        const unassignedEmails: string[] = [];
+
+        // 1. Direct match: where an existing app's assigned employee email matches a selected assignee
+        for (const email of assigneeIds) {
+          const matchedApp = groupApps.find(a => !usedAppIds.has(a.id) && (a.assigned_employee?.email === email || a.assigned_employee_id === email));
+          if (matchedApp) {
+            usedAppIds.add(matchedApp.id);
+            appToEmail.set(matchedApp.id, email);
           } else {
-            const res = await api.post('applications/', payload);
-            dispatch(addApplication(res.data));
+            unassignedEmails.push(email);
           }
+        }
+
+        // 2. Safeguard the primary job record being edited:
+        // If primaryApp was not directly matched (e.g. its assignee was changed or swapped),
+        // assign it to the first unassigned email so primaryApp is ALWAYS updated via PUT and never deleted or duplicated!
+        if (primaryApp && !usedAppIds.has(primaryApp.id) && unassignedEmails.length > 0) {
+          const reassignedEmail = unassignedEmails.shift()!;
+          usedAppIds.add(primaryApp.id);
+          appToEmail.set(primaryApp.id, reassignedEmail);
+        }
+
+        // 3. For any remaining unused existing sibling apps, pair them with remaining unassigned emails
+        for (const app of groupApps) {
+          if (!usedAppIds.has(app.id) && unassignedEmails.length > 0) {
+            const nextEmail = unassignedEmails.shift()!;
+            usedAppIds.add(app.id);
+            appToEmail.set(app.id, nextEmail);
+          }
+        }
+
+        // Execute updates for matched / reassigned applications
+        const updatePromises = Array.from(appToEmail.entries()).map(async ([appId, email]) => {
+          const payload = {
+            ...basePayload,
+            assigned_employee_id: email
+          };
+          const res = await api.put(`applications/${appId}/`, payload);
+          dispatch(updateApplication(res.data));
+          return res.data;
         });
 
-        await Promise.all(updatePromises);
+        // Execute creates for brand-new assignees exceeding existing sibling records
+        const createPromises = unassignedEmails.map(async (email) => {
+          const payload = {
+            ...basePayload,
+            assigned_employee_id: email
+          };
+          const res = await api.post('applications/', payload);
+          dispatch(addApplication(res.data));
+          return res.data;
+        });
 
-        const deselected = groupApps.filter(a => !assigneeIds.includes(a.assigned_employee?.email || ''));
-        await Promise.all(deselected.map(async (desApp) => {
+        // Execute deletes for genuinely deselected sibling apps (never delete primaryApp)
+        const deselectedApps = groupApps.filter(a => !usedAppIds.has(a.id) && a.id !== primaryJobId);
+        const deletePromises = deselectedApps.map(async (desApp) => {
           await api.delete(`applications/${desApp.id}/`);
           dispatch(deleteApplication(String(desApp.id)));
-        }));
+        });
+
+        await Promise.all([...updatePromises, ...createPromises, ...deletePromises]);
 
         if (formData.publishToFoundit && applicationId) {
           setPostSaveActionJobId(Number(applicationId));
@@ -494,7 +601,6 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           setSuccess(`✅ Job requirement for "${formData.jobTitle}" updated successfully!`);
           setTimeout(() => navigate('/job-postings'), 400);
         }
-
       } else {
         // Create mode!
         const buildRemarks = (jobCodeVal: string) => `[Job Details]
@@ -617,8 +723,17 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 3, borderRadius: '8px' }}>{error}</Alert>}
+      {jobLoadError && <Alert severity="error" sx={{ mb: 3, borderRadius: '8px' }}>{jobLoadError}</Alert>}
       {success && <Alert severity="success" sx={{ mb: 3, borderRadius: '8px' }}>{success}</Alert>}
 
+      {isLoadingJob ? (
+        <Card sx={{ borderRadius: '16px', boxShadow: theme.shadows[3], p: 6, textAlign: 'center' }}>
+          <CircularProgress size={40} sx={{ mb: 2 }} />
+          <Typography variant="h6" color="text.secondary">
+            Loading job requirement details...
+          </Typography>
+        </Card>
+      ) : (
       <Card sx={{ borderRadius: '16px', boxShadow: theme.shadows[3] }}>
         <CardContent sx={{ p: 4 }}>
           <form onSubmit={handleSaveRequirement}>
@@ -1250,7 +1365,7 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
               <Button 
                 variant="outlined" 
-                onClick={() => navigate('/')}
+                onClick={() => applicationId ? navigate('/job-postings') : navigate('/')}
                 sx={{ px: 4, borderRadius: '8px' }}
                 disabled={submitting}
               >
@@ -1261,15 +1376,16 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
                 variant="contained" 
                 color="primary"
                 sx={{ px: 5, borderRadius: '8px', fontWeight: 750 }}
-                disabled={submitting || teamMembers.length === 0}
+                disabled={submitting || isLoadingJob || Boolean(jobLoadError) || assigneeIds.length === 0 || (!applicationId && teamMembers.length === 0)}
               >
-                {submitting ? 'Posting...' : 'Create & Assign Requirement'}
+                {submitting ? (applicationId ? 'Saving...' : 'Posting...') : (applicationId ? 'Save Changes' : 'Create & Assign Requirement')}
               </Button>
             </Box>
 
           </form>
         </CardContent>
       </Card>
+      )}
 
       {/* Post-Save Foundit Validation & Publishing Action Dialog */}
       <Dialog
