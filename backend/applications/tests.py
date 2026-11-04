@@ -2012,15 +2012,15 @@ Required Skills & Experience
 
     def test_13_unrelated_job_category_without_confirmed_role_is_rejected(self):
 
-        """Test 13: Verify non-software role (e.g. HR Recruiter) is not silently assigned roleId 734."""
+        """Test 13: Verify non-supported role (e.g. Corporate Legal Counsel) is not silently assigned roleId 734."""
 
-        hr_job = Application.objects.create(
+        unsupported_job = Application.objects.create(
 
             candidate_name="",
 
-            position="Senior HR Recruiter & Talent Acquisition Specialist",
+            position="Corporate Legal Counsel",
 
-            technology="Talent Acquisition, Sourcing",
+            technology="Contract Law, Compliance",
 
             experience=4.0,
 
@@ -2030,7 +2030,7 @@ Required Skills & Experience
 
             country="India",
 
-            client_name="Corporate HR",
+            client_name="Corporate Legal",
 
             remarks="[Job Details]\nCTC: 400000-600000\nExperience: 4-6 years\n"
 
@@ -2038,7 +2038,7 @@ Required Skills & Experience
 
         with self.assertRaises(FounditValidationError) as ctx:
 
-            FounditJobMapper.map_ats_job_to_foundit_payload(hr_job)
+            FounditJobMapper.map_ats_job_to_foundit_payload(unsupported_job)
 
         self.assertIn("unresolved foundit roleid for role", str(ctx.exception).lower())
 
@@ -12157,3 +12157,218 @@ class FounditWebhookCeleryTaskGuardTests(SimpleTestCase):
         self.assertEqual(result, {"status": "invalid_payload"})
         mock_sync.assert_not_called()
         mock_ingest.assert_not_called()
+class FounditExpandedRoleMappingTests(TestCase):
+    """
+    Unit tests for expanded Foundit job roles in People Prime ATS.
+    Verifies that all 24 supported roles (6 existing + 18 new) map to their exact official
+    Foundit master data roleId, roleName, and functionName, while preserving original free-text
+    job titles and failing closed for unsupported roles.
+    """
+
+    def setUp(self):
+        self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "username": "test_user",
+            "password": "test_password",
+            "corp_id": "12345",
+            "recruiter_id": "67890",
+            "company_name": "People Prime Worldwide",
+            "owner_name": "Test Owner",
+            "owner_email": "owner@people-prime.com",
+            "default_location_id": "6",
+            "default_location_name": "Hyderabad / Secunderabad, Telangana",
+            "default_industry_id": "140",
+            "default_industry_name": "Consumer Software",
+            "default_role_id": "734",
+            "default_role_name": "Software Engineer/Programmer",
+            "network_role_id": "1473",
+            "network_role_name": "Network Engineer",
+        }
+
+    def tearDown(self):
+        self.creds_patcher.stop()
+
+    def _create_and_map_job(self, position_title, technology="Python, Django", exp=5.0):
+        job = Application.objects.create(
+            candidate_name="",
+            position=position_title,
+            technology=technology,
+            experience=exp,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Test Client",
+            remarks="Experience: 5-8 years. CTC: 10-15 LPA."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        return payload
+
+    def test_original_6_roles_regression(self):
+        """Verify original 6 roles continue to resolve with 100% fidelity."""
+        test_cases = [
+            # 1. Trainee (733)
+            ("Graduate Engineering Trainee", 733, "Trainee", "IT"),
+            ("Software Engineer Intern", 733, "Trainee", "IT"),
+            # 2. Software Engineer / Programmer (734)
+            ("Senior Python Developer", 734, "Software Engineer/Programmer", "IT"),
+            ("Lead Software Engineer", 734, "Software Engineer/Programmer", "IT"),
+            # 3. Database Administrator (DBA) (740)
+            ("Oracle DBA Specialist", 740, "Database Administrator (DBA)", "IT"),
+            # 4. Software Test Engineer (746)
+            ("QA Automation Test Engineer", 746, "Software Test Engineer", "IT"),
+            # 5. Systems Engineer (1077)
+            ("Systems Engineer - Infrastructure", 1077, "Systems Engineer", "IT"),
+            # 6. Network Engineer (1473)
+            ("Network Security Engineer", 1473, "Network Engineer", "IT"),
+        ]
+        for title, expected_id, expected_name, expected_func in test_cases:
+            with self.subTest(title=title):
+                payload = self._create_and_map_job(title)
+                self.assertEqual(payload["title"], title, f"Title preservation failed for {title}")
+                roles = payload["roleList"]
+                self.assertEqual(len(roles), 1)
+                self.assertEqual(roles[0]["roleId"], expected_id)
+                self.assertEqual(roles[0]["roleName"], expected_name)
+                self.assertEqual(roles[0]["functionName"], expected_func)
+
+    def test_11_new_it_roles(self):
+        """Verify all 11 new IT roles resolve to verified Foundit master data."""
+        test_cases = [
+            # 1. Business Analyst (751)
+            ("Senior IT Business Analyst", 751, "Business Analyst", "IT"),
+            ("Technical Business Systems Analyst", 751, "Business Analyst", "IT"),
+            # 2. Technical Writer (766)
+            ("Technical Writer - Python APIs", 766, "Technical Writer", "IT"),
+            ("API Documentation Specialist", 766, "Technical Writer", "IT"),
+            # 3. Project Leader / Project Manager (738)
+            ("Technical Project Manager", 738, "Project Leader/Project Manager", "IT"),
+            ("Agile Scrum Master", 738, "Project Leader/Project Manager", "IT"),
+            # 4. Product Manager (750)
+            ("Associate Product Manager", 750, "Product Manager", "IT"),
+            ("Senior Technical Product Owner", 750, "Product Manager", "IT"),
+            # 5. System Analyst / Tech Architect (736)
+            ("Solutions Architect", 736, "System Analyst/Tech Architect", "IT"),
+            ("Enterprise Cloud Architect", 736, "System Analyst/Tech Architect", "IT"),
+            # 6. Team Leader / Technical Leader (735)
+            ("Technical Lead - Backend", 735, "Team Leader/Technical Leader", "IT"),
+            ("Software Team Leader", 735, "Team Leader/Technical Leader", "IT"),
+            # 7. Datawarehousing Consultants (752)
+            ("ETL Developer", 752, "Datawarehousing Consultants", "IT"),
+            ("Data Warehouse Specialist", 752, "Datawarehousing Consultants", "IT"),
+            # 8. ERP/CRM – Functional Consultant (754)
+            ("SAP Functional Consultant", 754, "ERP/CRM - Functional Consultant", "IT"),
+            ("Salesforce Functional Analyst", 754, "ERP/CRM - Functional Consultant", "IT"),
+            # 9. ERP/CRM – Technical Consultant (753)
+            ("SAP ABAP Developer", 753, "ERP/CRM - Technical Consultant", "IT"),
+            ("Salesforce Technical Consultant", 753, "ERP/CRM - Technical Consultant", "IT"),
+            # 10. Technical Support Engineer (748)
+            ("Technical Support Engineer", 748, "Technical Support Engineer", "IT"),
+            ("L2 Desktop Support Engineer", 748, "Technical Support Engineer", "IT"),
+            # 11. Graphic Designer / Animator (756)
+            ("UI/UX Designer", 756, "Graphic Designer/Animator", "IT"),
+            ("Senior Graphic Designer", 756, "Graphic Designer/Animator", "IT"),
+        ]
+        for title, expected_id, expected_name, expected_func in test_cases:
+            with self.subTest(title=title):
+                payload = self._create_and_map_job(title)
+                self.assertEqual(payload["title"], title, f"Title preservation failed for {title}")
+                roles = payload["roleList"]
+                self.assertEqual(len(roles), 1)
+                self.assertEqual(roles[0]["roleId"], expected_id)
+                self.assertEqual(roles[0]["roleName"], expected_name)
+                self.assertEqual(roles[0]["functionName"], expected_func)
+
+    def test_7_new_non_it_roles(self):
+        """Verify all 7 new Non-IT roles resolve to verified Foundit master data."""
+        test_cases = [
+            # 12. HR Executive / Recruiter (38, Function: Human Resources)
+            ("IT Recruiter & Talent Acquisition", 38, "HR Executive/Recruiter", "Human Resources"),
+            ("HR Operations Specialist", 38, "HR Executive/Recruiter", "Human Resources"),
+            # 13. HR Manager (781, Function: Human Resources)
+            ("Senior HR Manager", 781, "HR Manager", "Human Resources"),
+            ("Talent Acquisition Manager", 781, "HR Manager", "Human Resources"),
+            # 14. HR Business Partner (1097, Function: Human Resources)
+            ("Strategic HR Business Partner", 1097, "HR Business Partner", "Human Resources"),
+            ("Senior HRBP", 1097, "HR Business Partner", "Human Resources"),
+            # 15. Accountant (707, Function: Finance & Accounts)
+            ("Senior Accountant", 707, "Accountant", "Finance & Accounts"),
+            ("Accounts Executive", 707, "Accountant", "Finance & Accounts"),
+            # 16. Manager – Financial Planning / Budgeting (711, Function: Finance & Accounts)
+            ("Financial Planning Manager", 711, "Manager - Financial Planning/Budgeting", "Finance & Accounts"),
+            ("FP&A Budgeting Manager", 711, "Manager - Financial Planning/Budgeting", "Finance & Accounts"),
+            # 17. Business Development Executive (489, Function: Sales/Business Development)
+            ("Business Development Executive", 489, "Business Development Executive", "Sales/Business Development"),
+            ("Inside Sales Representative", 489, "Business Development Executive", "Sales/Business Development"),
+            # 18. Business Development Manager (490, Function: Sales/Business Development)
+            ("Business Development Manager", 490, "Business Development Manager", "Sales/Business Development"),
+            ("Enterprise Sales Manager", 490, "Business Development Manager", "Sales/Business Development"),
+        ]
+        for title, expected_id, expected_name, expected_func in test_cases:
+            with self.subTest(title=title):
+                payload = self._create_and_map_job(title)
+                self.assertEqual(payload["title"], title, f"Title preservation failed for {title}")
+                roles = payload["roleList"]
+                self.assertEqual(len(roles), 1)
+                self.assertEqual(roles[0]["roleId"], expected_id)
+                self.assertEqual(roles[0]["roleName"], expected_name)
+                self.assertEqual(roles[0]["functionName"], expected_func)
+
+    def test_precedence_and_collision_guards(self):
+        """Verify strict evaluation ordering prevents misclassification."""
+        # Technical Writer before Software Engineer
+        payload = self._create_and_map_job("Technical Writer - Python APIs")
+        self.assertEqual(payload["roleList"][0]["roleId"], 766)
+
+        # SAP ABAP Developer before Software Engineer
+        payload = self._create_and_map_job("SAP ABAP Developer")
+        self.assertEqual(payload["roleList"][0]["roleId"], 753)
+
+        # Lead Software Engineer matches 734, NOT 735 (preserves software developer mapping)
+        payload = self._create_and_map_job("Lead Software Engineer")
+        self.assertEqual(payload["roleList"][0]["roleId"], 734)
+
+        # Technical Lead matches 735
+        payload = self._create_and_map_job("Technical Lead")
+        self.assertEqual(payload["roleList"][0]["roleId"], 735)
+
+        # HR Manager before HR Executive / Recruiter
+        payload = self._create_and_map_job("HR Manager")
+        self.assertEqual(payload["roleList"][0]["roleId"], 781)
+
+        # HR Business Partner before HR Executive / Recruiter
+        payload = self._create_and_map_job("HR Business Partner")
+        self.assertEqual(payload["roleList"][0]["roleId"], 1097)
+
+        # Financial Planning Manager before Accountant
+        payload = self._create_and_map_job("Financial Planning Manager")
+        self.assertEqual(payload["roleList"][0]["roleId"], 711)
+
+        # Business Development Manager before Business Development Executive
+        payload = self._create_and_map_job("Business Development Manager")
+        self.assertEqual(payload["roleList"][0]["roleId"], 490)
+
+    def test_unsupported_role_fails_closed(self):
+        """Verify unsupported titles raise FounditValidationError rather than guessing or defaulting."""
+        unsupported_titles = [
+            "Corporate Legal Counsel",
+            "Executive Chef",
+            "Aircraft Pilot",
+            "Civil Construction Worker",
+        ]
+        for title in unsupported_titles:
+            with self.subTest(title=title):
+                job = Application.objects.create(
+                    candidate_name="",
+                    position=title,
+                    technology="General",
+                    experience=4.0,
+                    city="Hyderabad",
+                    state="Telangana",
+                    country="India",
+                    client_name="Test Client",
+                    remarks="Experience: 3-5 years. CTC: 5-8 LPA."
+                )
+                with self.assertRaises(FounditValidationError) as ctx:
+                    FounditJobMapper.map_ats_job_to_foundit_payload(job)
+                self.assertIn("unresolved foundit roleid for role", str(ctx.exception).lower())

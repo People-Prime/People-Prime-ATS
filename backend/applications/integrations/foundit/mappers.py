@@ -810,11 +810,32 @@ def resolve_job_location(job_application, creds):
 
 def resolve_job_role_and_industry(job_application, creds):
     """
-    Resolves roleList and industryList per job category:
-    - Software development roles -> roleId: 734 ("Software Engineer/Programmer", function: "IT"), industryId: 140 ("Consumer Software").
-    - Trainee roles -> roleId: 733 ("Trainee", function: "IT"), industryId: 140.
+    Resolves roleList and industryList per job category conforming to official Foundit master data:
     - Network/Firewall/Security roles -> requires network_role_id or explicit role_id configuration. Refuses to silently assign 734.
-    - Other roles -> requires confirmed role_id and industry_id. Refuses to silently misclassify.
+    - Trainee roles -> roleId 733 ("Trainee", function: "IT").
+    - QA / Testing roles -> roleId 746 ("Software Test Engineer", function: "IT").
+    - Systems / DevOps / Infrastructure roles -> roleId 1077 ("Systems Engineer", function: "IT").
+    - Database / DBA roles -> roleId 740 ("Database Administrator (DBA)", function: "IT").
+    - Technical Writer -> roleId 766 ("Technical Writer", function: "IT").
+    - ERP/CRM Technical -> roleId 753 ("ERP/CRM - Technical Consultant", function: "IT").
+    - ERP/CRM Functional -> roleId 754 ("ERP/CRM - Functional Consultant", function: "IT").
+    - Datawarehousing Consultants -> roleId 752 ("Datawarehousing Consultants", function: "IT").
+    - Business Analyst -> roleId 751 ("Business Analyst", function: "IT").
+    - Product Manager -> roleId 750 ("Product Manager", function: "IT").
+    - Project Leader / Project Manager -> roleId 738 ("Project Leader/Project Manager", function: "IT").
+    - System Analyst / Tech Architect -> roleId 736 ("System Analyst/Tech Architect", function: "IT").
+    - Team Leader / Technical Leader -> roleId 735 ("Team Leader/Technical Leader", function: "IT").
+    - Technical Support Engineer -> roleId 748 ("Technical Support Engineer", function: "IT").
+    - Graphic Designer / Animator -> roleId 756 ("Graphic Designer/Animator", function: "IT").
+    - Software Engineering roles -> roleId 734 ("Software Engineer/Programmer", function: "IT").
+    - HR Manager -> roleId 781 ("HR Manager", function: "Human Resources").
+    - HR Business Partner -> roleId 1097 ("HR Business Partner", function: "Human Resources").
+    - HR Executive / Recruiter -> roleId 38 ("HR Executive/Recruiter", function: "Human Resources").
+    - Manager - Financial Planning / Budgeting -> roleId 711 ("Manager - Financial Planning/Budgeting", function: "Finance & Accounts").
+    - Accountant -> roleId 707 ("Accountant", function: "Finance & Accounts").
+    - Business Development Manager -> roleId 490 ("Business Development Manager", function: "Sales/Business Development").
+    - Business Development Executive -> roleId 489 ("Business Development Executive", function: "Sales/Business Development").
+    - Other non-software roles -> requires confirmed custom role_id and industry_id or fails closed.
     """
     pos = (job_application.position or "").strip()
     pos_lower = pos.lower()
@@ -844,43 +865,145 @@ def resolve_job_role_and_industry(job_application, creds):
             [{"industryId": i_id, "industryName": str(net_ind_name or "IT").strip()}]
         )
 
-    # Trainee roles
+    # Standard industry lookup helper
+    def get_standard_industry():
+        ind_id_raw = creds.get("industry_id") or creds.get("default_industry_id") or 140
+        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        return int(str(ind_id_raw).strip()), ind_name
+
+    # Trainee roles (Official Foundit Master Data: roleId 733)
     is_trainee = bool(re.search(r'\b(trainee|intern)\b', pos_lower))
     if is_trainee:
-        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
-        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        ind_id, ind_name = get_standard_industry()
         return (
             [{"roleId": 733, "roleName": "Trainee", "functionName": "IT"}],
             [{"industryId": ind_id, "industryName": ind_name}]
         )
 
     # QA / Testing roles (Official Foundit Master Data: roleId 746)
-    is_qa = bool(re.search(r'\b(qa|quality assurance|tester|testing|sdet|test engineer)\b', pos_lower))
+    is_qa = bool(re.search(r'\b(qa|quality\s+assurance|tester|testing|sdet|test\s+engineer)\b', pos_lower))
     if is_qa:
-        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
-        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        ind_id, ind_name = get_standard_industry()
         return (
             [{"roleId": 746, "roleName": "Software Test Engineer", "functionName": "IT"}],
             [{"industryId": ind_id, "industryName": ind_name}]
         )
 
     # Systems / DevOps / Infrastructure roles (Official Foundit Master Data: roleId 1077)
-    is_systems = bool(re.search(r'\b(systems engineer|system administrator|sysadmin|devops|sre|infrastructure)\b', pos_lower))
+    is_systems = bool(re.search(r'\b(systems?\s+engineer|system\s+administrator|sysadmin|devops|sre|infrastructure)\b', pos_lower))
     if is_systems:
-        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
-        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        ind_id, ind_name = get_standard_industry()
         return (
             [{"roleId": 1077, "roleName": "Systems Engineer", "functionName": "IT"}],
             [{"industryId": ind_id, "industryName": ind_name}]
         )
 
     # Database / DBA roles (Official Foundit Master Data: roleId 740)
-    is_dba = bool(re.search(r'\b(dba|database administrator|database architect)\b', pos_lower))
+    is_dba = bool(re.search(r'\b(dba|database\s+administrator|database\s+architect)\b', pos_lower))
     if is_dba:
-        ind_id = int(str(creds.get("industry_id") or creds.get("default_industry_id") or 140).strip())
-        ind_name = str(creds.get("industry_name") or creds.get("default_industry_name") or "Consumer Software").strip()
+        ind_id, ind_name = get_standard_industry()
         return (
             [{"roleId": 740, "roleName": "Database Administrator (DBA)", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Technical Writer (Official Foundit Master Data: roleId 766)
+    is_technical_writer = bool(re.search(r'\b(technical\s+writer|tech\s+writer|technical\s+writing|documentation\s+engineer|api\s+documentation|documentation\s+specialist)\b', pos_lower))
+    if is_technical_writer:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 766, "roleName": "Technical Writer", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # ERP/CRM - Technical Consultant (Official Foundit Master Data: roleId 753)
+    is_erp_technical = bool(re.search(r'\b(sap\s+abap|salesforce\s+(?:developer|technical|consultant)|crm\s+developer|erp\s+developer|peoplesoft\s+developer|siebel\s+developer|technical\s+consultant)\b', pos_lower))
+    if is_erp_technical:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 753, "roleName": "ERP/CRM - Technical Consultant", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # ERP/CRM - Functional Consultant (Official Foundit Master Data: roleId 754)
+    is_erp_functional = bool(re.search(r'\b(erp\s+functional|crm\s+functional|sap\s+functional|salesforce\s+functional|oracle\s+functional|functional\s+(?:consultant|analyst))\b', pos_lower))
+    if is_erp_functional:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 754, "roleName": "ERP/CRM - Functional Consultant", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Datawarehousing Consultants (Official Foundit Master Data: roleId 752)
+    is_datawarehouse = bool(re.search(r'\b(etl\s+developer|data\s*warehous\w*|datawarehousing|bi\s+developer|business\s+intelligence\s+developer|informatica\s+developer|datastage)\b', pos_lower))
+    if is_datawarehouse:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 752, "roleName": "Datawarehousing Consultants", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Business Analyst (Official Foundit Master Data: roleId 751)
+    is_business_analyst = bool(re.search(r'\b(business\s+analyst|it\s+business\s+analyst|business\s+systems\s+analyst|bi\s+analyst)\b', pos_lower))
+    if is_business_analyst:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 751, "roleName": "Business Analyst", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Product Manager (Official Foundit Master Data: roleId 750)
+    is_product_manager = bool(re.search(r'\b(product\s+manager|associate\s+product\s+manager|technical\s+product\s+manager|product\s+owner|technical\s+product\s+owner|apm|pm)\b', pos_lower))
+    if is_product_manager:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 750, "roleName": "Product Manager", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Project Leader / Project Manager (Official Foundit Master Data: roleId 738)
+    is_project_manager = bool(re.search(r'\b(project\s+manager|project\s+leader|scrum\s+master|agile\s+coach|delivery\s+lead(?:er)?)\b', pos_lower))
+    if is_project_manager:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 738, "roleName": "Project Leader/Project Manager", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # System Analyst / Tech Architect (Official Foundit Master Data: roleId 736)
+    is_architect = bool(re.search(r'\b(solutions?\s+architect|technical\s+architect|system\s+analyst|enterprise\s+architect|cloud\s+architect|software\s+architect)\b', pos_lower))
+    if is_architect:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 736, "roleName": "System Analyst/Tech Architect", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Team Leader / Technical Leader (Official Foundit Master Data: roleId 735)
+    # Note: 'Lead Software Engineer' maps to Software Engineer (734); 'Technical Lead' / 'Team Lead' maps to 735.
+    is_team_leader = bool(re.search(r'\b(tech(?:nical)?\s+lead|technical\s+leader|team\s+lead(?:er)?)\b', pos_lower))
+    if is_team_leader:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 735, "roleName": "Team Leader/Technical Leader", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Technical Support Engineer (Official Foundit Master Data: roleId 748)
+    is_tech_support = bool(re.search(r'\b(technical\s+support|tech\s+support|desktop\s+support|helpdesk|service\s+desk|it\s+support)\b', pos_lower))
+    if is_tech_support:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 748, "roleName": "Technical Support Engineer", "functionName": "IT"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Graphic Designer / Animator (Official Foundit Master Data: roleId 756)
+    is_graphic_designer = bool(re.search(r'\b(ui/ux|ui\s+designer|ux\s+designer|graphic\s+designer|animator|visual\s+designer|web\s+designer)\b', pos_lower))
+    if is_graphic_designer:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 756, "roleName": "Graphic Designer/Animator", "functionName": "IT"}],
             [{"industryId": ind_id, "industryName": ind_name}]
         )
 
@@ -915,6 +1038,70 @@ def resolve_job_role_and_industry(job_application, creds):
             [{"industryId": ind_id, "industryName": str(ind_name).strip()}]
         )
 
+    # Non-IT Roles:
+    # HR Manager (Official Foundit Master Data: roleId 781, Function: Human Resources)
+    is_hr_manager = bool(re.search(r'\b(hr\s+manager|human\s+resources\s+manager|hr\s+head|head\s+-\s+hr|recruitment\s+manager|talent\s+acquisition\s+manager)\b', pos_lower))
+    if is_hr_manager:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 781, "roleName": "HR Manager", "functionName": "Human Resources"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # HR Business Partner (Official Foundit Master Data: roleId 1097, Function: Human Resources)
+    is_hrbp = bool(re.search(r'\b(hrbp|hr\s+business\s+partner|human\s+resources\s+business\s+partner)\b', pos_lower))
+    if is_hrbp:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 1097, "roleName": "HR Business Partner", "functionName": "Human Resources"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # HR Executive / Recruiter (Official Foundit Master Data: roleId 38, Function: Human Resources)
+    is_hr_recruiter = bool(re.search(r'\b(recruiter|talent\s+acquisition|hr\s+executive|human\s+resources\s+executive|hr\s+operations|sourcing\s+specialist|recruitment\s+specialist|technical\s+recruiter)\b', pos_lower))
+    if is_hr_recruiter:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 38, "roleName": "HR Executive/Recruiter", "functionName": "Human Resources"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Manager - Financial Planning / Budgeting (Official Foundit Master Data: roleId 711, Function: Finance & Accounts)
+    is_finance_manager = bool(re.search(r'\b(financial\s+planning|fp&a|budgeting\s+manager|finance\s+manager|financial\s+controller)\b', pos_lower))
+    if is_finance_manager:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 711, "roleName": "Manager - Financial Planning/Budgeting", "functionName": "Finance & Accounts"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Accountant (Official Foundit Master Data: roleId 707, Function: Finance & Accounts)
+    is_accountant = bool(re.search(r'\b(accountant|accounts?\s+executive|senior\s+accountant|general\s+ledger|bookkeeper|accounts?\s+payable|accounts?\s+receivable)\b', pos_lower))
+    if is_accountant:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 707, "roleName": "Accountant", "functionName": "Finance & Accounts"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Business Development Manager (Official Foundit Master Data: roleId 490, Function: Sales/Business Development)
+    is_bdm = bool(re.search(r'\b(business\s+development\s+manager|bdm|sales\s+manager|enterprise\s+sales\s+manager)\b', pos_lower))
+    if is_bdm:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 490, "roleName": "Business Development Manager", "functionName": "Sales/Business Development"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
+    # Business Development Executive (Official Foundit Master Data: roleId 489, Function: Sales/Business Development)
+    is_bde = bool(re.search(r'\b(business\s+development\s+executive|bde|sales\s+executive|sales\s+representative|account\s+executive|inside\s+sales)\b', pos_lower))
+    if is_bde:
+        ind_id, ind_name = get_standard_industry()
+        return (
+            [{"roleId": 489, "roleName": "Business Development Executive", "functionName": "Sales/Business Development"}],
+            [{"industryId": ind_id, "industryName": ind_name}]
+        )
+
     # Other non-software roles (e.g. QA, HR, Finance)
     custom_role_id = creds.get("role_id")
     custom_role_name = creds.get("role_name")
@@ -933,6 +1120,7 @@ def resolve_job_role_and_industry(job_application, creds):
         [{"roleId": r_id, "roleName": str(custom_role_name).strip(), "functionName": str(creds.get("function_name") or "IT").strip()}],
         [{"industryId": i_id, "industryName": str(creds.get("industry_name") or "Consumer Software").strip()}]
     )
+
 
 class FounditJobMapper:
     @staticmethod
