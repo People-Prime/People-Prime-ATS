@@ -5,10 +5,47 @@ and Foundit candidate application records to CareerPortalApplicant models using 
 """
 import os
 import re
+import json
 import logging
 from django.utils import timezone
 from applications.integrations.foundit.constants import get_foundit_credentials
 from applications.integrations.foundit.client import FounditValidationError
+
+_FOUNDIT_MASTER_ROLES = None
+_FOUNDIT_UNAMBIGUOUS_ROLES = None
+_FOUNDIT_AMBIGUOUS_ROLES = None
+
+def _get_foundit_master_roles():
+    global _FOUNDIT_MASTER_ROLES, _FOUNDIT_UNAMBIGUOUS_ROLES, _FOUNDIT_AMBIGUOUS_ROLES
+    if _FOUNDIT_MASTER_ROLES is not None:
+        return _FOUNDIT_MASTER_ROLES, _FOUNDIT_UNAMBIGUOUS_ROLES, _FOUNDIT_AMBIGUOUS_ROLES
+
+    json_path = os.path.join(os.path.dirname(__file__), "foundit_roles_master.json")
+    if not os.path.exists(json_path):
+        _FOUNDIT_MASTER_ROLES = []
+        _FOUNDIT_UNAMBIGUOUS_ROLES = {}
+        _FOUNDIT_AMBIGUOUS_ROLES = {}
+        return _FOUNDIT_MASTER_ROLES, _FOUNDIT_UNAMBIGUOUS_ROLES, _FOUNDIT_AMBIGUOUS_ROLES
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        master_list = json.load(f)
+
+    _FOUNDIT_MASTER_ROLES = master_list
+    all_by_name = {}
+
+    def norm_key(s):
+        return " ".join(re.sub(r'[^a-zA-Z0-9]+', ' ', s.lower()).split())
+
+    for r in master_list:
+        k = norm_key(r["roleName"])
+        if k not in all_by_name:
+            all_by_name[k] = []
+        all_by_name[k].append(r)
+
+    _FOUNDIT_UNAMBIGUOUS_ROLES = {k: v[0] for k, v in all_by_name.items() if len(v) == 1}
+    _FOUNDIT_AMBIGUOUS_ROLES = {k: v for k, v in all_by_name.items() if len(v) > 1}
+
+    return _FOUNDIT_MASTER_ROLES, _FOUNDIT_UNAMBIGUOUS_ROLES, _FOUNDIT_AMBIGUOUS_ROLES
 
 logger = logging.getLogger(__name__)
 
@@ -1101,6 +1138,80 @@ def resolve_job_role_and_industry(job_application, creds):
             [{"roleId": 489, "roleName": "Business Development Executive", "functionName": "Sales/Business Development"}],
             [{"industryId": ind_id, "industryName": ind_name}]
         )
+
+    # 25. Extended Master Data Resolution for remaining Foundit roles (from foundit_roles_master.json)
+    # Checks exact normalized title against the 1,985 official master roles without arbitrary substitutions.
+    norm_pos = " ".join(re.sub(r'[^a-zA-Z0-9]+', ' ', pos_lower).split())
+    if norm_pos:
+        _, unambiguous_roles, ambiguous_roles = _get_foundit_master_roles()
+        if norm_pos in unambiguous_roles:
+            matched_master = unambiguous_roles[norm_pos]
+            func_name = matched_master["functionName"]
+
+            IT_VERIFIED_FUNCTIONS = {
+                "IT",
+                "IT- Hardware/Telecom/Technical Staff/Support",
+                "IT/Hardware - Embedded/EDA/VLSI/ASIC/Chip Description",
+                "IT/Software Development - Application Programming/Maintenance",
+                "IT/Software Development - Client Server",
+                "IT/Software Development - DBA/Datawarehousing",
+                "IT/Software Development - Embedded/EDA/VLSI/ASIC/Chip Description",
+                "IT/Software Development - Mainframe",
+                "IT/Software Development - Network Administration/Security",
+                "IT/Software Development - Other",
+                "IT/Software Development - QA & Testing",
+                "IT/Software Development - System Programming",
+                "IT/Software Development - System Programming/Middleware",
+                "IT/Software Development - Systems/EDP/MIS",
+            }
+
+            # Explicit job-specific industry mapping support for non-IT or unverified functions
+            # Requires explicit approval (job_industry_id or explicit_industry_id); tenant-global defaults cannot bypass
+            explicit_ind_id = creds.get("job_industry_id") or creds.get("explicit_industry_id")
+            explicit_ind_name = creds.get("job_industry_name") or creds.get("explicit_industry_name")
+
+            if func_name in IT_VERIFIED_FUNCTIONS:
+                ind_id, ind_name = get_standard_industry()
+                return (
+                    [{
+                        "roleId": matched_master["roleId"],
+                        "roleName": matched_master["roleName"],
+                        "functionName": matched_master["functionName"]
+                    }],
+                    [{"industryId": ind_id, "industryName": ind_name}]
+                )
+            elif explicit_ind_id and explicit_ind_name and str(explicit_ind_id).strip():
+                try:
+                    c_ind_id = int(str(explicit_ind_id).strip())
+                    return (
+                        [{
+                            "roleId": matched_master["roleId"],
+                            "roleName": matched_master["roleName"],
+                           "functionName": matched_master["functionName"]
+                        }],
+                        [{"industryId": c_ind_id, "industryName": str(explicit_ind_name).strip()}]
+                    )
+                except (ValueError, TypeError) as e:
+                    raise FounditValidationError(f"Validation Error: Invalid explicit industry ID: {e}")
+            else:
+                r_name = matched_master["roleName"]
+                r_id = matched_master["roleId"]
+                err_msg = (
+                    f"Validation Error: Foundit job role {r_name!r} (roleId: {r_id}) "
+                    f"belongs to function {func_name!r}, which has no verified Foundit industry mapping. "
+                    "Cannot silently default to Consumer Software (industryId 140) or use tenant-global defaults. "
+                    "Foundit publishing requires an approved explicit industry configuration (e.g. job_industry_id) for this role."
+                )
+                raise FounditValidationError(err_msg)
+        elif norm_pos in ambiguous_roles:
+            # Role exists in master data but appears under multiple functions (e.g. 'Chemist', 'Civil Engineer')
+            # Without contextual function confirmation, fail safely with a controlled validation error.
+            amb_options = ambiguous_roles[norm_pos]
+            func_list = ", ".join(f"'{r['functionName']}' (roleId: {r['roleId']})" for r in amb_options[:4])
+            raise FounditValidationError(
+                f"Validation Error: Foundit job role '{pos}' is ambiguous across multiple official functions: {func_list}. "
+                "Foundit requires explicit role and function confirmation to publish."
+            )
 
     # Other non-software roles (e.g. QA, HR, Finance)
     custom_role_id = creds.get("role_id")

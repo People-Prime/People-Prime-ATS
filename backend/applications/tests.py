@@ -12372,3 +12372,269 @@ class FounditExpandedRoleMappingTests(TestCase):
                 with self.assertRaises(FounditValidationError) as ctx:
                     FounditJobMapper.map_ats_job_to_foundit_payload(job)
                 self.assertIn("unresolved foundit roleid for role", str(ctx.exception).lower())
+
+
+class Foundit1985MasterRolesTests(TestCase):
+    """
+    Comprehensive automated tests for 1,985 Foundit Master Roles integration:
+    1. Validates that the version-controlled JSON contains exactly 1,985 records, 1,985 unique IDs, and 65 functions.
+    2. Validates new pure IT roles resolve to verified Foundit master data with standard industry 140.
+    3. Validates Functions 1071 (Analytics), 1277 (UX), and 1249 (Digital Marketing) fail safely without approved job industry.
+    4. Validates non-IT master roles (e.g. Healthcare, Oil & Gas) fail safely without approved industry mapping.
+    5. Validates non-IT/unverified roles succeed when explicit job-specific industry approval is configured.
+    6. Validates tenant-global industry defaults CANNOT bypass the safeguard for unverified functions.
+    7. Validates controlled failure for ambiguous role names across multiple functions.
+    8. Validates fail-closed behavior for Incident Manager (and unsupported roles).
+    9. Validates that existing 24 roles retain precedence over master lookups.
+    10. Validates that Foundit validation errors do not delete or prevent saving the ATS job requirement.
+    """
+
+    def setUp(self):
+        self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "username": "test_user",
+            "password": "test_password",
+            "corp_id": "12345",
+            "recruiter_id": "67890",
+            "company_name": "People Prime Worldwide",
+            "owner_name": "Test Owner",
+            "owner_email": "owner@people-prime.com",
+            "default_location_id": "6",
+            "default_location_name": "Hyderabad / Secunderabad, Telangana",
+            "default_industry_id": "140",
+            "default_industry_name": "Consumer Software",
+            "industry_id": "140",
+            "industry_name": "Consumer Software",
+            "default_role_id": "734",
+            "default_role_name": "Software Engineer/Programmer",
+            "network_role_id": "1473",
+            "network_role_name": "Network Engineer",
+        }
+
+    def tearDown(self):
+        self.creds_patcher.stop()
+
+    def _create_and_map_job(self, position_title, technology="Python, Django, SQL", exp=5.0):
+        job = Application.objects.create(
+            candidate_name="",
+            position=position_title,
+            technology=technology,
+            experience=exp,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Master Test Client",
+            remarks="Experience: 5-8 years. CTC: 10-15 LPA. Description: Hands-on skills in Python, Django, and database operations."
+        )
+        return FounditJobMapper.map_ats_job_to_foundit_payload(job)
+
+    def test_01_master_json_integrity(self):
+        """Verify JSON master file has exactly 1,985 records, 1,985 unique role IDs, and 65 functions."""
+        from applications.integrations.foundit.mappers import _get_foundit_master_roles
+        master_list, unambiguous_roles, ambiguous_roles = _get_foundit_master_roles()
+        self.assertEqual(len(master_list), 1985)
+        unique_ids = set(r["roleId"] for r in master_list)
+        self.assertEqual(len(unique_ids), 1985)
+        unique_funcs = set((r["functionId"], r["functionName"]) for r in master_list)
+        self.assertEqual(len(unique_funcs), 65)
+        self.assertEqual(len(unambiguous_roles), 971)
+        self.assertEqual(len(ambiguous_roles), 188)
+
+    def test_02_new_pure_it_roles_resolve_with_standard_industry(self):
+        """Verify new pure IT roles resolve to verified Foundit master data and default industry 140."""
+        new_pure_it_cases = [
+            ("Firmware Engineer", 1896, "Firmware Engineer", "IT/Software Development - System Programming"),
+            ("Delivery Manager", 904, "Delivery Manager", "IT"),
+            ("Configuration Mgr/Release Manager", 757, "Configuration Mgr/Release Manager", "IT"),
+            ("Embedded Technologies Engineer", 1464, "Embedded Technologies Engineer", "IT- Hardware/Telecom/Technical Staff/Support"),
+        ]
+        for title, expected_id, expected_name, expected_func in new_pure_it_cases:
+            with self.subTest(title=title):
+                payload = self._create_and_map_job(title)
+                self.assertEqual(payload["title"], title)
+                roles = payload["roleList"]
+                self.assertEqual(len(roles), 1)
+                self.assertEqual(roles[0]["roleId"], expected_id)
+                self.assertEqual(roles[0]["roleName"], expected_name)
+                self.assertEqual(roles[0]["functionName"], expected_func)
+                industries = payload["industryList"]
+                self.assertEqual(industries[0]["industryId"], 140)
+                self.assertEqual(industries[0]["industryName"], "Consumer Software")
+
+    def test_03_unverified_functions_fail_closed_without_approved_job_industry(self):
+        """Verify Functions 1071 (Analytics), 1277 (UX), and 1249 (Digital Marketing) fail closed without approved job industry."""
+        unverified_cases = [
+            ("Data Analyst", "Analytics/Business Intelligence"),
+            ("Interaction Designer", "Product Management/Product Development/UX"),
+            ("Information Architect", "Product Management/Product Development/UX"),
+            ("Head/VP/GM - Digital Marketing", "Digital Marketing"),
+        ]
+        for title, expected_func in unverified_cases:
+            with self.subTest(title=title):
+                job = Application.objects.create(
+                   candidate_name="",
+                    position=title,
+                    technology="Python, SQL",
+                   experience=4.0,
+                    city="Hyderabad",
+                    state="Telangana",
+                    country="India",
+                    client_name="Analytics/UX Client",
+                    remarks="Experience: 3-5 years. CTC: 8-12 LPA. Description: Analytical and design skills with Python."
+                )
+                with self.assertRaises(FounditValidationError) as ctx:
+                    FounditJobMapper.map_ats_job_to_foundit_payload(job)
+                err_msg = str(ctx.exception)
+                self.assertIn("has no verified Foundit industry mapping", err_msg)
+                self.assertIn("Cannot silently default to Consumer Software", err_msg)
+
+    def test_04_non_it_roles_fail_closed_without_verified_industry(self):
+        """Verify non-IT master roles raise controlled FounditValidationError when industry mapping is unverified."""
+        non_it_cases = [
+            ("Cardiologist", "Health Care"),
+            ("Radiologist", "Health Care"),
+            ("Treasury Manager", "Finance & Accounts"),
+            ("Petroleum Engineering - Petrophysics", "Oil & Gas"),
+            ("Air Hostess/Steward/Cabin Crew", "Travel/Airlines"),
+            ("Receptionist/Front Desk", "Admin/Secretarial/Front Office"),
+        ]
+        for title, expected_func in non_it_cases:
+            with self.subTest(title=title):
+                job = Application.objects.create(
+                    candidate_name="",
+                    position=title,
+                  technology="Python, SQL",
+                    experience=5.0,
+                    city="Hyderabad",
+                   state="Telangana",
+                    country="India",
+                    client_name="Medical/Corp Client",
+                    remarks="Experience: 5-8 years. CTC: 12-18 LPA. Description: General healthcare and operations skills with Python."
+                )
+                with self.assertRaises(FounditValidationError) as ctx:
+                    FounditJobMapper.map_ats_job_to_foundit_payload(job)
+                err_msg = str(ctx.exception)
+                self.assertIn("has no verified Foundit industry mapping", err_msg)
+
+    def test_05_approved_job_industry_allows_publishing(self):
+        """Verify non-IT and unverified roles succeed when an approved explicit job industry is configured."""
+        self.mock_creds.return_value["job_industry_id"] = "25"
+        self.mock_creds.return_value["job_industry_name"] = "Medical/Healthcare/Hospital"
+
+        payload = self._create_and_map_job("Cardiologist")
+        self.assertEqual(payload["title"], "Cardiologist")
+        self.assertEqual(payload["roleList"][0]["roleId"], 325)
+        self.assertEqual(payload["roleList"][0]["roleName"], "Cardiologist")
+        self.assertEqual(payload["roleList"][0]["functionName"], "Health Care")
+        self.assertEqual(payload["industryList"][0]["industryId"], 25)
+        self.assertEqual(payload["industryList"][0]["industryName"], "Medical/Healthcare/Hospital")
+
+    def test_06_tenant_global_defaults_cannot_bypass_safeguard(self):
+        """Verify tenant-global default industry (industry_id in creds) CANNOT bypass safeguard for unverified roles."""
+        self.mock_creds.return_value["industry_id"] = "140"
+        self.mock_creds.return_value["industry_name"] = "Consumer Software"
+        self.mock_creds.return_value.pop("job_industry_id", None)
+        self.mock_creds.return_value.pop("explicit_industry_id", None)
+
+        with self.assertRaises(FounditValidationError) as ctx:
+            self._create_and_map_job("Data Analyst")
+        result_err = str(ctx.exception)
+        self.assertIn("Cannot silently default to Consumer Software (industryId 140) or use tenant-global defaults", result_err)
+
+    def test_07_ambiguous_role_fails_safely_with_controlled_error(self):
+        """Verify role names appearing under multiple functions raise controlled FounditValidationError."""
+        ambiguous_titles = [
+            "Chemist",
+            "Civil Engineer",
+            "Copywriter",
+        ]
+        for title in ambiguous_titles:
+            with self.subTest(title=title):
+                job = Application.objects.create(
+                    candidate_name="",
+                    position=title,
+                    technology="Python, SQL",
+                   experience=4.0,
+                    city="Hyderabad",
+                    state="Telangana",
+                    country="India",
+                    client_name="Test Client",
+                    remarks="Experience: 3-5 years. CTC: 5-8 LPA. Description: Python and SQL analysis."
+                 )
+                with self.assertRaises(FounditValidationError) as ctx:
+                    FounditJobMapper.map_ats_job_to_foundit_payload(job)
+                err_msg = str(ctx.exception).lower()
+                self.assertIn("ambiguous across multiple official functions", err_msg)
+
+    def test_08_incident_manager_fails_closed_without_inventing_ids(self):
+        """Verify Incident Manager raises clean validation error and does not guess or substitute an ID."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Incident Manager",
+            technology="Python, SQL",
+            experience=6.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="ITSM Client",
+            remarks="Experience: 5-8 years. CTC: 12-18 LPA. Description: IT service incident management with Python."
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        err_msg = str(ctx.exception).lower()
+        self.assertIn("unresolved foundit roleid for role 'incident manager'", err_msg)
+
+    def test_09_precedence_of_existing_24_roles_over_master_lookups(self):
+        """Verify existing 24 roles retain precedence even if title matches multi-function keywords."""
+        payload = self._create_and_map_job("Business Analyst")
+        self.assertEqual(payload["roleList"][0]["roleId"], 751)
+        self.assertEqual(payload["roleList"][0]["functionName"], "IT")
+        self.assertEqual(payload["industryList"][0]["industryId"], 140)
+
+        payload = self._create_and_map_job("Product Manager")
+        self.assertEqual(payload["roleList"][0]["roleId"], 750)
+        self.assertEqual(payload["roleList"][0]["functionName"], "IT")
+        self.assertEqual(payload["industryList"][0]["industryId"], 140)
+
+        payload = self._create_and_map_job("UI/UX Designer")
+        self.assertEqual(payload["roleList"][0]["roleId"], 756)
+        self.assertEqual(payload["roleList"][0]["functionName"], "IT")
+        self.assertEqual(payload["industryList"][0]["industryId"], 140)
+
+        payload = self._create_and_map_job("Trainee")
+        self.assertEqual(payload["roleList"][0]["roleId"], 733)
+        self.assertEqual(payload["industryList"][0]["industryId"], 140)
+        self.assertEqual(payload["roleList"][0]["functionName"], "IT")
+
+        payload = self._create_and_map_job("Accountant")
+        self.assertEqual(payload["roleList"][0]["roleId"], 707)
+        self.assertEqual(payload["industryList"][0]["industryId"], 140)
+        self.assertEqual(payload["industryList"][0]["industryName"], "Consumer Software")
+        self.assertEqual(payload["roleList"][0]["functionName"], "Finance & Accounts")
+
+    def test_10_ats_job_persistence_on_foundit_validation_failure(self):
+        """Verify that when Foundit validation fails (e.g. unverified industry or unsupported role), the ATS job persists."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Cardiologist",
+             technology="Cardiology, Surgery",
+            experience=8.0,
+            city="Hyderabad",
+            state="Telangana",
+            country="India",
+            client_name="Apollo Hospitals",
+            remarks="Experience: 8-10 years. CTC: 25-35 LPA. Description: Medical cardiology and surgical procedures."
+        )
+        saved_job_id = job.id
+        self.assertIsNotNone(saved_job_id)
+
+        # Attempt Foundit payload mapping which raises FounditValidationError
+        with self.assertRaises(FounditValidationError):
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+
+        # Confirm the ATS job still exists in PostgreSQL database completely intact
+        persisted_job = Application.objects.get(id=saved_job_id)
+        self.assertEqual(persisted_job.position, "Cardiologist")
+        self.assertEqual(persisted_job.client_name, "Apollo Hospitals")
+        self.assertEqual(persisted_job.id, saved_job_id)
