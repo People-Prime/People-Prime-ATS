@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.pagination import PageNumberPagination
+from django.http import Http404
 from django.db.models import Q
 from applications.models import Application
 from applications.serializers import PublicJobSerializer, PublicJobApplySerializer
@@ -57,9 +58,36 @@ class PublicJobDetailAPIView(generics.RetrieveAPIView):
         return Application.objects.filter(
             candidate_name='',
             publish_to_career_page=True
-        ).exclude(
-            status__iexact='Closed'
         )
+
+    def retrieve(self, request, *args, **kwargs):
+        import re
+        job = self.get_object()
+
+        # Authoritative closed-job determination
+        is_closed = (
+            (job.status or '').strip().lower() == 'closed'
+            or bool(re.search(r'Job Status:\s*Closed', job.remarks or '', re.IGNORECASE))
+        )
+
+        if is_closed:
+            return Response(
+                {
+                    "code": "JOB_CLOSED",
+                    "is_closed": True,
+                    "message": "This job is closed and no longer accepting applications."
+                },
+                status=status.HTTP_410_GONE
+            )
+
+        # Safeguard: Ensure job status is an eligible active status ('New' or 'Active')
+        if (job.status or '').strip().lower() not in ('new', 'active'):
+            raise Http404
+
+        serializer = self.get_serializer(job)
+        data = serializer.data
+        data["is_closed"] = False
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class PublicJobApplyAPIView(APIView):
@@ -67,13 +95,15 @@ class PublicJobApplyAPIView(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, job_id=None):
-        # 1. Verify Job
+        # 1. Verify Job (Safeguard 1: Block applications to Closed status or remarks-closed jobs)
         job = Application.objects.filter(
             id=job_id,
             candidate_name='',
             publish_to_career_page=True
         ).exclude(
             status__iexact='Closed'
+        ).exclude(
+            remarks__icontains='Job Status: Closed'
         ).first()
 
         if not job:

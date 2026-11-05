@@ -12638,3 +12638,260 @@ class Foundit1985MasterRolesTests(TestCase):
         self.assertEqual(persisted_job.position, "Cardiologist")
         self.assertEqual(persisted_job.client_name, "Apollo Hospitals")
         self.assertEqual(persisted_job.id, saved_job_id)
+
+
+class PublicJobDetailClosedPopupTests(TestCase):
+    """
+    Focused Regression Tests for LinkedIn Closed Job Popup Support:
+    Verifies that PublicJobDetailAPIView accurately distinguishes active vs closed vs nonexistent jobs,
+    emitting HTTP 410 with machine-readable metadata for closed jobs while ensuring application submission
+    remains strictly blocked for closed jobs.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from django.test import Client
+        self.client = Client()
+
+        # 1. Active eligible job
+        self.active_job = Application.objects.create(
+            candidate_name='',
+            position='Senior Cloud Architect',
+            technology='AWS, Python, Kubernetes',
+            experience=7.0,
+            city='Hyderabad',
+            state='Telangana',
+            country='India',
+            client_name='Enterprise Client',
+            status='New',
+            publish_to_career_page=True,
+            publish_to_linkedin=True,
+            remarks='[Job Details]\nJob Code: PPW - 1001\nJob Status: Active\nLocation: Hyderabad\nJob Type: Full-time\nWork Mode: On-site\nPay Rate: 2500000\n[Skills & Assignment]\nDescription: Cloud architecture role.'
+        )
+
+        # 2. Closed job via status field
+        self.closed_by_status = Application.objects.create(
+            candidate_name='',
+            position='Frontend React Developer',
+            technology='React, TypeScript',
+            experience=4.0,
+            city='Bengaluru',
+            state='Karnataka',
+            country='India',
+            client_name='Enterprise Client',
+            status='Closed',
+            publish_to_career_page=True,
+            publish_to_linkedin=True,
+            remarks='[Job Details]\nJob Code: PPW - 1002\nJob Status: Closed\nLocation: Bengaluru\nJob Type: Full-time\nWork Mode: Hybrid\nPay Rate: 1800000\n[Skills & Assignment]\nDescription: React development.'
+        )
+
+        # 3. Closed job via remarks convention
+        self.closed_by_remarks = Application.objects.create(
+            candidate_name='',
+            position='Database Administrator',
+            technology='PostgreSQL, Redis',
+            experience=5.0,
+            city='Hyderabad',
+            state='Telangana',
+            country='India',
+            client_name='Enterprise Client',
+            status='New',
+            publish_to_career_page=True,
+            publish_to_linkedin=True,
+            remarks='[Job Details]\nJob Code: PPW - 1003\nJob Status: Closed\nLocation: Hyderabad\nJob Type: Full-time\nWork Mode: On-site\nPay Rate: 2000000\n[Skills & Assignment]\nDescription: DBA role.'
+        )
+
+        # 4. Unpublished job
+        self.unpublished_job = Application.objects.create(
+            candidate_name='',
+            position='Internal Systems Auditor',
+            technology='Compliance, Security',
+            experience=6.0,
+            city='Hyderabad',
+            state='Telangana',
+            country='India',
+            client_name='Enterprise Client',
+            status='New',
+            publish_to_career_page=False,
+            publish_to_linkedin=False,
+            remarks='[Job Details]\nJob Code: PPW - 1004\nJob Status: Active\nDescription: Internal role.'
+        )
+
+        # 5. Candidate submission record (NOT a job requirement)
+        self.candidate_record = Application.objects.create(
+            candidate_name='Jane Doe',
+            candidate_email='jane.doe@example.com',
+            candidate_phone='+919876543210',
+            position='Frontend React Developer',
+            technology='React',
+            experience=4.0,
+            city='Bengaluru',
+            state='Karnataka',
+            status='Under Review',
+            publish_to_career_page=True
+        )
+
+    def test_01_active_published_job_returns_200_with_details_and_is_closed_false(self):
+        """Active published job returns HTTP 200 with full details and is_closed=False."""
+        res = self.client.get(f'/api/public/jobs/{self.active_job.id}/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['id'], self.active_job.id)
+        self.assertEqual(data['position'], 'Senior Cloud Architect')
+        self.assertEqual(data['job_code'], 'PPW - 1001')
+        self.assertEqual(data['is_closed'], False)
+        self.assertIn('AWS', data['required_skills'])
+
+    def test_02_closed_by_status_returns_410_gone_with_closed_contract(self):
+        """Job with status='Closed' returns HTTP 410 Gone with exact machine-readable metadata."""
+        res = self.client.get(f'/api/public/jobs/{self.closed_by_status.id}/')
+        self.assertEqual(res.status_code, 410)
+        data = res.json()
+        self.assertEqual(data['code'], 'JOB_CLOSED')
+        self.assertEqual(data['is_closed'], True)
+        self.assertEqual(data['message'], 'This job is closed and no longer accepting applications.')
+        self.assertNotIn('client_name', data)
+        self.assertNotIn('remarks', data)
+
+    def test_03_closed_by_remarks_returns_410_gone_with_closed_contract(self):
+        """Job with 'Job Status: Closed' in remarks returns HTTP 410 Gone."""
+        res = self.client.get(f'/api/public/jobs/{self.closed_by_remarks.id}/')
+        self.assertEqual(res.status_code, 410)
+        data = res.json()
+        self.assertEqual(data['code'], 'JOB_CLOSED')
+        self.assertEqual(data['is_closed'], True)
+        self.assertEqual(data['message'], 'This job is closed and no longer accepting applications.')
+
+    def test_04_reopened_job_returns_active_details_and_is_closed_false(self):
+        """When a closed job is reopened, the details API returns HTTP 200 with is_closed=False."""
+        # Reopen job
+        self.closed_by_status.status = 'New'
+        self.closed_by_status.remarks = self.closed_by_status.remarks.replace('Job Status: Closed', 'Job Status: Active')
+        self.closed_by_status.save()
+
+        res = self.client.get(f'/api/public/jobs/{self.closed_by_status.id}/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['id'], self.closed_by_status.id)
+        self.assertEqual(data['is_closed'], False)
+
+    def test_05_nonexistent_job_returns_404(self):
+        """Nonexistent job ID returns standard HTTP 404."""
+        res = self.client.get('/api/public/jobs/99999999/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_06_unpublished_job_returns_404(self):
+        """Job with publish_to_career_page=False returns HTTP 404 to protect confidential requirements."""
+        res = self.client.get(f'/api/public/jobs/{self.unpublished_job.id}/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_07_candidate_record_id_returns_404(self):
+        """Candidate application record ID (candidate_name != '') is never exposed as a job posting."""
+        res = self.client.get(f'/api/public/jobs/{self.candidate_record.id}/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_08_closed_job_application_submission_is_strictly_rejected(self):
+        """Application submission to a closed job is strictly rejected with HTTP 404."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        test_resume = SimpleUploadedFile("resume.pdf", b"%PDF-1.4 dummy", content_type="application/pdf")
+        apply_payload = {
+            "first_name": "Test",
+            "last_name": "Applicant",
+            "email": "test.applicant@example.com",
+            "phone_number": "9876543210",
+            "qualification": "B.Tech",
+            "years_of_experience": "4.0",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "primary_skills": "React",
+            "resume": test_resume,
+        }
+
+        res = self.client.post(f'/api/public/jobs/{self.closed_by_status.id}/apply/', apply_payload, format='multipart')
+        self.assertEqual(res.status_code, 404)
+        self.assertIn("job_id", res.json().get("errors", {}))
+
+    def test_09_public_job_list_excludes_closed_jobs(self):
+        """Public job list search API continues excluding closed jobs."""
+        res = self.client.get('/api/public/jobs/')
+        self.assertEqual(res.status_code, 200)
+        job_ids = [item['id'] for item in res.json().get('results', [])]
+        self.assertIn(self.active_job.id, job_ids)
+        self.assertNotIn(self.closed_by_status.id, job_ids)
+
+    def test_10_linkedin_xml_feed_excludes_closed_jobs(self):
+        """LinkedIn XML Feed endpoint continues excluding closed jobs."""
+        from django.test import RequestFactory
+        from applications.public_views import PublicLinkedInJobXmlFeedAPIView
+
+        factory = RequestFactory()
+        request = factory.get('/api/public/jobs/linkedin/xml/')
+        view = PublicLinkedInJobXmlFeedAPIView.as_view()
+        response = view(request)
+        self.assertEqual(response.status_code, 200)
+        xml_content = response.content.decode('utf-8')
+        self.assertIn(f'<id>{self.active_job.id}</id>', xml_content)
+        self.assertNotIn(f'<id>{self.closed_by_status.id}</id>', xml_content)
+        self.assertNotIn(f'<id>{self.closed_by_remarks.id}</id>', xml_content)
+
+    def test_11_remarks_only_closure_rejects_application_submission(self):
+        """Safeguard 1: A job with status='New' but remarks 'Job Status: Closed' strictly rejects applications."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        test_resume = SimpleUploadedFile("resume.pdf", b"%PDF-1.4 dummy", content_type="application/pdf")
+        apply_payload = {
+            "first_name": "Test",
+            "last_name": "Applicant",
+            "email": "test.applicant@example.com",
+            "phone_number": "9876543210",
+            "qualification": "B.Tech",
+            "years_of_experience": "4.0",
+            "city": "Hyderabad",
+            "state": "Telangana",
+            "primary_skills": "PostgreSQL",
+            "resume": test_resume,
+        }
+
+        res = self.client.post(f'/api/public/jobs/{self.closed_by_remarks.id}/apply/', apply_payload, format='multipart')
+        self.assertEqual(res.status_code, 404)
+        self.assertIn("job_id", res.json().get("errors", {}))
+
+    def test_12_non_active_non_closed_job_returns_404(self):
+        """Safeguard 2: A published job with a non-active status like 'On Hold' returns HTTP 404."""
+        on_hold_job = Application.objects.create(
+            candidate_name='',
+            position='Security Specialist',
+            technology='Cybersecurity',
+            experience=5.0,
+            city='Hyderabad',
+            state='Telangana',
+            country='India',
+            client_name='Enterprise Client',
+            status='On Hold',
+            publish_to_career_page=True,
+            publish_to_linkedin=False,
+            remarks='[Job Details]\nJob Code: PPW - 1005\nJob Status: On Hold\nDescription: Pending budget.'
+        )
+
+        res = self.client.get(f'/api/public/jobs/{on_hold_job.id}/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_13_null_and_empty_remarks_safety(self):
+        """Null or empty remarks string does not cause any exception in retrieve() or apply()."""
+        empty_remarks_job = Application.objects.create(
+            candidate_name='',
+            position='Site Reliability Engineer',
+            technology='Linux, Docker',
+            experience=3.0,
+            city='Hyderabad',
+            state='Telangana',
+            country='India',
+            client_name='Enterprise Client',
+            status='New',
+            publish_to_career_page=True,
+            publish_to_linkedin=False,
+            remarks=''
+        )
+
+        res = self.client.get(f'/api/public/jobs/{empty_remarks_job.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['is_closed'], False)
