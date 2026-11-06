@@ -808,10 +808,9 @@ def extract_job_salary(job_application, creds):
         except (ValueError, TypeError):
             raise FounditValidationError("Validation Error: Invalid Foundit salary configuration. Must be integers.")
 
-    raise FounditValidationError(
-        f"Validation Error: Missing Foundit salary configuration for job {job_application.id}. "
-        "Neither ATS job record provides an explicit client-approved budget nor do environment settings provide valid salary bounds."
-    )
+    # When salary is genuinely unavailable and no default settings exist,
+    # return (None, None) so downstream mappers can safely omit salary fields.
+    return None, None
 
 def resolve_job_location(job_application, creds):
     """
@@ -1194,15 +1193,16 @@ def resolve_job_role_and_industry(job_application, creds):
                 except (ValueError, TypeError) as e:
                     raise FounditValidationError(f"Validation Error: Invalid explicit industry ID: {e}")
             else:
-                r_name = matched_master["roleName"]
-                r_id = matched_master["roleId"]
-                err_msg = (
-                    f"Validation Error: Foundit job role {r_name!r} (roleId: {r_id}) "
-                    f"belongs to function {func_name!r}, which has no verified Foundit industry mapping. "
-                    "Cannot silently default to Consumer Software (industryId 140) or use tenant-global defaults. "
-                    "Foundit publishing requires an approved explicit industry configuration (e.g. job_industry_id) for this role."
+                # Valid unambiguous master role without confirmed industry mapping.
+                # Per vendor specification, industry is optional: return valid role and empty industry list.
+                return (
+                    [{
+                        "roleId": matched_master["roleId"],
+                        "roleName": matched_master["roleName"],
+                        "functionName": matched_master["functionName"]
+                    }],
+                    []
                 )
-                raise FounditValidationError(err_msg)
         elif norm_pos in ambiguous_roles:
             # Role exists in master data but appears under multiple functions (e.g. 'Chemist', 'Civil Engineer')
             # Without contextual function confirmation, fail safely with a controlled validation error.
@@ -1276,26 +1276,21 @@ class FounditJobMapper:
 
         sub_channel_id = str(creds.get("sub_channel_id") or "1").strip()
 
-        # 2. Company & Owner Details (Mandatory in PDF Pages 2, 4, 8, 13)
+        # 2. Company & Owner Details
         company_name = (creds.get("company_name") or "").strip()
         if not company_name:
             raise FounditValidationError("Validation Error: Missing required Foundit company_name configuration.")
 
         owner_name = (creds.get("owner_name") or "").strip()
-        if not owner_name:
-            raise FounditValidationError("Validation Error: Missing required Foundit owner_name configuration. Account ownerName must be confirmed and configured.")
-
         owner_email = (creds.get("owner_email") or "").strip()
-        if not owner_email:
-            raise FounditValidationError("Validation Error: Missing required Foundit owner_email configuration. Account ownerEmail must be confirmed and configured.")
 
         # 3. Location Master Data Mapping (Mandatory in PDF Pages 3, 12-13)
         location_list = resolve_job_location(job_application, creds)
 
-        # 4. Industry & Role Master Data Mapping (Mandatory in PDF Pages 3, 4, 9, 13-14)
+        # 4. Industry & Role Master Data Mapping
         role_list, industry_list = resolve_job_role_and_industry(job_application, creds)
 
-        # 5. Salary Configuration (Mandatory in PDF Pages 3-5, 8, 13-14)
+        # 5. Salary Configuration
         min_salary, max_salary = extract_job_salary(job_application, creds)
 
         curr_id_raw = creds.get("currency_id") or creds.get("default_currency_id") or "1"
@@ -1305,31 +1300,9 @@ class FounditJobMapper:
             currency_id = 1
         salary_confidential = str(creds.get("salary_confidential") or creds.get("default_salary_confidential") or "1").strip()
 
-        # 6. Skills List & Priority Mapping (PDF Pages 5, 14-15; skillId: 0 for custom skills)
+        # 6. Skills List Mapping
         skills = extract_job_skills(job_application)
         skill_list = [{"skillId": 0, "skillName": s} for s in skills]
-
-        priority_skills = [
-            {"skillId": s["skillId"], "skillName": s["skillName"], "type": "any"}
-            for s in skill_list
-        ]
-        job_priority = {
-            "maxSalaryFilter": 0,
-            "minSalaryFilter": 0,
-            "salaryFilter": 0,
-            "locationFilter": "1",
-            "nationalityFilter": "0",
-            "educationFilter": "0",
-            "experienceFilter": "1",
-            "industryFilter": "1",
-            "skillFilter": "1",
-            "useKeySkillsSynonm": "1",
-            "location_list_priority": location_list,
-            "industry_list_priority": industry_list,
-            "nationality_list_priority": [],
-            "ignoredSkills": [],
-            "prioritySkills": priority_skills
-        }
 
         # 7. Core Posting Identifiers & Metadata
         folder_id = int(existing_folder_id) if existing_folder_id else 0
@@ -1366,8 +1339,6 @@ class FounditJobMapper:
             "jobType": "contract" if is_contract else "fulltime",
             "siteContext": "rexmonster",
             "companyName": company_name,
-            "ownerName": owner_name,
-            "ownerEmail": owner_email,
             "startDate": start_date,
             "title": job_application.position or "",
             "description": clean_desc,
@@ -1376,16 +1347,27 @@ class FounditJobMapper:
             "autoRenew": "0",
             "minExperience": min_exp,
             "maxExperience": max_exp,
-            "minSalary": min_salary,
-            "maxSalary": max_salary,
             "currencyId": currency_id,
             "salaryConfidential": salary_confidential,
             "skillList": skill_list,
             "locationList": location_list,
-            "industryList": industry_list,
-            "roleList": role_list,
-            "job_priority": job_priority,
         }
+
+        # Conditionally include vendor-confirmed optional fields only when valid and available
+        if role_list:
+            payload["roleList"] = role_list
+        if industry_list:
+            payload["industryList"] = industry_list
+        if min_salary is not None and max_salary is not None:
+            payload["minSalary"] = min_salary
+            payload["maxSalary"] = max_salary
+        if owner_name:
+            payload["ownerName"] = owner_name
+        if owner_email:
+            payload["ownerEmail"] = owner_email
+
+        payload.update(contract_fields)
+        return payload
         payload.update(contract_fields)
         return payload
 

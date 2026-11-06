@@ -1182,27 +1182,8 @@ class FounditPhase3BJobPostingTests(TestCase):
 
 
 
-        # 6. Priority Filter Routing Object
-
-        self.assertIn("job_priority", payload)
-
-        job_pri = payload["job_priority"]
-
-        self.assertEqual(job_pri["locationFilter"], "1")
-
-        self.assertEqual(job_pri["experienceFilter"], "1")
-
-        self.assertEqual(job_pri["industryFilter"], "1")
-
-        self.assertEqual(job_pri["skillFilter"], "1")
-
-        self.assertEqual(job_pri["location_list_priority"], [{"locationId": 6, "locationName": "Hyderabad / Secunderabad, Telangana"}])
-
-        self.assertEqual(job_pri["industry_list_priority"], [{"industryId": 140, "industryName": "Consumer Software"}])
-
-        self.assertEqual(len(job_pri["prioritySkills"]), 3)
-
-        self.assertEqual(job_pri["prioritySkills"][0]["skillName"], "Python")
+        # 6. Priority Filter Routing Object is completely omitted in new job posting payloads
+        self.assertNotIn("job_priority", payload)
 
 
 
@@ -1310,21 +1291,23 @@ class FounditPhase3BJobPostingTests(TestCase):
 
 
 
-    def test_1g_missing_owner_details_raises_validation_error(self):
+    def test_1g_missing_owner_details_omits_owner_fields_safely(self):
 
-        """Test 1g: Verify missing owner_name or owner_email raises FounditValidationError safely."""
+        """Test 1g: Verify missing owner_name or owner_email omits owner fields safely without failing."""
 
         creds = dict(self.mock_creds.return_value)
 
         creds["owner_email"] = ""
 
+        creds["owner_name"] = ""
+
         self.mock_creds.return_value = creds
 
-        with self.assertRaises(FounditValidationError) as ctx:
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
 
-            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
+        self.assertNotIn("ownerEmail", payload)
 
-        self.assertIn("owner_email", str(ctx.exception).lower())
+        self.assertNotIn("ownerName", payload)
 
 
 
@@ -1408,9 +1391,9 @@ class FounditPhase3BJobPostingTests(TestCase):
 
 
 
-    def test_1k_missing_salary_raises_validation_error(self):
+    def test_1k_missing_salary_omits_salary_fields_safely(self):
 
-        """Test 1k: Verify missing salary configuration raises FounditValidationError without assuming 0."""
+        """Test 1k: Verify missing salary configuration omits minSalary and maxSalary without assuming 0."""
 
         creds = dict(self.mock_creds.return_value)
 
@@ -1424,11 +1407,21 @@ class FounditPhase3BJobPostingTests(TestCase):
 
         self.mock_creds.return_value = creds
 
-        with self.assertRaises(FounditValidationError) as ctx:
-
-            FounditJobMapper.map_ats_job_to_foundit_payload(self.job)
-
-        self.assertIn("salary", str(ctx.exception).lower())
+        # Use an application without explicit budget in remarks
+        from applications.models import Application
+        job_no_budget = Application.objects.create(
+            candidate_name="",
+            position="Software Engineer",
+            technology="Python, Django",
+            city="Hyderabad",
+            state="Telangana",
+            remarks="General recruitment opening. Experience: 1-3 years.",
+            experience=1.0
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_no_budget)
+        self.assertNotIn("minSalary", payload)
+        self.assertNotIn("maxSalary", payload)
+        self.assertEqual(payload.get("salaryConfidential"), "1")
 
     def test_2_successful_job_posting_response(self):
 
@@ -2242,25 +2235,18 @@ Required Skills & Experience
 
 
 
-        # When neither ATS record nor creds has salary, raises FounditValidationError
-
+        # When neither ATS record nor creds has salary, salary fields are safely omitted
         creds = dict(self.mock_creds.return_value)
-
         creds["min_salary"] = ""
-
         creds["default_min_salary"] = ""
-
         creds["max_salary"] = ""
-
         creds["default_max_salary"] = ""
-
         self.mock_creds.return_value = creds
 
-        with self.assertRaises(FounditValidationError) as ctx:
-
-            FounditJobMapper.map_ats_job_to_foundit_payload(job_no_salary)
-
-        self.assertIn("salary", str(ctx.exception).lower())
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job_no_salary)
+        self.assertNotIn("minSalary", payload)
+        self.assertNotIn("maxSalary", payload)
+        self.assertEqual(payload.get("salaryConfidential"), "1")
 
 
 
@@ -12462,8 +12448,8 @@ class Foundit1985MasterRolesTests(TestCase):
                 self.assertEqual(industries[0]["industryId"], 140)
                 self.assertEqual(industries[0]["industryName"], "Consumer Software")
 
-    def test_03_unverified_functions_fail_closed_without_approved_job_industry(self):
-        """Verify Functions 1071 (Analytics), 1277 (UX), and 1249 (Digital Marketing) fail closed without approved job industry."""
+    def test_03_unverified_functions_succeed_with_omitted_industry(self):
+        """Verify Functions 1071 (Analytics), 1277 (UX), and 1249 (Digital Marketing) succeed with industryList omitted when no approved job industry is configured."""
         unverified_cases = [
             ("Data Analyst", "Analytics/Business Intelligence"),
             ("Interaction Designer", "Product Management/Product Development/UX"),
@@ -12473,24 +12459,22 @@ class Foundit1985MasterRolesTests(TestCase):
         for title, expected_func in unverified_cases:
             with self.subTest(title=title):
                 job = Application.objects.create(
-                   candidate_name="",
+                    candidate_name="",
                     position=title,
                     technology="Python, SQL",
-                   experience=4.0,
+                    experience=4.0,
                     city="Hyderabad",
                     state="Telangana",
                     country="India",
                     client_name="Analytics/UX Client",
                     remarks="Experience: 3-5 years. CTC: 8-12 LPA. Description: Analytical and design skills with Python."
                 )
-                with self.assertRaises(FounditValidationError) as ctx:
-                    FounditJobMapper.map_ats_job_to_foundit_payload(job)
-                err_msg = str(ctx.exception)
-                self.assertIn("has no verified Foundit industry mapping", err_msg)
-                self.assertIn("Cannot silently default to Consumer Software", err_msg)
+                payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+                self.assertNotIn("industryList", payload)
+                self.assertEqual(payload["roleList"][0]["functionName"], expected_func)
 
-    def test_04_non_it_roles_fail_closed_without_verified_industry(self):
-        """Verify non-IT master roles raise controlled FounditValidationError when industry mapping is unverified."""
+    def test_04_non_it_roles_succeed_with_omitted_industry(self):
+        """Verify non-IT master roles succeed with industryList omitted when industry mapping is unverified."""
         non_it_cases = [
             ("Cardiologist", "Health Care"),
             ("Radiologist", "Health Care"),
@@ -12504,18 +12488,17 @@ class Foundit1985MasterRolesTests(TestCase):
                 job = Application.objects.create(
                     candidate_name="",
                     position=title,
-                  technology="Python, SQL",
+                    technology="Python, SQL",
                     experience=5.0,
                     city="Hyderabad",
-                   state="Telangana",
+                    state="Telangana",
                     country="India",
                     client_name="Medical/Corp Client",
                     remarks="Experience: 5-8 years. CTC: 12-18 LPA. Description: General healthcare and operations skills with Python."
                 )
-                with self.assertRaises(FounditValidationError) as ctx:
-                    FounditJobMapper.map_ats_job_to_foundit_payload(job)
-                err_msg = str(ctx.exception)
-                self.assertIn("has no verified Foundit industry mapping", err_msg)
+                payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+                self.assertNotIn("industryList", payload)
+                self.assertEqual(payload["roleList"][0]["functionName"], expected_func)
 
     def test_05_approved_job_industry_allows_publishing(self):
         """Verify non-IT and unverified roles succeed when an approved explicit job industry is configured."""
@@ -12531,16 +12514,15 @@ class Foundit1985MasterRolesTests(TestCase):
         self.assertEqual(payload["industryList"][0]["industryName"], "Medical/Healthcare/Hospital")
 
     def test_06_tenant_global_defaults_cannot_bypass_safeguard(self):
-        """Verify tenant-global default industry (industry_id in creds) CANNOT bypass safeguard for unverified roles."""
+        """Verify tenant-global default industry (industry_id in creds) does not force IT industry onto unverified roles, omitting industryList cleanly."""
         self.mock_creds.return_value["industry_id"] = "140"
         self.mock_creds.return_value["industry_name"] = "Consumer Software"
         self.mock_creds.return_value.pop("job_industry_id", None)
         self.mock_creds.return_value.pop("explicit_industry_id", None)
 
-        with self.assertRaises(FounditValidationError) as ctx:
-            self._create_and_map_job("Data Analyst")
-        result_err = str(ctx.exception)
-        self.assertIn("Cannot silently default to Consumer Software (industryId 140) or use tenant-global defaults", result_err)
+        payload = self._create_and_map_job("Data Analyst")
+        self.assertNotIn("industryList", payload)
+        self.assertEqual(payload["roleList"][0]["functionName"], "Analytics/Business Intelligence")
 
     def test_07_ambiguous_role_fails_safely_with_controlled_error(self):
         """Verify role names appearing under multiple functions raise controlled FounditValidationError."""
@@ -12895,3 +12877,319 @@ class PublicJobDetailClosedPopupTests(TestCase):
         res = self.client.get(f'/api/public/jobs/{empty_remarks_job.id}/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['is_closed'], False)
+
+
+class FounditOptionalFieldsPostingTests(TestCase):
+    """
+    Automated regression suite verifying vendor-confirmed optional fields
+    for new Foundit job postings:
+    1. IT role with default industry ID 140.
+    2. Valid non-IT role without industry mapping.
+    3. Valid role with missing salary configuration.
+    4. Missing owner name and email.
+    5. Lean payload with all optional details unavailable.
+    6. Ambiguous role still raises FounditValidationError.
+    7. Unresolved role still raises FounditValidationError.
+    8. applicationsViaMail remains "0".
+    9. No null or empty optional values in serialized payload.
+    10. Contract job fields remain intact.
+    11. Salary validation safeguards still work (foreign currency, bill rate, monthly/hourly).
+    12. Both salary values are omitted together if salary is unavailable.
+    """
+
+    def setUp(self):
+        self.creds_patcher = patch("applications.integrations.foundit.mappers.get_foundit_credentials")
+        self.mock_creds = self.creds_patcher.start()
+        self.mock_creds.return_value = {
+            "username": "test_user",
+            "password": "test_password",
+            "corp_id": "188533",
+            "recruiter_id": "1220898",
+            "channel_id": "1",
+            "sub_channel_id": "1",
+            "company_name": "People Prime Worldwide",
+            "owner_name": "Test Owner",
+            "owner_email": "owner@people-prime.com",
+            "default_location_id": "6",
+            "default_location_name": "Hyderabad / Secunderabad, Telangana",
+            "default_industry_id": "140",
+            "default_industry_name": "Consumer Software",
+            "default_role_id": "734",
+            "default_role_name": "Software Engineer",
+            "default_function_name": "IT",
+            "default_min_salary": "500000",
+            "default_max_salary": "1000000",
+            "default_currency_id": "1",
+            "default_salary_confidential": "1",
+            "api_key": "test_key",
+        }
+
+    def tearDown(self):
+        self.creds_patcher.stop()
+
+    def test_01_it_role_with_default_industry_and_no_job_priority(self):
+        """1. IT role retains default industry ID 140 and completely omits job_priority."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Senior Java Developer",
+            technology="Java, Spring Boot",
+            experience=4.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 3-5 years. CTC: 8-14 LPA."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertIn("roleList", payload)
+        self.assertEqual(payload["roleList"][0]["roleName"], "Software Engineer")
+        self.assertIn("industryList", payload)
+        self.assertEqual(payload["industryList"][0]["industryId"], 140)
+        self.assertNotIn("job_priority", payload)
+        self.assertEqual(payload["applicationsViaMail"], "0")
+
+    def test_02_valid_non_it_role_without_industry_mapping(self):
+        """2. Valid non-IT role resolves role but omits industryList when no approved industry is configured."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Cardiologist",
+            technology="Python, SQL",
+            experience=6.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 5-8 years. CTC: 20-30 LPA."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertIn("roleList", payload)
+        self.assertEqual(payload["roleList"][0]["roleName"], "Cardiologist")
+        self.assertEqual(payload["roleList"][0]["functionName"], "Health Care")
+        self.assertNotIn("industryList", payload)
+        self.assertNotIn("job_priority", payload)
+
+    def test_03_valid_role_with_missing_salary_omits_both_salaries(self):
+        """3. Valid role with missing salary configuration omits minSalary and maxSalary together."""
+        self.mock_creds.return_value["min_salary"] = ""
+        self.mock_creds.return_value["default_min_salary"] = ""
+        self.mock_creds.return_value["max_salary"] = ""
+        self.mock_creds.return_value["default_max_salary"] = ""
+
+        job = Application.objects.create(
+            candidate_name="",
+            position="Python Developer",
+            technology="Python",
+            experience=2.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 2-4 years. General opening without budget."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertNotIn("minSalary", payload)
+        self.assertNotIn("maxSalary", payload)
+        self.assertEqual(payload.get("salaryConfidential"), "1")
+
+    def test_04_missing_owner_name_and_email_omits_fields(self):
+        """4. Missing owner name and email are omitted cleanly without validation error."""
+        self.mock_creds.return_value["owner_name"] = ""
+        self.mock_creds.return_value["owner_email"] = ""
+
+        job = Application.objects.create(
+            candidate_name="",
+            position="DevOps Engineer",
+            technology="Kubernetes",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 2-5 years. CTC: 10-15 LPA."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertNotIn("ownerName", payload)
+        self.assertNotIn("ownerEmail", payload)
+
+    def test_05_lean_payload_all_optional_details_unavailable(self):
+        """5. Lean payload with non-IT role, missing salary, and missing owner omits all optional fields."""
+        self.mock_creds.return_value["owner_name"] = ""
+        self.mock_creds.return_value["owner_email"] = ""
+        self.mock_creds.return_value["min_salary"] = ""
+        self.mock_creds.return_value["default_min_salary"] = ""
+        self.mock_creds.return_value["max_salary"] = ""
+        self.mock_creds.return_value["default_max_salary"] = ""
+
+        job = Application.objects.create(
+            candidate_name="",
+            position="Radiologist",
+            technology="Python, SQL",
+            experience=4.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 3-6 years. Departmental requirement."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+
+        # Core mandatory fields present
+        self.assertEqual(payload["title"], "Radiologist")
+        self.assertEqual(payload["status"], "save")
+        self.assertEqual(payload["applicationsViaMail"], "0")
+        self.assertEqual(payload["salaryConfidential"], "1")
+        self.assertIn("locationList", payload)
+        self.assertIn("skillList", payload)
+
+        # Optional fields omitted
+        self.assertNotIn("industryList", payload)
+        self.assertNotIn("job_priority", payload)
+        self.assertNotIn("minSalary", payload)
+        self.assertNotIn("maxSalary", payload)
+        self.assertNotIn("ownerName", payload)
+        self.assertNotIn("ownerEmail", payload)
+
+    def test_06_ambiguous_role_still_raises_foundit_validation_error(self):
+        """6. Ambiguous role (e.g. Chemist across multiple functions) still raises FounditValidationError."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Chemist",
+            technology="Chemical Research",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 2-4 years. CTC: 5-8 LPA."
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertIn("ambiguous across multiple official functions", str(ctx.exception))
+
+    def test_07_unresolved_role_still_raises_foundit_validation_error(self):
+        """7. Unresolved role without confirmed custom role ID fails closed."""
+        self.mock_creds.return_value["role_id"] = ""
+        self.mock_creds.return_value["default_role_id"] = ""
+
+        job = Application.objects.create(
+            candidate_name="",
+            position="Deep Sea Welder",
+            technology="Python",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 4-6 years. CTC: 12-18 LPA."
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertIn("unresolved foundit roleid", str(ctx.exception).lower())
+
+    def test_08_applications_via_mail_remains_zero(self):
+        """8. applicationsViaMail strictly remains '0' across all payload generations."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="QA Automation Engineer",
+            technology="Selenium",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 2-5 years. CTC: 6-10 LPA."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertEqual(payload.get("applicationsViaMail"), "0")
+
+    def test_09_no_null_or_empty_optional_values_in_serialized_payload(self):
+        """9. Serialized payload contains no null, empty string, or empty list for optional keys."""
+        import json
+        self.mock_creds.return_value["owner_name"] = ""
+        self.mock_creds.return_value["owner_email"] = ""
+        self.mock_creds.return_value["min_salary"] = ""
+        self.mock_creds.return_value["default_min_salary"] = ""
+        self.mock_creds.return_value["max_salary"] = ""
+        self.mock_creds.return_value["default_max_salary"] = ""
+
+        job = Application.objects.create(
+            candidate_name="",
+            position="Treasury Manager",
+            technology="Python, SQL",
+            experience=7.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 5-9 years."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        serialized = json.loads(json.dumps(payload))
+
+        for opt_key in ["job_priority", "industryList", "minSalary", "maxSalary", "ownerName", "ownerEmail"]:
+            self.assertNotIn(opt_key, serialized, f"Key {opt_key} should be omitted rather than empty/null")
+
+        for key, val in serialized.items():
+            self.assertIsNotNone(val, f"Field '{key}' has None value")
+            if isinstance(val, (str, list)):
+                self.assertTrue(len(val) > 0, f"Field '{key}' has empty value: {val!r}")
+
+    def test_10_contract_job_fields_remain_intact(self):
+        """10. Contract job fields and metadata remain completely preserved."""
+        job = Application.objects.create(
+            candidate_name="",
+            position="Contract React Developer",
+            technology="React, Redux",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks=(
+                "Job Type: Contract\n"
+                "Experience: 2-4 years.\n"
+                "CTC: 8-12 LPA.\n"
+                "Foundit Contract Billing Duration: per_month\n"
+                "Foundit Contract Tenure: up_to_6_month\n"
+                "Foundit Contract Joining Date: 2026-12-01"
+            )
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        self.assertEqual(payload["jobPostingType"], "CJP")
+        self.assertEqual(payload["jobType"], "contract")
+        self.assertEqual(payload["contractJobBillingDuration"], "per_month")
+        self.assertEqual(payload["contractJobContractTenure"], "up_to_6_month")
+        self.assertEqual(payload["contractJobJoiningDate"], "2026-12-01")
+
+    def test_11_salary_validation_safeguards_still_work(self):
+        """11. Salary validation safeguards (foreign currency, bill rate, hourly) still trigger errors."""
+        # Foreign currency
+        job_usd = Application.objects.create(
+            candidate_name="",
+            position="Python Engineer",
+            technology="Python",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 2-4 years. Salary: $80,000 USD."
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_usd)
+        self.assertIn("unsupported or foreign currency", str(ctx.exception).lower())
+
+        # Bill Rate without candidate salary
+        job_bill = Application.objects.create(
+            candidate_name="",
+            position="Python Engineer",
+            technology="Python",
+            experience=3.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 2-4 years. Client Bill Rate: 1500000."
+        )
+        with self.assertRaises(FounditValidationError) as ctx:
+            FounditJobMapper.map_ats_job_to_foundit_payload(job_bill)
+        self.assertIn("client bill rate cannot be used", str(ctx.exception).lower())
+
+    def test_12_both_salary_values_omitted_together(self):
+        """12. If salary is unavailable, neither minSalary nor maxSalary is sent independently."""
+        self.mock_creds.return_value["min_salary"] = ""
+        self.mock_creds.return_value["default_min_salary"] = ""
+        self.mock_creds.return_value["max_salary"] = ""
+        self.mock_creds.return_value["default_max_salary"] = ""
+
+        job = Application.objects.create(
+            candidate_name="",
+            position="Product Manager",
+            technology="Python, SQL",
+            experience=5.0,
+            city="Hyderabad",
+            state="Telangana",
+            remarks="Experience: 4-7 years. Disclosed later."
+        )
+        payload = FounditJobMapper.map_ats_job_to_foundit_payload(job)
+        has_min = "minSalary" in payload
+        has_max = "maxSalary" in payload
+        self.assertEqual(has_min, has_max, "minSalary and maxSalary must be present or absent together")
+        self.assertFalse(has_min)
+
