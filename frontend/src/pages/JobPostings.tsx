@@ -45,6 +45,7 @@ import { api } from '../services/api';
 import { DashboardCalendar, todayStr } from './dashboards/DashboardCalendar';
 import { Application, ApplicationStatus, CareerPortalApplicant } from '../types';
 import { getVisibleApplicantStatuses } from '../utils/statusVisibility';
+import { ExpandableSkills } from '../components/ExpandableSkills';
 
 const getRemarkField = (remarks: string | undefined | null, fieldName: string): string => {
   if (!remarks) return 'N/A';
@@ -1812,7 +1813,7 @@ Remarks: ${candidateForm.remarks}`;
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
-                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}><ExpandableSkills skills={pa.primary_skills} /></td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
@@ -2040,7 +2041,7 @@ Remarks: ${candidateForm.remarks}`;
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
-                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}><ExpandableSkills skills={pa.primary_skills} /></td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
@@ -2229,7 +2230,7 @@ Remarks: ${candidateForm.remarks}`;
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_company}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.current_ctc}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.expected_pay}</td>
-                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.primary_skills}</td>
+                                                <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}><ExpandableSkills skills={pa.primary_skills} /></td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.city}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{pa.state}</td>
                                                 <td style={{ padding: '4px 8px', fontSize: '0.7rem' }}>{formatDateDDMMYYYY(pa.created_at)}</td>
