@@ -585,3 +585,147 @@ class FounditResumePipelineRegressionTests(TestCase):
         self.assertEqual(applicant.resume, "s3://ats-resumestorage/foundit_APP_SPLIT_CONCAT.pdf")
         mock_s3.upload_fileobj.assert_called_once()
         self.assertEqual(uploaded_chunks[0], full_pdf)
+
+    # 21. DOCX resume download, validation, and S3 upload
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_docx_resume_download_and_s3_upload(self, mock_boto, mock_get):
+        import zipfile
+        docx_buf = io.BytesIO()
+        with zipfile.ZipFile(docx_buf, "w") as zf:
+            zf.writestr("word/document.xml", "<w:document><w:body><w:p><w:r><w:t>Candidate Resume</w:t></w:r></w:p></w:body></w:document>")
+        docx_bytes = docx_buf.getvalue()
+
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.iter_content.return_value = [docx_bytes]
+        mock_get.return_value.__enter__.return_value = mock_res
+
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+
+        app_dict = self._make_app_dict("APP_DOCX_TEST", "https://foundit.in/download/resume.docx")
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "s3://ats-resumestorage/foundit_APP_DOCX_TEST.docx")
+        mock_s3.upload_fileobj.assert_called_once()
+        kwargs = mock_s3.upload_fileobj.call_args[1]
+        self.assertEqual(kwargs.get("ExtraArgs", {}).get("ContentType"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+    # 22. GZIP-compressed DOCX resume download and decompression
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_gzip_docx_resume_decompressed_and_uploaded(self, mock_boto, mock_get):
+        import zipfile
+        docx_buf = io.BytesIO()
+        with zipfile.ZipFile(docx_buf, "w") as zf:
+            zf.writestr("word/document.xml", "<w:document><w:body><w:p><w:r><w:t>Gzip Resume</w:t></w:r></w:p></w:body></w:document>")
+        docx_gz = gzip.compress(docx_buf.getvalue())
+
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.iter_content.return_value = [docx_gz]
+        mock_get.return_value.__enter__.return_value = mock_res
+
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+
+        app_dict = self._make_app_dict("APP_GZIP_DOCX", "https://foundit.in/download/resume_gz.docx")
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "s3://ats-resumestorage/foundit_APP_GZIP_DOCX.docx")
+        mock_s3.upload_fileobj.assert_called_once()
+
+    # 23. Corrupted ZIP / non-Word DOCX falls back to URL
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_corrupted_docx_falls_back_to_url(self, mock_boto, mock_get):
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        # ZIP header PK\x03\x04 followed by corrupted garbage (not a valid zip)
+        mock_res.iter_content.return_value = [b"PK\x03\x04corrupted_zip_payload_data"]
+        mock_get.return_value.__enter__.return_value = mock_res
+
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+
+        app_dict = self._make_app_dict("APP_CORRUPT_DOCX", "https://foundit.in/download/corrupt.docx")
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "https://foundit.in/download/corrupt.docx")
+        mock_s3.upload_fileobj.assert_not_called()
+
+    # 24. Valid DOC (OLE compound document) resume download and S3 upload
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_doc_resume_download_and_s3_upload(self, mock_boto, mock_get):
+        ole_doc_bytes = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 512 + b"Microsoft Word 97-2003 Document Body Data"
+
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.iter_content.return_value = [ole_doc_bytes]
+        mock_get.return_value.__enter__.return_value = mock_res
+
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+
+        app_dict = self._make_app_dict("APP_DOC_TEST", "https://foundit.in/download/resume.doc")
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "s3://ats-resumestorage/foundit_APP_DOC_TEST.doc")
+        mock_s3.upload_fileobj.assert_called_once()
+        kwargs = mock_s3.upload_fileobj.call_args[1]
+        self.assertEqual(kwargs.get("ExtraArgs", {}).get("ContentType"), "application/msword")
+
+    # 25. GZIP-compressed DOC resume download and decompression
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_gzip_doc_resume_decompressed_and_uploaded(self, mock_boto, mock_get):
+        ole_doc_bytes = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 512 + b"Gzipped Microsoft Word Document"
+        ole_doc_gz = gzip.compress(ole_doc_bytes)
+
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.iter_content.return_value = [ole_doc_gz]
+        mock_get.return_value.__enter__.return_value = mock_res
+
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+
+        app_dict = self._make_app_dict("APP_GZIP_DOC", "https://foundit.in/download/resume_gz.doc")
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "s3://ats-resumestorage/foundit_APP_GZIP_DOC.doc")
+        mock_s3.upload_fileobj.assert_called_once()
+
+    # 26. Unsupported binary signature rejected safely and falls back to URL
+    @patch("requests.get")
+    @patch("boto3.client")
+    def test_unsupported_binary_signature_falls_back_to_url(self, mock_boto, mock_get):
+        unknown_bytes = b"\x7fELF\x02\x01\x01\x00LinuxExecutableData"
+
+        mock_res = MagicMock()
+        mock_res.status_code = 200
+        mock_res.iter_content.return_value = [unknown_bytes]
+        mock_get.return_value.__enter__.return_value = mock_res
+
+        mock_s3 = MagicMock()
+        mock_boto.return_value = mock_s3
+
+        app_dict = self._make_app_dict("APP_UNKNOWN_BIN", "https://foundit.in/download/resume.bin")
+        res = FounditCandidateIngestionService.ingest_candidate(app_dict)
+
+        self.assertTrue(res["success"])
+        applicant = CareerPortalApplicant.objects.get(id=res["applicant_id"])
+        self.assertEqual(applicant.resume, "https://foundit.in/download/resume.bin")
+        mock_s3.upload_fileobj.assert_not_called()

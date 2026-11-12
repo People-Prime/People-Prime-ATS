@@ -166,13 +166,39 @@ class FounditCandidateIngestionService:
                     logger.warning('[FounditIngestion] Downloaded resume is empty, falling back to URL.')
                     return resume_download_url
 
-                # Header Validation: Verify the uncompressed content is a valid PDF
+                # Multi-Format Header Validation: Support PDF, DOCX, and legacy DOC
                 temp_file.seek(0)
                 header_bytes = temp_file.read(1024)
-                # PDF specification: header %PDF- must appear in the first 1024 bytes
-                if not (header_bytes.startswith(b'%PDF-') or b'%PDF-' in header_bytes):
+
+                detected_ext = None
+                detected_content_type = None
+
+                # 1. PDF specification: header %PDF- must appear in the first 1024 bytes
+                if header_bytes.startswith(b'%PDF-') or b'%PDF-' in header_bytes:
+                    detected_ext = 'pdf'
+                    detected_content_type = 'application/pdf'
+                # 2. DOCX specification: ZIP archive starting with PK\x03\x04 and containing word/document.xml
+                elif header_bytes.startswith(b'PK\x03\x04'):
+                    import zipfile
+                    try:
+                        temp_file.seek(0)
+                        with zipfile.ZipFile(temp_file, 'r') as zf:
+                            if 'word/document.xml' in zf.namelist():
+                                detected_ext = 'docx'
+                                detected_content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                            else:
+                                logger.warning('[FounditIngestion] ZIP archive does not contain word/document.xml, falling back to URL.')
+                                return resume_download_url
+                    except Exception as ze:
+                        logger.warning(f'[FounditIngestion] Invalid or corrupted DOCX ZIP structure: {ze}, falling back to URL.')
+                        return resume_download_url
+                # 3. Legacy DOC specification: OLE Compound Document signature \xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1
+                elif header_bytes.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'):
+                    detected_ext = 'doc'
+                    detected_content_type = 'application/msword'
+                else:
                     logger.warning(
-                        f'[FounditIngestion] Downloaded resume does not have a valid PDF header '
+                        f'[FounditIngestion] Downloaded resume does not match supported PDF, DOCX, or DOC signatures '
                         f'(starts with {header_bytes[:16]!r}), falling back to URL.'
                     )
                     return resume_download_url
@@ -180,7 +206,7 @@ class FounditCandidateIngestionService:
                 # Rewind before upload
                 temp_file.seek(0)
 
-                filename = f'foundit_{foundit_app_id or target_job_id}.pdf'
+                filename = f'foundit_{foundit_app_id or target_job_id}.{detected_ext}'
                 s3_config = Config(connect_timeout=5, read_timeout=15, retries={'max_attempts': 2})
                 s3_client = boto3.client(
                     's3',
@@ -193,9 +219,9 @@ class FounditCandidateIngestionService:
                     temp_file,
                     bucket_name,
                     filename,
-                    ExtraArgs={'ContentType': 'application/pdf'}
+                    ExtraArgs={'ContentType': detected_content_type}
                 )
-                logger.info(f'[FounditIngestion] Successfully uploaded decoded PDF to s3://{bucket_name}/{filename} ({total_bytes} bytes).')
+                logger.info(f'[FounditIngestion] Successfully uploaded decoded {detected_ext.upper()} to s3://{bucket_name}/{filename} ({total_bytes} bytes).')
                 return f's3://{bucket_name}/{filename}'
 
         except Exception as e:

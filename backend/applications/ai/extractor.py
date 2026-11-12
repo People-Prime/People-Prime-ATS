@@ -74,10 +74,78 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
     paragraphs = [p.text for p in doc.paragraphs if p.text]
     return "\n".join(paragraphs).strip()
 
+def extract_text_from_doc(file_bytes: bytes) -> str:
+    """
+    Extracts plain text from legacy Microsoft Word (.doc) bytes via headless LibreOffice conversion to PDF,
+    then leverages PyMuPDF (fitz) for extraction. Cleans all temporary files and directories safely.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+    import uuid
+
+    soffice_bin = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice_bin:
+        logger.error("[AI Extractor] Neither 'soffice' nor 'libreoffice' executable found in system PATH. Cannot convert legacy .doc resume.")
+        return ""
+
+    with tempfile.TemporaryDirectory(prefix="doc_conv_") as temp_dir:
+        input_doc_path = os.path.join(temp_dir, f"input_{uuid.uuid4().hex[:8]}.doc")
+        with open(input_doc_path, "wb") as f:
+            f.write(file_bytes)
+
+        user_profile_dir = os.path.join(temp_dir, "libreoffice_profile")
+        os.makedirs(user_profile_dir, exist_ok=True)
+        user_profile_url = f"file:///{user_profile_dir.replace(os.sep, '/')}"
+
+        cmd = [
+            soffice_bin,
+            "--headless",
+            "--invisible",
+            "--nodefault",
+            "--nofirststartwizard",
+            "--nolockcheck",
+            "--nologo",
+            "--norestore",
+            f"-env:UserInstallation={user_profile_url}",
+            "--convert-to", "pdf",
+            "--outdir", temp_dir,
+            input_doc_path
+        ]
+
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False)
+            if res.returncode != 0:
+                logger.warning(f"[AI Extractor] LibreOffice conversion failed with return code {res.returncode}: {res.stderr.decode('utf-8', errors='ignore')[:300]}")
+                return ""
+
+            base_name = os.path.splitext(os.path.basename(input_doc_path))[0]
+            output_pdf_path = os.path.join(temp_dir, f"{base_name}.pdf")
+
+            if not os.path.exists(output_pdf_path):
+                logger.warning("[AI Extractor] LibreOffice exited cleanly but converted PDF output file was not found.")
+                return ""
+
+            with open(output_pdf_path, "rb") as pdf_file:
+                pdf_bytes = pdf_file.read()
+
+            if not pdf_bytes:
+                logger.warning("[AI Extractor] Converted PDF file from legacy .doc is empty.")
+                return ""
+
+            return extract_text_from_pdf(pdf_bytes)
+
+        except subprocess.TimeoutExpired:
+            logger.error("[AI Extractor] LibreOffice conversion timed out after 30 seconds.")
+            return ""
+        except Exception as e:
+            logger.error(f"[AI Extractor] Exception during legacy .doc conversion: {e.__class__.__name__}: {e}")
+            return ""
+
 def extract_resume_text(resume_path_or_url: str) -> str:
     """
     Extracts text from a candidate resume stored in S3.
-    Supports ONLY PDF and DOCX formats. All text is kept strictly in memory.
+    Supports PDF, DOCX, and legacy DOC formats. All text is kept strictly in memory.
     """
     try:
         file_bytes = get_s3_bytes_from_storage(resume_path_or_url)
@@ -93,8 +161,10 @@ def extract_resume_text(resume_path_or_url: str) -> str:
             return extract_text_from_pdf(file_bytes)
         elif url_lower.endswith(".docx"):
             return extract_text_from_docx(file_bytes)
+        elif url_lower.endswith(".doc"):
+            return extract_text_from_doc(file_bytes)
         else:
-            logger.error(f"[AI Extractor] Unsupported file format for resume '{resume_path_or_url}'. Only PDF and DOCX are supported.")
+            logger.error(f"[AI Extractor] Unsupported file format for resume '{resume_path_or_url}'. Only PDF, DOCX, and DOC are supported.")
             return ""
 
     except Exception:
