@@ -61,6 +61,64 @@ class AITaskSafetyTests(TestCase):
             res = score_applicant_resume_task(999)
             self.assertIsNone(res)
 
+    def test_doc_and_docx_ai_extractor_and_service(self):
+        """Verifies text extraction and AI scoring support for DOC, DOCX, and PDF formats."""
+        import os
+        import subprocess
+        from applications.ai.extractor import extract_text_from_doc, extract_text_from_docx, extract_resume_text
+
+        # 1. Missing LibreOffice handled gracefully
+        with patch("shutil.which", return_value=None):
+            text = extract_text_from_doc(b"\xd0\xcf\x11\xe0FakeDocBytes")
+            self.assertEqual(text, "")
+
+        # 2. LibreOffice conversion success with PyMuPDF mock
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        with patch("shutil.which", return_value="/usr/bin/soffice"), \
+             patch("subprocess.run", return_value=mock_proc) as mock_run, \
+             patch("applications.ai.extractor.extract_text_from_pdf", return_value="Extracted DOC Resume Text") as mock_pdf_ext:
+
+            # Create side effect that writes output pdf file in temp_dir
+            def fake_soffice_run(cmd, **kwargs):
+                temp_dir = cmd[cmd.index("--outdir") + 1]
+                input_path = cmd[-1]
+                base_name = os.path.splitext(os.path.basename(input_path))[0]
+                out_pdf = os.path.join(temp_dir, f"{base_name}.pdf")
+                with open(out_pdf, "wb") as f:
+                    f.write(b"%PDF-1.4\nConvertedPDFContent")
+                return mock_proc
+
+            mock_run.side_effect = fake_soffice_run
+            res_text = extract_text_from_doc(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1ValidDOCBytes")
+            self.assertEqual(res_text, "Extracted DOC Resume Text")
+            mock_pdf_ext.assert_called_once()
+
+        # 3. LibreOffice conversion timeout
+        with patch("shutil.which", return_value="/usr/bin/soffice"), \
+             patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="soffice", timeout=30)):
+            text = extract_text_from_doc(b"\xd0\xcf\x11\xe0ValidDOCBytes")
+            self.assertEqual(text, "")
+
+        # 4. LibreOffice conversion failure return code
+        mock_fail = MagicMock()
+        mock_fail.returncode = 1
+        mock_fail.stderr = b"Error: password protected"
+        with patch("shutil.which", return_value="/usr/bin/soffice"), \
+             patch("subprocess.run", return_value=mock_fail):
+            text = extract_text_from_doc(b"\xd0\xcf\x11\xe0PasswordProtectedDoc")
+            self.assertEqual(text, "")
+
+        # 5. extract_resume_text dispatcher for .doc, .docx, and .pdf
+        with patch("applications.ai.extractor.get_s3_bytes_from_storage", return_value=b"DummyBytes"), \
+             patch("applications.ai.extractor.extract_text_from_pdf", return_value="PDF text"), \
+             patch("applications.ai.extractor.extract_text_from_docx", return_value="DOCX text"), \
+             patch("applications.ai.extractor.extract_text_from_doc", return_value="DOC text"):
+            self.assertEqual(extract_resume_text("s3://bucket/foundit_1.pdf"), "PDF text")
+            self.assertEqual(extract_resume_text("s3://bucket/foundit_2.docx"), "DOCX text")
+            self.assertEqual(extract_resume_text("s3://bucket/foundit_3.doc"), "DOC text")
+            self.assertEqual(extract_resume_text("s3://bucket/foundit_4.exe"), "")
+
 
 from rest_framework.test import APIRequestFactory, force_authenticate
 

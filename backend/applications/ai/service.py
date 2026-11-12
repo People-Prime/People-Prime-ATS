@@ -2,7 +2,12 @@ import logging
 import hashlib
 from django.utils import timezone
 from applications.models import CareerPortalApplicant
-from applications.ai.extractor import get_s3_bytes_from_storage, extract_text_from_pdf, extract_text_from_docx
+from applications.ai.extractor import (
+    get_s3_bytes_from_storage,
+    extract_text_from_pdf,
+    extract_text_from_docx,
+    extract_text_from_doc,
+)
 from applications.ai.embeddings import generate_embedding
 from applications.ai.scorer import calculate_match_score
 
@@ -98,6 +103,8 @@ def process_applicant_ai_match(applicant_id: int) -> float:
                 resume_text = extract_text_from_pdf(file_bytes)
             elif url_lower.endswith(".docx"):
                 resume_text = extract_text_from_docx(file_bytes)
+            elif url_lower.endswith(".doc"):
+                resume_text = extract_text_from_doc(file_bytes)
             else:
                 logger.error(f"[AI Service] Unsupported file format for resume '{applicant.resume}'.")
                 return None
@@ -136,6 +143,8 @@ def process_applicant_ai_match(applicant_id: int) -> float:
                 resume_text = extract_text_from_pdf(file_bytes)
             elif url_lower.endswith(".docx"):
                 resume_text = extract_text_from_docx(file_bytes)
+            elif url_lower.endswith(".doc"):
+                resume_text = extract_text_from_doc(file_bytes)
                 
         hybrid_results = calculate_hybrid_score(job, applicant, resume_text, semantic_score)
 
