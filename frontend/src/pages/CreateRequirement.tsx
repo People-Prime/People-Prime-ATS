@@ -1448,8 +1448,12 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
               variant="outlined"
               color="warning"
               onClick={() => {
+                const targetJobId = postSaveActionJobId;
                 setPostSaveActionJobId(null);
-                // Dismiss modal and keep recruiter on form to fix errors
+
+                if (targetJobId) {
+                  navigate(`/applications/create/${targetJobId}`);
+                }
               }}
             >
               Edit Job Details to Fix Error
