@@ -1390,7 +1390,11 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
       {/* Post-Save Foundit Validation & Publishing Action Dialog */}
       <Dialog
         open={Boolean(postSaveActionJobId)}
-        onClose={() => {
+        disableEscapeKeyDown
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick' || reason === 'escapeKeyDown') {
+            return;
+          }
           setPostSaveActionJobId(null);
           navigate('/job-postings');
         }}

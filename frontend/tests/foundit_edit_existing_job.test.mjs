@@ -60,4 +60,28 @@ describe('Foundit Validation Failure Edit Button & Navigation Regression Tests',
       'Must set postSaveActionJobId to the existing applicationId to allow re-validating against Foundit'
     );
   });
+
+  test('Test 6: Post-save Foundit dialog has disableEscapeKeyDown enabled', () => {
+    assert.match(
+      fileContent,
+      /<Dialog[\s\S]*?open=\{Boolean\(postSaveActionJobId\)\}[\s\S]*?disableEscapeKeyDown/,
+      'Post-save Foundit Dialog must set disableEscapeKeyDown to prevent closing on Escape key'
+    );
+  });
+
+  test('Test 7: Post-save Foundit dialog ignores backdropClick and escapeKeyDown in onClose', () => {
+    assert.match(
+      fileContent,
+      /onClose=\{\(_event,\s*reason\)\s*=>\s*\{[\s\S]*?if\s*\(\s*reason === 'backdropClick'\s*\|\|\s*reason === 'escapeKeyDown'\s*\)\s*\{\s*return;\s*\}[\s\S]*?setPostSaveActionJobId\(null\);[\s\S]*?navigate\('\/job-postings'\);[\s\S]*?\}\}/,
+      'Post-save Foundit Dialog onClose must ignore backdropClick and escapeKeyDown reasons'
+    );
+  });
+
+  test('Test 8: Done / View Job Postings button explicitly closes modal and navigates without re-saving', () => {
+    assert.match(
+      fileContent,
+      /<Button[\s\S]*?onClick=\{\(\)\s*=>\s*\{[\s\S]*?setPostSaveActionJobId\(null\);[\s\S]*?navigate\('\/job-postings'\);[\s\S]*?\}\}[\s\S]*?>\s*Done \/ View Job Postings\s*<\/Button>/,
+      'Done / View Job Postings button must explicitly close modal and navigate to /job-postings'
+    );
+  });
 });
