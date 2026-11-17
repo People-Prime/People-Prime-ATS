@@ -84,4 +84,18 @@ describe('Foundit Validation Failure Edit Button & Navigation Regression Tests',
       'Done / View Job Postings button must explicitly close modal and navigate to /job-postings'
     );
   });
+
+  test('Test 9: Dry Run button is removed while Live publishing remains available', () => {
+    assert.equal(
+      fileContent.includes('Publish to Foundit (Dry Run)'),
+      false,
+      'Dry Run button must not appear in the Foundit dialog'
+    );
+
+    assert.match(
+      fileContent,
+      /founditValidationResult\?\.valid\s*&&\s*\([\s\S]*?<Button[\s\S]*?onClick=\{\(\)\s*=>\s*setConfirmLiveFounditOpen\(true\)\}[\s\S]*?>\s*Publish Live to Foundit\s*<\/Button>[\s\S]*?\)/,
+      'Live publishing button must remain available after successful validation'
+    );
+  });
 });

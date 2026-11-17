@@ -1485,25 +1485,14 @@ FileName: ${formData.fileName || 'No document uploaded'}`;
           </Button>
 
           {founditValidationResult?.valid && (
-            <>
-              <Button
-                variant="contained"
-                color="success"
-                disabled={publishingFoundit || !postSaveActionJobId}
-                onClick={() => postSaveActionJobId && handlePublishFoundit(postSaveActionJobId, true)}
-                startIcon={publishingFoundit ? <CircularProgress size={16} color="inherit" /> : null}
-              >
-                {publishingFoundit ? 'Validating...' : 'Publish to Foundit (Dry Run)'}
-              </Button>
-              <Button
-                variant="contained"
-                color="warning"
-                disabled={publishingFoundit || !postSaveActionJobId || founditPublishResult?.success === true}
-                onClick={() => setConfirmLiveFounditOpen(true)}
-              >
-                Publish Live to Foundit
-              </Button>
-            </>
+            <Button
+              variant="contained"
+              color="warning"
+              disabled={publishingFoundit || !postSaveActionJobId || founditPublishResult?.success === true}
+              onClick={() => setConfirmLiveFounditOpen(true)}
+            >
+              Publish Live to Foundit
+            </Button>
           )}
         </DialogActions>
       </Dialog>
